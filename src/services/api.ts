@@ -2,31 +2,27 @@ import axios from 'axios'
 import { useAuthStore } from '../store/authStore'
 
 // Helper function to get backend URL
-// If VITE_API_BASE_URL is set, use it
-// Otherwise, detect if we're accessing via IP and use the same IP for backend
 function getApiBaseUrl(): string {
-  const envUrl = import.meta.env.VITE_API_BASE_URL
-  
-  if (envUrl && !envUrl.includes('localhost')) {
-    // If VITE_API_BASE_URL is set and not localhost, use it
-    return envUrl
+  // Priority: VITE_API_URL > VITE_BACKEND_URL > VITE_API_BASE_URL
+  const envUrl = import.meta.env.VITE_API_URL ||
+    import.meta.env.VITE_BACKEND_URL ||
+    import.meta.env.VITE_API_BASE_URL
+
+  // If environment variable is set and valid (not localhost fallback needed)
+  if (envUrl && envUrl.startsWith('http')) {
+    // Ensure it ends with /api
+    const baseUrl = envUrl.endsWith('/api') ? envUrl : `${envUrl}/api`
+    console.log('🌐 Using API URL from env:', baseUrl)
+    return baseUrl
   }
-  
-  // Check if we're accessing via IP address (not localhost)
-  const currentHost = window.location.hostname
-  const currentPort = window.location.port || '3000'
-  
-  // If accessing via IP (not localhost or 127.0.0.1), use same IP for backend
-  if (currentHost !== 'localhost' && currentHost !== '127.0.0.1' && currentHost !== '') {
-    // Use same IP but backend port (3001)
-    return `http://${currentHost}:3001/api`
-  }
-  
-  // Default to localhost
-  return envUrl || 'http://localhost:3001/api'
+
+  // Development fallback - localhost
+  console.log('🌐 Using localhost API URL')
+  return 'http://localhost:3001/api'
 }
 
 const API_BASE_URL = getApiBaseUrl()
+
 
 const api = axios.create({
   baseURL: API_BASE_URL,
