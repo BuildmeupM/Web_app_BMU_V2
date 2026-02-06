@@ -37,13 +37,25 @@ const PORT = process.env.PORT || 3001
 const HOST = process.env.HOST || '0.0.0.0' // Use 0.0.0.0 to allow access from any IP address
 const CORS_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:5173'
 
-// CORS origin function to allow both localhost and IP addresses in development
-const corsOriginFunction = (origin, callback) => {
-  // In development, allow requests from localhost and any IP address
-  if (process.env.NODE_ENV === 'development') {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true)
+// Parse CORS origins - support multiple origins separated by comma
+const parseCorsOrigins = () => {
+  const origins = CORS_ORIGIN.split(',').map(o => o.trim()).filter(Boolean)
+  console.log('🌐 Configured CORS origins:', origins)
+  return origins
+}
 
+const allowedOrigins = parseCorsOrigins()
+
+// CORS origin function to allow both localhost and IP addresses in development
+// and configured origins in production
+const corsOriginFunction = (origin, callback) => {
+  // Allow requests with no origin (like mobile apps, curl, or server-to-server)
+  if (!origin) {
+    return callback(null, true)
+  }
+
+  // In development, allow more flexibility
+  if (process.env.NODE_ENV === 'development') {
     // Allow localhost on any port
     if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
       return callback(null, true)
@@ -55,12 +67,14 @@ const corsOriginFunction = (origin, callback) => {
     }
   }
 
-  // In production, use configured CORS_ORIGIN
-  if (origin === CORS_ORIGIN) {
-    callback(null, true)
-  } else {
-    callback(new Error('Not allowed by CORS'))
+  // Check against allowed origins (works for both dev and prod)
+  if (allowedOrigins.includes(origin) || allowedOrigins.includes('*')) {
+    return callback(null, true)
   }
+
+  // Log rejected origin for debugging
+  console.warn('⚠️ CORS rejected origin:', origin, '| Allowed:', allowedOrigins)
+  callback(new Error('Not allowed by CORS'))
 }
 
 // CORS origin for Socket.io (can be a function or string/array)
@@ -69,7 +83,7 @@ const socketIoOrigin = process.env.NODE_ENV === 'development'
     // In development, allow all origins
     callback(null, true)
   }
-  : CORS_ORIGIN
+  : allowedOrigins.length > 1 ? allowedOrigins : CORS_ORIGIN
 
 // Create HTTP server from Express app
 const httpServer = createServer(app)
@@ -171,10 +185,10 @@ app.use(
   })
 )
 
-// CORS
+// CORS - use corsOriginFunction for both dev and prod
 app.use(
   cors({
-    origin: process.env.NODE_ENV === 'development' ? corsOriginFunction : CORS_ORIGIN,
+    origin: corsOriginFunction,
     credentials: true,
   })
 )
