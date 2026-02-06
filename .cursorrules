@@ -1,0 +1,133 @@
+---
+description: 
+alwaysApply: true
+---
+
+---
+description: 
+alwaysApply: true
+---
+
+# Cursor AI Agent Rules - BMU Work Management System
+
+## 🚨 CRITICAL: Read Documentation First
+
+**ทุกครั้งที่ทำงาน ต้องอ่าน Documentation ตามลำดับนี้:**
+
+1. **Documentation/Agent_cursor_ai/AGENT.md** - อ่านก่อนทุกครั้ง
+   - กำหนดทิศทางและมาตรฐานของโปรเจกต์
+   - Tech Stack, Design Guidelines, Roles, Features
+   - Security Guidelines, Best Practices
+
+2. **Documentation/Agent_cursor_ai/BUG_FIXES.md** - อ่านเมื่อพบปัญหาหรือกำลังแก้ไขบัค
+   - ประวัติการแก้ไขบัคทั้งหมด
+   - สาเหตุของปัญหาและวิธีแก้ไข
+   - ตรวจสอบว่ามีปัญหาเดิมหรือไม่ก่อนแก้ไข
+
+3. **Documentation/Agent_cursor_ai/TEST_LOG.md** - อ่านเมื่อเขียนหรือรัน Test หรือก่อนแก้ไขโค้ด
+   - ประวัติการทดสอบ Unit Test ทั้งหมด
+   - บัคที่พบระหว่างการทดสอบ
+   - Test Coverage ของแต่ละส่วน
+   - ตรวจสอบว่ามีบัคที่พบจากการทดสอบหรือไม่ก่อนแก้ไขโค้ด
+
+4. **Documentation/Project_structure/** - อ่านเพื่อเข้าใจโครงสร้าง
+   - structure.md - โครงสร้างโฟลเดอร์และไฟล์
+   - architecture.md - สถาปัตยกรรมระบบ
+
+5. **Documentation/Database/** - อ่านเมื่อพัฒนา Backend/API
+   - schema.md - โครงสร้างตาราง
+   - relationships.md - ความสัมพันธ์ระหว่างตาราง
+   - guide.md - คู่มือการใช้งาน Database
+
+6. **Documentation/API/API_INDEX.md** - **บังคับอ่านก่อนสร้าง Feature ใหม่ทุกครั้ง**
+   - รวบรวม API endpoints ทั้งหมดที่มีอยู่
+   - ป้องกันการสร้าง API ซ้ำซ้อน
+   - ตรวจสอบว่า API ที่ต้องการมีอยู่แล้วหรือไม่ก่อนสร้างใหม่
+   - ถ้ามี API อยู่แล้ว ให้ใช้ API ที่มีอยู่แทนการสร้างใหม่
+   - ถ้ายังไม่มี ให้สร้างใหม่และอัพเดท API_INDEX.md ทันที
+
+7. **Documentation/Guidebook_for_page/** - อ่านสำหรับหน้าที่กำลังพัฒนา
+   - README.md - Index ของทุกหน้า
+   - [PageName].md - รายละเอียดของหน้าที่กำลังพัฒนา
+
+## 📋 Project Context
+
+- **Project Name**: BMU Work Management System
+- **Type**: Full Stack Web Application
+- **Tech Stack**: React + TypeScript + Vite + Mantine
+- **Backend**: Node.js/Express หรือ PHP Laravel (แนะนำ)
+- **Database**: MySQL
+
+## 🎯 Development Guidelines
+
+### Before Starting Work
+1. ✅ Read `Documentation/Agent_cursor_ai/AGENT.md`
+2. ✅ Check `Documentation/Agent_cursor_ai/BUG_FIXES.md` if fixing bugs or encountering issues
+3. ✅ Check `Documentation/Agent_cursor_ai/TEST_LOG.md` before modifying code to see if there are bugs found during testing
+4. ✅ Read relevant `Documentation/Guidebook_for_page/[Page].md`
+5. ✅ Understand project structure from `Documentation/Project_structure/`
+
+### When Fixing Bugs
+- ✅ Check `BUG_FIXES.md` first to see if similar issues were fixed before
+- ✅ Check `TEST_LOG.md` to see if bugs were found during testing
+- ✅ After fixing a bug, immediately document it in `BUG_FIXES.md`
+- ✅ Include: problem description, root cause, solution, files changed
+- ✅ Update bug statistics in `BUG_FIXES.md`
+
+### When Writing or Running Tests
+- ✅ Check `TEST_LOG.md` to see what has been tested and what bugs were found
+- ✅ Check `BUG_FIXES.md` to understand bugs that were fixed related to the code being tested
+- ✅ After running tests, immediately document results in `TEST_LOG.md`
+- ✅ Include: test case description, test results, bugs found, test files, source files
+- ✅ If bugs are found during testing, document them in `BUG_FIXES.md` as well
+- ✅ Update test coverage summary in `TEST_LOG.md`
+
+### While Working
+- ✅ Follow Design Guidelines from AGENT.md
+- ✅ Use Mantine Components
+- ✅ Follow TypeScript best practices
+- ✅ Implement Role-based Access Control
+- ✅ Add proper error handling
+- ✅ Add loading states
+- ✅ Make it responsive
+
+### Code Standards
+- ✅ Use TypeScript strictly
+- ✅ Follow existing code structure
+- ✅ Use Mantine UI components
+- ✅ Implement proper error handling
+- ✅ Add comments for complex logic
+- ✅ Follow naming conventions
+
+## 🔐 Security Requirements
+
+- ✅ Input Validation
+- ✅ XSS Prevention
+- ✅ Secure Authentication
+- ✅ Role-based Authorization
+- ✅ No sensitive data in localStorage
+
+## 🎨 Design Requirements
+
+- ✅ Primary Color: Orange (#ff6b35, #ff8c42)
+- ✅ Font: Kanit (Thai), Arial (English)
+- ✅ Responsive Design
+- ✅ Clean and Modern UI
+- ✅ Consistent Design System
+
+## 📝 Important Notes
+
+- ✅ Always read Documentation before starting
+- ✅ Check BUG_FIXES.md when encountering issues or fixing bugs
+- ✅ Check TEST_LOG.md before modifying code to avoid bugs found during testing
+- ✅ Document bug fixes in BUG_FIXES.md immediately after fixing
+- ✅ Document test results in TEST_LOG.md immediately after running tests
+- ✅ If bugs are found during testing, document them in both TEST_LOG.md and BUG_FIXES.md
+- ✅ Ask if requirements are unclear
+- ✅ Explain code you create
+- ✅ Suggest best practices
+- ✅ Refactor when possible
+
+---
+
+**Remember: Documentation is the single source of truth!**

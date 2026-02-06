@@ -1,0 +1,64 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Kanit', 'Arial', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+.sidebar-nav-link[data-active="true"] {
+  background-color: #fff4e6 !important;
+  color: #e55a2b !important;
+  font-weight: 600 !important;
+}
+
+/* Tax Inspection Form Tabs */
+.tax-tab-general {
+  background-color: #4facfe !important;
+  color: white !important;
+}
+
+.tax-tab-general:hover {
+  background-color: #3d9ae8 !important;
+}
+
+.tax-tab-general[data-active="true"] {
+  background-color: #4facfe !important;
+  color: white !important;
+}
+
+.tax-tab-vat {
+  background-color: #ff6b35 !important;
+  color: white !important;
+}
+
+.tax-tab-vat:hover {
+  background-color: #ff8c42 !important;
+}
+
+.tax-tab-vat[data-active="true"] {
+  background-color: #ff6b35 !important;
+  color: white !important;
+}
+
+.tax-tab-debtor {
+  background-color: #4caf50 !important;
+  color: white !important;
+}
+
+.tax-tab-debtor:hover {
+  background-color: #45a049 !important;
+}
+
+.tax-tab-debtor[data-active="true"] {
+  background-color: #4caf50 !important;
+  color: white !important;
+}
