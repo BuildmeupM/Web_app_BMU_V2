@@ -88,10 +88,8 @@ export default function EmployeeForm({
           : !/^\d{13}$/.test(value.replace(/-/g, ''))
             ? 'รหัสบัตรประชาชนต้องเป็นตัวเลข 13 หลัก'
             : null,
-      gender: (value) => (!value ? 'กรุณาเลือกเพศ' : null),
       first_name: (value) => (!value ? 'กรุณากรอกชื่อจริง' : null),
       last_name: (value) => (!value ? 'กรุณากรอกนามสกุล' : null),
-      hire_date: (value) => (!value ? 'กรุณาเลือกวันเริ่มงาน' : null),
       personal_email: (value) =>
         value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) ? 'รูปแบบอีเมลไม่ถูกต้อง' : null,
       company_email: (value) =>
@@ -288,7 +286,6 @@ export default function EmployeeForm({
                       <Select
                         label="เพศ"
                         placeholder="เลือกเพศ"
-                        withAsterisk
                         disabled={!isAdmin && isEditMode}
                         data={[
                           { value: 'male', label: 'ชาย' },

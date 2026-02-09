@@ -234,6 +234,7 @@ export default function EmployeeManagement() {
       }
     } catch (error) {
       console.error('Form submit error:', error)
+      throw error
     }
   }
 

@@ -93,7 +93,7 @@ async function resetMonthlyData(build, year, month, assignment) {
         document_entry_responsible, original_document_entry_responsible, current_document_entry_responsible,
         wht_filer_employee_id, original_wht_filer_employee_id,
         vat_filer_employee_id, original_vat_filer_employee_id
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         monthlyTaxDataId,
         build,
@@ -840,6 +840,18 @@ router.post('/bulk-create', authenticateToken, authorize('admin'), async (req, r
             const year = parseInt(assignment.assignment_year)
             const month = parseInt(assignment.assignment_month)
 
+            // ✅ FIX: Sanitize employee IDs - convert empty strings/whitespace to null
+            const sanitize = (value) => {
+              if (!value || (typeof value === 'string' && value.trim() === '')) return null
+              return String(value).trim()
+            }
+
+            const acct = sanitize(assignment.accounting_responsible)
+            const taxInsp = sanitize(assignment.tax_inspection_responsible)
+            const whtFiler = sanitize(assignment.wht_filer_responsible)
+            const vatFiler = sanitize(assignment.vat_filer_responsible)
+            const docEntry = sanitize(assignment.document_entry_responsible)
+
             // Check if client exists
             const [clients] = await pool.execute(
               'SELECT id FROM clients WHERE build = ? AND deleted_at IS NULL',
@@ -854,6 +866,36 @@ router.post('/bulk-create', authenticateToken, authorize('admin'), async (req, r
               })
               continue
             }
+
+            // ✅ FIX: Validate employee IDs exist in employees table
+            const empFieldsToCheck = [
+              { name: 'accounting_responsible', value: acct },
+              { name: 'tax_inspection_responsible', value: taxInsp },
+              { name: 'wht_filer_responsible', value: whtFiler },
+              { name: 'vat_filer_responsible', value: vatFiler },
+              { name: 'document_entry_responsible', value: docEntry },
+            ]
+
+            let hasInvalidEmployee = false
+            for (const field of empFieldsToCheck) {
+              if (field.value) {
+                const [empCheck] = await pool.execute(
+                  'SELECT employee_id FROM employees WHERE employee_id = ?',
+                  [field.value]
+                )
+                if (empCheck.length === 0) {
+                  results.failed++
+                  results.errors.push({
+                    build,
+                    error: `ไม่พบพนักงาน ${field.name}=${field.value} ในระบบ`,
+                  })
+                  hasInvalidEmployee = true
+                  break
+                }
+              }
+            }
+
+            if (hasInvalidEmployee) continue
 
             // Check if assignment already exists
             const [existingAssignments] = await pool.execute(
@@ -890,21 +932,21 @@ router.post('/bulk-create', authenticateToken, authorize('admin'), async (req, r
                 build,
                 year,
                 month,
-                assignment.accounting_responsible || null,
-                assignment.accounting_responsible || null, // original_accounting_responsible
-                assignment.accounting_responsible || null, // current_accounting_responsible
-                assignment.tax_inspection_responsible || null,
-                assignment.tax_inspection_responsible || null, // original_tax_inspection_responsible
-                assignment.tax_inspection_responsible || null, // current_tax_inspection_responsible
-                assignment.wht_filer_responsible || null,
-                assignment.wht_filer_responsible || null, // original_wht_filer_responsible
-                assignment.wht_filer_responsible || null, // current_wht_filer_responsible
-                assignment.vat_filer_responsible || null,
-                assignment.vat_filer_responsible || null, // original_vat_filer_responsible
-                assignment.vat_filer_responsible || null, // current_vat_filer_responsible
-                assignment.document_entry_responsible || null,
-                assignment.document_entry_responsible || null, // original_document_entry_responsible
-                assignment.document_entry_responsible || null, // current_document_entry_responsible
+                acct,
+                acct, // original_accounting_responsible
+                acct, // current_accounting_responsible
+                taxInsp,
+                taxInsp, // original_tax_inspection_responsible
+                taxInsp, // current_tax_inspection_responsible
+                whtFiler,
+                whtFiler, // original_wht_filer_responsible
+                whtFiler, // current_wht_filer_responsible
+                vatFiler,
+                vatFiler, // original_vat_filer_responsible
+                vatFiler, // current_vat_filer_responsible
+                docEntry,
+                docEntry, // original_document_entry_responsible
+                docEntry, // current_document_entry_responsible
                 userId,
                 assignedAt,
                 assignment.assignment_note || null,
@@ -1035,13 +1077,20 @@ router.post('/', authenticateToken, authorize('admin'), async (req, res) => {
       build,
       assignment_year,
       assignment_month,
-      accounting_responsible,
-      tax_inspection_responsible,
-      wht_filer_responsible,
-      vat_filer_responsible,
-      document_entry_responsible,
       assignment_note,
     } = req.body
+
+    // ✅ FIX: Sanitize employee IDs - convert empty strings/whitespace to null
+    const sanitizeEmployeeId = (value) => {
+      if (!value || (typeof value === 'string' && value.trim() === '')) return null
+      return String(value).trim()
+    }
+
+    const accounting_responsible = sanitizeEmployeeId(req.body.accounting_responsible)
+    const tax_inspection_responsible = sanitizeEmployeeId(req.body.tax_inspection_responsible)
+    const wht_filer_responsible = sanitizeEmployeeId(req.body.wht_filer_responsible)
+    const vat_filer_responsible = sanitizeEmployeeId(req.body.vat_filer_responsible)
+    const document_entry_responsible = sanitizeEmployeeId(req.body.document_entry_responsible)
 
     // Validation
     if (!build || !assignment_year || !assignment_month) {
@@ -1079,6 +1128,40 @@ router.post('/', authenticateToken, authorize('admin'), async (req, res) => {
       })
     }
 
+    // ✅ FIX: Validate employee IDs exist in employees table before INSERT
+    const employeeFields = [
+      { name: 'accounting_responsible', value: accounting_responsible },
+      { name: 'tax_inspection_responsible', value: tax_inspection_responsible },
+      { name: 'wht_filer_responsible', value: wht_filer_responsible },
+      { name: 'vat_filer_responsible', value: vat_filer_responsible },
+      { name: 'document_entry_responsible', value: document_entry_responsible },
+    ]
+
+    const invalidEmployees = []
+    for (const field of employeeFields) {
+      if (field.value) {
+        const [empRows] = await pool.execute(
+          'SELECT employee_id, full_name FROM employees WHERE employee_id = ?',
+          [field.value]
+        )
+        if (empRows.length === 0) {
+          invalidEmployees.push({
+            field: field.name,
+            employee_id: field.value,
+          })
+        }
+      }
+    }
+
+    if (invalidEmployees.length > 0) {
+      console.error('Invalid employee IDs found:', invalidEmployees)
+      return res.status(400).json({
+        success: false,
+        message: `ไม่พบพนักงานในระบบ: ${invalidEmployees.map(e => `${e.field}=${e.employee_id}`).join(', ')}`,
+        invalidEmployees,
+      })
+    }
+
     // Check if assignment already exists
     const [existingAssignments] = await pool.execute(
       'SELECT id FROM work_assignments WHERE build = ? AND assignment_year = ? AND assignment_month = ? AND deleted_at IS NULL',
@@ -1098,6 +1181,16 @@ router.post('/', authenticateToken, authorize('admin'), async (req, res) => {
 
     // Create work assignment
     // Set original_* and current_* to the assigned values when creating new assignment
+    // ✅ FIX: Values are already sanitized above (empty strings → null)
+    console.log('Creating work assignment with employee IDs:', {
+      build, year, month,
+      accounting_responsible,
+      tax_inspection_responsible,
+      wht_filer_responsible,
+      vat_filer_responsible,
+      document_entry_responsible,
+    })
+
     await pool.execute(
       `INSERT INTO work_assignments (
         id, build, assignment_year, assignment_month,
@@ -1113,21 +1206,21 @@ router.post('/', authenticateToken, authorize('admin'), async (req, res) => {
         build,
         year,
         month,
-        accounting_responsible || null,
-        accounting_responsible || null, // original_accounting_responsible
-        accounting_responsible || null, // current_accounting_responsible
-        tax_inspection_responsible || null,
-        tax_inspection_responsible || null, // original_tax_inspection_responsible
-        tax_inspection_responsible || null, // current_tax_inspection_responsible
-        wht_filer_responsible || null,
-        wht_filer_responsible || null, // original_wht_filer_responsible
-        wht_filer_responsible || null, // current_wht_filer_responsible
-        vat_filer_responsible || null,
-        vat_filer_responsible || null, // original_vat_filer_responsible
-        vat_filer_responsible || null, // current_vat_filer_responsible
-        document_entry_responsible || null,
-        document_entry_responsible || null, // original_document_entry_responsible
-        document_entry_responsible || null, // current_document_entry_responsible
+        accounting_responsible,
+        accounting_responsible, // original_accounting_responsible
+        accounting_responsible, // current_accounting_responsible
+        tax_inspection_responsible,
+        tax_inspection_responsible, // original_tax_inspection_responsible
+        tax_inspection_responsible, // current_tax_inspection_responsible
+        wht_filer_responsible,
+        wht_filer_responsible, // original_wht_filer_responsible
+        wht_filer_responsible, // current_wht_filer_responsible
+        vat_filer_responsible,
+        vat_filer_responsible, // original_vat_filer_responsible
+        vat_filer_responsible, // current_vat_filer_responsible
+        document_entry_responsible,
+        document_entry_responsible, // original_document_entry_responsible
+        document_entry_responsible, // current_document_entry_responsible
         assignedBy,
         assignedAt,
         assignment_note || null,
@@ -1205,11 +1298,26 @@ router.post('/', authenticateToken, authorize('admin'), async (req, res) => {
     })
   } catch (error) {
     console.error('Create work assignment error:', error)
+    // ✅ FIX: Log full error details for debugging
+    console.error('Error details:', {
+      code: error.code,
+      errno: error.errno,
+      sqlState: error.sqlState,
+      sqlMessage: error.sqlMessage,
+      requestBody: req.body,
+    })
 
     if (error.code === 'ER_DUP_ENTRY') {
       return res.status(409).json({
         success: false,
         message: 'Work assignment already exists for this month',
+      })
+    }
+
+    if (error.code === 'ER_NO_REFERENCED_ROW_2') {
+      return res.status(400).json({
+        success: false,
+        message: `ข้อมูลพนักงานไม่ถูกต้อง: ${error.sqlMessage}`,
       })
     }
 
@@ -1228,15 +1336,19 @@ router.post('/', authenticateToken, authorize('admin'), async (req, res) => {
 router.put('/:id', authenticateToken, authorize('admin'), async (req, res) => {
   try {
     const { id } = req.params
-    const {
-      accounting_responsible,
-      tax_inspection_responsible,
-      wht_filer_responsible,
-      vat_filer_responsible,
-      document_entry_responsible,
-      assignment_note,
-      is_active,
-    } = req.body
+    const { assignment_note, is_active } = req.body
+
+    // ✅ FIX: Sanitize employee IDs - convert empty strings/whitespace to null
+    const sanitizeEmployeeId = (value) => {
+      if (!value || (typeof value === 'string' && value.trim() === '')) return null
+      return String(value).trim()
+    }
+
+    const accounting_responsible = sanitizeEmployeeId(req.body.accounting_responsible)
+    const tax_inspection_responsible = sanitizeEmployeeId(req.body.tax_inspection_responsible)
+    const wht_filer_responsible = sanitizeEmployeeId(req.body.wht_filer_responsible)
+    const vat_filer_responsible = sanitizeEmployeeId(req.body.vat_filer_responsible)
+    const document_entry_responsible = sanitizeEmployeeId(req.body.document_entry_responsible)
 
     // Check if assignment exists
     const [existingAssignments] = await pool.execute(
@@ -1253,6 +1365,40 @@ router.put('/:id', authenticateToken, authorize('admin'), async (req, res) => {
 
     const assignment = existingAssignments[0]
 
+    // ✅ FIX: Validate employee IDs exist in employees table before UPDATE
+    const employeeFields = [
+      { name: 'accounting_responsible', value: accounting_responsible },
+      { name: 'tax_inspection_responsible', value: tax_inspection_responsible },
+      { name: 'wht_filer_responsible', value: wht_filer_responsible },
+      { name: 'vat_filer_responsible', value: vat_filer_responsible },
+      { name: 'document_entry_responsible', value: document_entry_responsible },
+    ]
+
+    const invalidEmployees = []
+    for (const field of employeeFields) {
+      if (field.value) {
+        const [empRows] = await pool.execute(
+          'SELECT employee_id, full_name FROM employees WHERE employee_id = ?',
+          [field.value]
+        )
+        if (empRows.length === 0) {
+          invalidEmployees.push({
+            field: field.name,
+            employee_id: field.value,
+          })
+        }
+      }
+    }
+
+    if (invalidEmployees.length > 0) {
+      console.error('Invalid employee IDs found (update):', invalidEmployees)
+      return res.status(400).json({
+        success: false,
+        message: `ไม่พบพนักงานในระบบ: ${invalidEmployees.map(e => `${e.field}=${e.employee_id}`).join(', ')}`,
+        invalidEmployees,
+      })
+    }
+
     // Update work assignment
     await pool.execute(
       `UPDATE work_assignments SET
@@ -1266,11 +1412,11 @@ router.put('/:id', authenticateToken, authorize('admin'), async (req, res) => {
         updated_at = CURRENT_TIMESTAMP
       WHERE id = ?`,
       [
-        accounting_responsible || null,
-        tax_inspection_responsible || null,
-        wht_filer_responsible || null,
-        vat_filer_responsible || null,
-        document_entry_responsible || null,
+        accounting_responsible,
+        tax_inspection_responsible,
+        wht_filer_responsible,
+        vat_filer_responsible,
+        document_entry_responsible,
         assignment_note || null,
         is_active !== undefined ? is_active : true,
         id,

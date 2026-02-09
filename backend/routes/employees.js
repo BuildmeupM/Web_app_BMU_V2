@@ -587,6 +587,18 @@ router.post('/', authenticateToken, authorize('admin'), validateEmployee, async 
     // Note: company_email and personal_email can be duplicated (no unique constraint)
 
     // Insert employee
+    console.log('=== Creating new employee ===')
+    console.log('Employee data:', {
+      employee_id,
+      position,
+      id_card,
+      gender: gender || null,
+      first_name,
+      last_name,
+      hire_date: hire_date || null,
+      status,
+    })
+
     const [result] = await pool.execute(
       `INSERT INTO employees (
         employee_id, position, id_card, gender, first_name, last_name,
@@ -600,7 +612,7 @@ router.post('/', authenticateToken, authorize('admin'), validateEmployee, async 
         employee_id,
         position,
         id_card,
-        gender,
+        gender || null,
         first_name,
         last_name,
         english_name || null,
@@ -610,7 +622,7 @@ router.post('/', authenticateToken, authorize('admin'), validateEmployee, async 
         personal_email || null,
         company_email || null,
         company_email_password || null,
-        hire_date,
+        hire_date || null,
         probation_end_date || null,
         resignation_date || null,
         status,
@@ -631,11 +643,16 @@ router.post('/', authenticateToken, authorize('admin'), validateEmployee, async 
       ]
     )
 
-    // Get created employee
+    console.log('INSERT result:', { insertId: result.insertId, affectedRows: result.affectedRows })
+
+    // Get created employee - use employee_id instead of insertId
+    // (insertId is 0 for UUID-based tables)
     const [newEmployee] = await pool.execute(
-      'SELECT id, employee_id, full_name FROM employees WHERE id = ?',
-      [result.insertId]
+      'SELECT id, employee_id, full_name FROM employees WHERE employee_id = ? AND deleted_at IS NULL',
+      [employee_id]
     )
+
+    console.log('Created employee lookup result:', newEmployee)
 
     res.status(201).json({
       success: true,

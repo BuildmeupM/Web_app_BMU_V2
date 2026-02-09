@@ -149,6 +149,7 @@ const EmployeeList = memo(function EmployeeList({
               <Table.Td ta="center">
                 <Text>
                   {(() => {
+                    if (!employee.hire_date) return '-'
                     const dateParts = employee.hire_date.split('T')[0].split('-')
                     const year = parseInt(dateParts[0])
                     const month = parseInt(dateParts[1]) - 1

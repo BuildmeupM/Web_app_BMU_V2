@@ -375,7 +375,7 @@ const TaxFilingTable = memo(function TaxFilingTable({
 
       // Determine pnd_status from pnd_status field or other fields (เหมือน pp30_status)
       // ⚠️ สำคัญ: ใช้ pnd_status จากฐานข้อมูลเป็นหลัก แต่ถ้าเป็น null ให้ map จาก fields อื่นๆ
-      let pndStatus: string | null = item.pnd_status || null
+      let pndStatus: TaxFilingRecord['pndStatus'] = (item.pnd_status as TaxFilingRecord['pndStatus']) || null
 
       // ถ้า pnd_status เป็น null หรือว่าง ให้ map จาก fields อื่นๆ
       if (!pndStatus || pndStatus.trim() === '') {
@@ -396,7 +396,7 @@ const TaxFilingTable = memo(function TaxFilingTable({
       }
 
       // ใช้ shared utility เพื่อ derive pp30_status (single source of truth)
-      const pp30Status = derivePp30Status(item)
+      const pp30Status = derivePp30Status(item) as TaxFilingRecord['pp30Status']
 
       // สร้างรายชื่อผู้ทำ: ผู้ตรวจภาษี, ผู้ทำบัญชี
       // ใช้ first_name และ nick_name เพื่อแสดงเป็น "ชื่อ (ชื่อเล่น)" โดยไม่แสดงนามสกุล

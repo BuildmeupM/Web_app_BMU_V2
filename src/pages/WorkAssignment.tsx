@@ -1019,7 +1019,7 @@ export default function WorkAssignment() {
       if (!item.new_wht_filer_responsible) {
         missingFields.push('ผู้ยื่น WHT')
       }
-      if (!item.new_vat_filer_responsible) {
+      if (!item.new_vat_filer_responsible && item.tax_registration_status === 'จดภาษีมูลค่าเพิ่ม') {
         missingFields.push('ผู้ยื่น VAT')
       }
       if (!item.new_document_entry_responsible) {
@@ -4251,17 +4251,20 @@ export default function WorkAssignment() {
                               <Table.Td>
                                 {(() => {
                                   // Count how many new assignments are filled
-                                  const filledCount = [
+                                  const isVatRequired = item.tax_registration_status === 'จดภาษีมูลค่าเพิ่ม'
+                                  const fields = [
                                     item.new_accounting_responsible,
                                     item.new_tax_inspection_responsible,
                                     item.new_wht_filer_responsible,
-                                    item.new_vat_filer_responsible,
+                                    ...(isVatRequired ? [item.new_vat_filer_responsible] : []),
                                     item.new_document_entry_responsible,
-                                  ].filter(Boolean).length
+                                  ]
+                                  const filledCount = fields.filter(Boolean).length
+                                  const totalRequired = fields.length
 
-                                  // Determine status: complete (5), partial (1-4), none (0)
-                                  const isComplete = filledCount === 5
-                                  const isPartial = filledCount > 0 && filledCount < 5
+                                  // Determine status: complete, partial, none
+                                  const isComplete = filledCount === totalRequired
+                                  const isPartial = filledCount > 0 && filledCount < totalRequired
 
                                   return (
                                     <Badge
@@ -4475,6 +4478,7 @@ export default function WorkAssignment() {
                               <Table.Td>
                                 <Select
                                   value={item.new_vat_filer_responsible}
+                                  disabled={item.tax_registration_status !== 'จดภาษีมูลค่าเพิ่ม'}
                                   onChange={(value) => {
                                     const updated = [...previewData]
                                     updated[actualIndex].new_vat_filer_responsible = value
@@ -4491,7 +4495,7 @@ export default function WorkAssignment() {
                                   data={filingUserOptions}
                                   searchable
                                   size="xs"
-                                  placeholder="เลือก..."
+                                  placeholder={item.tax_registration_status !== 'จดภาษีมูลค่าเพิ่ม' ? 'ไม่จด VAT' : 'เลือก...'}
                                   styles={{
                                     input: { fontSize: '12px', minHeight: '28px', height: '28px' },
                                   }}

@@ -751,7 +751,17 @@ router.get('/', authenticateToken, async (req, res) => {
       queryParams.push(build)
     }
 
-    // ⚠️ Note: year และ month filters ถูกย้ายไปไว้ก่อน deleted_at เพื่อใช้ composite index
+    // Filter by year (for tax month filtering)
+    if (year) {
+      whereConditions.push('mtd.tax_year = ?')
+      queryParams.push(parseInt(year))
+    }
+
+    // Filter by month (for tax month filtering)
+    if (month) {
+      whereConditions.push('mtd.tax_month = ?')
+      queryParams.push(parseInt(month))
+    }
 
     // Search by build or company_name
     if (search) {
