@@ -107,6 +107,9 @@ Reference these guidelines when:
 ### 10. การตอบกลับให้ตอบกลับ
 - `ให้อธิบายการทำงานของ plan.md และ code ที่จะสร้างขึ้นเป็นภาษาไทย`
 
+### 11. ถ้าหากจะต้องสั่งรัน terminal
+- `ให้คุณบอกคำสั่งให้ผมรันให้คุณไม่ต้องรันเอง`
+
 ## How to Use
 
 Read individual rule files for detailed explanations and code examples:

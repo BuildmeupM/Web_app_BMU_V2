@@ -160,13 +160,13 @@ const EmployeeList = memo(function EmployeeList({
                 </Text>
               </Table.Td>
               <Table.Td ta="center">
-                <Badge color="blue" variant="light">
-                  {(employee as any).leave_days_used ?? 0} วัน
+                <Badge color="orange" variant="outline" style={{ backgroundColor: 'white' }}>
+                  {Math.round((employee as any).leave_days_used ?? 0)} วัน
                 </Badge>
               </Table.Td>
               <Table.Td ta="center">
-                <Badge color="teal" variant="light">
-                  {(employee as any).wfh_days_used ?? 0} วัน
+                <Badge color="orange" variant="outline" style={{ backgroundColor: 'white' }}>
+                  {Math.round((employee as any).wfh_days_used ?? 0)} วัน
                 </Badge>
               </Table.Td>
               {isAdmin && (

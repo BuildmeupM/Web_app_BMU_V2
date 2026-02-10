@@ -71,12 +71,12 @@ export default function EmployeeDetail({ employee, onEdit }: EmployeeDetailProps
     return parts.length > 0 ? parts.join(' ') : '0 วัน'
   }
 
-  // Mask ID card (XXX-XXX-XXXX-XXX)
+  // Mask ID card (X-XXXX-XXXXX-XX-X) - Thai standard format
   const maskIdCard = (idCard: string | null | undefined) => {
     if (!idCard || typeof idCard !== 'string' || idCard.trim() === '') return '-'
     const cleanedIdCard = idCard.replace(/-/g, '') // Remove existing dashes
     if (cleanedIdCard.length !== 13) return cleanedIdCard // Return as-is if not 13 digits
-    return `${cleanedIdCard.substring(0, 3)}-${cleanedIdCard.substring(3, 6)}-${cleanedIdCard.substring(6, 10)}-${cleanedIdCard.substring(10, 13)}`
+    return `${cleanedIdCard[0]}-${cleanedIdCard.substring(1, 5)}-${cleanedIdCard.substring(5, 10)}-${cleanedIdCard.substring(10, 12)}-${cleanedIdCard[12]}`
   }
 
   // Format date (handle timezone issues)

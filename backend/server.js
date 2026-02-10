@@ -5,6 +5,8 @@
 
 import express from 'express'
 import { createServer } from 'http'
+import path from 'path'
+import { fileURLToPath } from 'url'
 import { Server } from 'socket.io'
 import cors from 'cors'
 import helmet from 'helmet'
@@ -25,6 +27,7 @@ import accountingMarketplaceRoutes from './routes/accounting-marketplace.js'
 import usersRoutes from './routes/users.js'
 import notificationsRoutes, { cleanupExpiredNotifications } from './routes/notifications.js'
 import holidaysRoutes from './routes/holidays.js'
+import attendanceDashboardRoutes from './routes/attendance-dashboard.js'
 import { apiRateLimiter } from './middleware/rateLimiter.js'
 import cacheMiddleware, { invalidateCache } from './middleware/cache.js'
 import performanceLogger from './middleware/performanceLogger.js'
@@ -258,13 +261,38 @@ app.use('/api/accounting-marketplace', accountingMarketplaceRoutes)
 app.use('/api/users', usersRoutes)
 app.use('/api/notifications', notificationsRoutes)
 app.use('/api/holidays', holidaysRoutes)
+app.use('/api/attendance-dashboard', attendanceDashboardRoutes)
 
-// 404 handler
-app.use((req, res) => {
-  res.status(404).json({
-    success: false,
-    message: 'Route not found',
-  })
+// ✅ SPA Fallback: Serve React frontend in production
+// When deployed, serve the built React app and handle client-side routing
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+const distPath = path.join(__dirname, '..', 'dist')
+
+// Serve static files from React build
+app.use(express.static(distPath))
+
+// SPA fallback - send index.html for any non-API route
+// This fixes 404 errors when refreshing on client-side routes like /attendance
+app.get('*', (req, res) => {
+  // Only fallback for non-API routes
+  if (!req.path.startsWith('/api')) {
+    const indexPath = path.join(distPath, 'index.html')
+    res.sendFile(indexPath, (err) => {
+      if (err) {
+        // If index.html doesn't exist (dev mode), return a helpful message
+        res.status(404).json({
+          success: false,
+          message: 'Frontend build not found. Run "npm run build" first.',
+        })
+      }
+    })
+  } else {
+    res.status(404).json({
+      success: false,
+      message: 'API route not found',
+    })
+  }
 })
 
 // Error handler

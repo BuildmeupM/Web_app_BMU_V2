@@ -429,7 +429,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
     const leaveTypeQuotas = {
       'ลาป่วย': 30,
       'ลากิจ': 6,
-      'ลาพักร้อน': 10,
+      'ลาพักร้อน': 6,
       'ลาไม่รับค่าจ้าง': null, // No limit
       'ลาอื่นๆ': null, // No limit
     }
@@ -459,7 +459,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
 
     const usedLeaveDays = Number(leaveResult.used_leave_days) || 0
     const usedWfhDays = Number(wfhResult.used_wfh_days) || 0
-    const totalLeaveDays = 10 // Annual vacation leave allowance (ลาพักร้อน)
+    const totalLeaveDays = 6 // Annual vacation leave allowance (ลาพักร้อน)
 
     const leaveStatistics = {
       total_leave_days: totalLeaveDays,

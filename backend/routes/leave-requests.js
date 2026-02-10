@@ -358,7 +358,7 @@ router.get('/dashboard/summary', authenticateToken, async (req, res) => {
     )
 
     const summaryData = summary[0]
-    const totalLeaveDays = 10 // Default - สามารถปรับได้ตาม policy
+    const totalLeaveDays = 6 // Default - สามารถปรับได้ตาม policy
 
     res.json({
       success: true,

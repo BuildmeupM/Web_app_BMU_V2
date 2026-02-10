@@ -401,7 +401,7 @@ const TaxInspectionTable = memo(function TaxInspectionTable({
     )
   }
 
-  const getPndStatusBadge = (status: TaxInspectionRecord['pndStatus']) => {
+  const getPndStatusBadge = (status: TaxInspectionTableRecord['pndStatus']) => {
     if (!status) return null
     return getStatusBadge(status)
   }

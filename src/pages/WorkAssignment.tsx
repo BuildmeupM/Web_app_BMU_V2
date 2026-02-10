@@ -97,7 +97,7 @@ const formatEmployeeName = (name: string | null | undefined, nickName?: string |
 export default function WorkAssignment() {
   const { user, _hasHydrated } = useAuthStore()
   const queryClient = useQueryClient()
-  const isAdmin = user?.role === 'admin'
+  const isAdmin = user?.role === 'admin' || user?.role === 'audit'
 
   // ✅ BUG-168: Debug logging เพื่อตรวจสอบว่า component render และ query ทำงานหรือไม่
   useEffect(() => {
@@ -508,7 +508,7 @@ export default function WorkAssignment() {
       onError: (error: unknown) => {
         notifications.show({
           title: 'เกิดข้อผิดพลาด',
-          message: error.response?.data?.message || 'ไม่สามารถแก้ไขการจัดงานได้',
+          message: (error as any).response?.data?.message || 'ไม่สามารถแก้ไขการจัดงานได้',
           color: 'red',
           icon: <TbAlertCircle size={16} />,
         })
@@ -1539,7 +1539,7 @@ export default function WorkAssignment() {
       console.error('Bulk save error:', error)
 
       // Check error type
-      if (error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT') {
+      if ((error as any).code === 'ECONNRESET' || (error as any).code === 'ETIMEDOUT') {
         notifications.show({
           title: 'การเชื่อมต่อขัดข้อง',
           message: 'ข้อมูลถูกบันทึกไว้ในระบบแล้ว กรุณารอสักครู่แล้วตรวจสอบผลลัพธ์',
@@ -1547,7 +1547,7 @@ export default function WorkAssignment() {
           icon: <TbAlertCircle size={16} />,
           autoClose: 15000,
         })
-      } else if (error.response?.status === 429) {
+      } else if ((error as any).response?.status === 429) {
         notifications.show({
           title: 'การร้องขอมากเกินไป',
           message: 'กรุณารอสักครู่แล้วลองอีกครั้ง',
@@ -1558,7 +1558,7 @@ export default function WorkAssignment() {
       } else {
         notifications.show({
           title: 'เกิดข้อผิดพลาด',
-          message: error.response?.data?.message || 'ไม่สามารถบันทึกข้อมูลได้ กรุณาลองอีกครั้ง',
+          message: (error as any).response?.data?.message || 'ไม่สามารถบันทึกข้อมูลได้ กรุณาลองอีกครั้ง',
           color: 'red',
           icon: <TbAlertCircle size={16} />,
           autoClose: 10000,
@@ -4770,7 +4770,7 @@ export default function WorkAssignment() {
                     console.error('Error in tax month confirmation:', error)
                     notifications.show({
                       title: 'เกิดข้อผิดพลาด',
-                      message: error.message || 'เกิดข้อผิดพลาดในการดำเนินการ',
+                      message: (error as any).message || 'เกิดข้อผิดพลาดในการดำเนินการ',
                       color: 'red',
                       icon: <TbAlertCircle size={16} />,
                     })
@@ -4906,7 +4906,7 @@ export default function WorkAssignment() {
                     console.error('Error in incomplete data confirmation:', error)
                     notifications.show({
                       title: 'เกิดข้อผิดพลาด',
-                      message: error.message || 'เกิดข้อผิดพลาดในการดำเนินการ',
+                      message: (error as any).message || 'เกิดข้อผิดพลาดในการดำเนินการ',
                       color: 'red',
                       icon: <TbAlertCircle size={16} />,
                     })
@@ -5063,7 +5063,7 @@ export default function WorkAssignment() {
                     console.error('Error in duplicate data confirmation:', error)
                     notifications.show({
                       title: 'เกิดข้อผิดพลาด',
-                      message: error.message || 'เกิดข้อผิดพลาดในการดำเนินการ',
+                      message: (error as any).message || 'เกิดข้อผิดพลาดในการดำเนินการ',
                       color: 'red',
                       icon: <TbAlertCircle size={16} />,
                     })
