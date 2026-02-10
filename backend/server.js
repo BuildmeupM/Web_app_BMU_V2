@@ -37,6 +37,10 @@ const PORT = process.env.PORT || 3001
 const HOST = process.env.HOST || '0.0.0.0' // Use 0.0.0.0 to allow access from any IP address
 const CORS_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:5173'
 
+// Trust proxy - จำเป็นสำหรับ cloud deployment (Docker, Render, Railway, etc.)
+// ทำให้ express-rate-limit อ่าน IP จาก X-Forwarded-For header ได้ถูกต้อง
+app.set('trust proxy', 1)
+
 // Parse CORS origins - support multiple origins separated by comma
 const parseCorsOrigins = () => {
   const origins = CORS_ORIGIN.split(',').map(o => o.trim()).filter(Boolean)
