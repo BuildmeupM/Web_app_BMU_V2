@@ -79,6 +79,11 @@ const corsOriginFunction = (origin, callback) => {
     return callback(null, true)
   }
 
+  // Allow Vercel preview/deployment URLs (pattern: *.vercel.app matching the project)
+  if (origin.endsWith('.vercel.app') && origin.includes('buildmepums')) {
+    return callback(null, true)
+  }
+
   // Log rejected origin for debugging
   console.warn('⚠️ CORS rejected origin:', origin, '| Allowed:', allowedOrigins)
   callback(new Error('Not allowed by CORS'))
