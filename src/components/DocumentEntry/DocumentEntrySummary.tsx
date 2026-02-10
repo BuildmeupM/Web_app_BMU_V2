@@ -11,6 +11,9 @@ import { useAuthStore } from '../../store/authStore'
 import documentEntryWorkService, { DocumentEntryWorkSummaryItem } from '../../services/documentEntryWorkService'
 import LoadingSpinner from '../Loading/LoadingSpinner'
 import dayjs from 'dayjs'
+import utc from 'dayjs/plugin/utc'
+
+dayjs.extend(utc)
 
 interface DocumentEntrySummaryProps {
   year: number
@@ -177,8 +180,8 @@ export default function DocumentEntrySummary({ year, month }: DocumentEntrySumma
                     <Group gap="md" justify="space-between" style={{ flex: 1 }}>
                       <Group gap="xs">
                         <Text size="sm" fw={600}>
-                          {summaryMode === 'day' 
-                            ? dayjs(group.date).format('DD/MM/YYYY')
+                          {summaryMode === 'day'
+                            ? dayjs.utc(group.date).local().format('DD/MM/YYYY')
                             : `เดือน ${group.month}`
                           }
                         </Text>
@@ -255,18 +258,18 @@ export default function DocumentEntrySummary({ year, month }: DocumentEntrySumma
                                   <Stack gap={4} align="center">
                                     <Text size="sm" fw={600}>{item.completed_documents}</Text>
                                     {item.completed_documents > 0 && (
-                                      <Badge 
-                                        color="green" 
-                                        size="sm" 
+                                      <Badge
+                                        color="green"
+                                        size="sm"
                                         variant="light"
                                       >
                                         เสร็จสิ้น
                                       </Badge>
                                     )}
                                     {item.completed_documents === 0 && (
-                                      <Badge 
-                                        color="gray" 
-                                        size="sm" 
+                                      <Badge
+                                        color="gray"
+                                        size="sm"
                                         variant="light"
                                       >
                                         ยังไม่เสร็จ

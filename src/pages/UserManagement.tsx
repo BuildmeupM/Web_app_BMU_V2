@@ -55,6 +55,9 @@ const roleOptions = [
   { value: 'data_entry_and_service', label: 'Data Entry & Service' },
   { value: 'audit', label: 'Audit' },
   { value: 'service', label: 'Service' },
+  { value: 'hr', label: 'HR' },
+  { value: 'registration', label: 'Registration' },
+  { value: 'marketing', label: 'Marketing' },
 ]
 
 // Status options
@@ -252,7 +255,7 @@ export default function UserManagement() {
         // Invalidate และ refetch ทันทีเพื่อให้ตารางแสดงข้อมูลใหม่
         queryClient.invalidateQueries(['users'])
         await refetchUsers()
-        
+
         setResetPasswordOpened(false)
         setTemporaryPassword(data.temporaryPassword)
         // อัพเดท selectedUser ด้วยข้อมูลใหม่ที่รวม temporary_password
@@ -588,14 +591,6 @@ export default function UserManagement() {
               required
             />
             <TextInput
-              label="Email *"
-              placeholder="กรอก email"
-              type="email"
-              value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              required
-            />
-            <TextInput
               label={formMode === 'create' ? 'Password *' : 'Password (เว้นว่างไว้ถ้าไม่ต้องการเปลี่ยน)'}
               placeholder="กรอก password"
               type="password"
@@ -610,20 +605,30 @@ export default function UserManagement() {
                 { value: '', label: 'ไม่เชื่อมกับพนักงาน' },
                 ...availableEmployees.map((emp) => ({
                   value: emp.employee_id,
-                  label: `${emp.employee_id} - ${emp.full_name}`,
+                  label: `${emp.employee_id} - ${emp.first_name || ''}${emp.nick_name ? `(${emp.nick_name})` : ''} - ${emp.position || ''}`,
                 })),
               ]}
               value={formData.employee_id || ''}
-              onChange={(value) =>
-                setFormData({ ...formData, employee_id: value || null })
-              }
+              onChange={(value) => {
+                const selectedEmployee = availableEmployees.find((emp) => emp.employee_id === value)
+                setFormData({
+                  ...formData,
+                  employee_id: value || null,
+                  email: selectedEmployee?.company_email || formData.email,
+                  name: selectedEmployee ? selectedEmployee.full_name : formData.name,
+                  nick_name: selectedEmployee ? (selectedEmployee.nick_name || null) : formData.nick_name,
+                  english_name: selectedEmployee?.english_name || (formData as any).english_name || null,
+                } as any)
+              }}
               searchable
             />
             <TextInput
-              label="ชื่อเล่น"
-              placeholder="กรอกชื่อเล่น (ถ้ามี)"
-              value={formData.nick_name || ''}
-              onChange={(e) => setFormData({ ...formData, nick_name: e.target.value || null })}
+              label="อีเมล *"
+              placeholder="กรอก email"
+              type="email"
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              required
             />
             <TextInput
               label="ชื่อเต็ม *"
@@ -631,6 +636,18 @@ export default function UserManagement() {
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               required
+            />
+            <TextInput
+              label="ชื่อภาษาอังกฤษ"
+              placeholder="กรอกชื่อภาษาอังกฤษ (ถ้ามี)"
+              value={(formData as any).english_name || ''}
+              onChange={(e) => setFormData({ ...formData, english_name: e.target.value || null } as any)}
+            />
+            <TextInput
+              label="ชื่อเล่น"
+              placeholder="กรอกชื่อเล่น (ถ้ามี)"
+              value={formData.nick_name || ''}
+              onChange={(e) => setFormData({ ...formData, nick_name: e.target.value || null })}
             />
             <Select
               label="Role *"

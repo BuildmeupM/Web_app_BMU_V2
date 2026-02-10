@@ -9,7 +9,7 @@ export interface User {
   email: string
   employee_id: string | null
   nick_name: string | null
-  role: 'admin' | 'data_entry' | 'data_entry_and_service' | 'audit' | 'service'
+  role: 'admin' | 'data_entry' | 'data_entry_and_service' | 'audit' | 'service' | 'hr' | 'registration' | 'marketing'
   name: string
   status: 'active' | 'inactive'
   temporary_password?: string | null // รหัสผ่านชั่วคราวสำหรับ Admin ดู
@@ -36,7 +36,7 @@ export interface CreateUserRequest {
   password: string
   employee_id?: string | null
   nick_name?: string | null
-  role: 'admin' | 'data_entry' | 'data_entry_and_service' | 'audit' | 'service'
+  role: 'admin' | 'data_entry' | 'data_entry_and_service' | 'audit' | 'service' | 'hr' | 'registration' | 'marketing'
   name: string
   status?: 'active' | 'inactive'
 }
@@ -50,7 +50,7 @@ export interface UpdateUserRequest {
   password?: string
   employee_id?: string | null
   nick_name?: string | null
-  role: 'admin' | 'data_entry' | 'data_entry_and_service' | 'audit' | 'service'
+  role: 'admin' | 'data_entry' | 'data_entry_and_service' | 'audit' | 'service' | 'hr' | 'registration' | 'marketing'
   name: string
   status?: 'active' | 'inactive'
 }

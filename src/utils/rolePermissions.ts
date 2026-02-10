@@ -6,24 +6,27 @@ export interface RoutePermission {
   roles: UserRole[]
 }
 
+// ทุก Role
+const allRoles: UserRole[] = ['admin', 'data_entry', 'data_entry_and_service', 'audit', 'service', 'hr', 'registration', 'marketing']
+
 export const routePermissions: RoutePermission[] = [
-  // 1. แดชบอร์ด - ทุกคน
+  // 1. แดชบอร์ด - ทุก Role
   {
     path: '/dashboard',
     label: 'แดชบอร์ด',
-    roles: ['admin', 'data_entry', 'data_entry_and_service', 'audit', 'service', 'hr'],
+    roles: allRoles,
   },
-  // 2. ข้อมูลพนักงาน - ทุกคน
+  // 2. ข้อมูลพนักงาน - ทุก Role
   {
     path: '/employees',
     label: 'ข้อมูลพนักงาน',
-    roles: ['admin', 'data_entry', 'data_entry_and_service', 'audit', 'service', 'hr'],
+    roles: allRoles,
   },
-  // 3. ลางาน/WFH - ทุกคน
+  // 3. ลางาน/WFH - ทุก Role
   {
     path: '/leave',
     label: 'ลางาน/WFH',
-    roles: ['admin', 'data_entry', 'data_entry_and_service', 'audit', 'service', 'hr'],
+    roles: allRoles,
   },
   // 4. จัดการวันหยุด - admin, HR
   {
@@ -31,23 +34,23 @@ export const routePermissions: RoutePermission[] = [
     label: 'จัดการวันหยุด',
     roles: ['admin', 'hr'],
   },
-  // 5. ขอเบิกเงินเดือน - admin เท่านั้น
+  // 5. ขอเบิกเงินเดือน - ทุก Role
   {
     path: '/salary-advance',
     label: 'ขอเบิกเงินเดือน',
-    roles: ['admin'],
+    roles: allRoles,
   },
-  // 6. ข้อมูลเข้าออฟฟิศ - ทุกคน
+  // 6. ข้อมูลเข้าออฟฟิศ - ทุก Role
   {
     path: '/attendance',
     label: 'ข้อมูลเข้าออฟฟิศ',
-    roles: ['admin', 'data_entry', 'data_entry_and_service', 'audit', 'service', 'hr'],
+    roles: allRoles,
   },
-  // 7. ข้อมูลลูกค้า - admin, audit
+  // 7. ข้อมูลลูกค้า - admin, audit, registration
   {
     path: '/clients',
     label: 'ข้อมูลลูกค้า',
-    roles: ['admin', 'audit'],
+    roles: ['admin', 'audit', 'registration'],
   },
   // 8. จัดงานรายเดือน - admin, audit
   {
@@ -55,41 +58,41 @@ export const routePermissions: RoutePermission[] = [
     label: 'จัดงานรายเดือน',
     roles: ['admin', 'audit'],
   },
-  // 9. คัดแยกเอกสาร - ปรับตามเดิม
+  // 9. คัดแยกเอกสาร - admin, service, audit
   {
     path: '/document-sorting',
     label: 'คัดแยกเอกสาร',
-    roles: ['admin', 'service'],
+    roles: ['admin', 'service', 'audit'],
   },
-  // 10. คีย์เอกสาร - ปรับตามเดิม
+  // 10. คีย์เอกสาร - admin, data_entry, data_entry_and_service
   {
     path: '/document-entry',
     label: 'คีย์เอกสาร',
     roles: ['admin', 'data_entry', 'data_entry_and_service'],
   },
-  // 11. ตรวจภาษี - ปรับตามเดิม
+  // 11. ตรวจภาษี - admin, audit
   {
     path: '/tax-inspection',
     label: 'ตรวจภาษี',
     roles: ['admin', 'audit'],
   },
-  // 12. สถานะยื่นภาษี - ปรับตามเดิม
+  // 12. สถานะยื่นภาษี - admin, data_entry_and_service, service, audit
   {
     path: '/tax-status',
     label: 'สถานะยื่นภาษี',
-    roles: ['admin', 'data_entry_and_service', 'service'],
+    roles: ['admin', 'data_entry_and_service', 'service', 'audit'],
   },
-  // 13. ยื่นภาษี - ปรับตามเดิม
+  // 13. ยื่นภาษี - admin, data_entry_and_service, audit
   {
     path: '/tax-filing',
     label: 'ยื่นภาษี',
-    roles: ['admin', 'data_entry_and_service'],
+    roles: ['admin', 'data_entry_and_service', 'audit'],
   },
-  // 14. ตลาดกลางผู้ทำบัญชี - ทุกคน
+  // 14. ตลาดกลางผู้ทำบัญชี - ทุก Role ยกเว้น data_entry
   {
     path: '/accounting-marketplace',
     label: 'ตลาดกลางผู้ทำบัญชี',
-    roles: ['admin', 'data_entry', 'data_entry_and_service', 'audit', 'service', 'hr'],
+    roles: ['admin', 'data_entry_and_service', 'audit', 'service', 'hr'],
   },
   // 15. จัดการ User Accounts - admin เท่านั้น
   {

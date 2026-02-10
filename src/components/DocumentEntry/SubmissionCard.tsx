@@ -9,6 +9,11 @@ import { notifications } from '@mantine/notifications'
 import { TbCheck, TbBolt, TbClock } from 'react-icons/tb'
 import documentEntryWorkService, { UpdateStatusRequest } from '../../services/documentEntryWorkService'
 import dayjs from 'dayjs'
+import utc from 'dayjs/plugin/utc'
+import timezone from 'dayjs/plugin/timezone'
+
+dayjs.extend(utc)
+dayjs.extend(timezone)
 
 interface SubmissionCardProps {
   documentType: 'wht' | 'vat' | 'non_vat'
@@ -121,8 +126,8 @@ export default function SubmissionCard({
 
   const formatDatetime = (datetime: string | null | undefined): string => {
     if (!datetime) return '-'
-    // Add 7 hours to convert from UTC to Thailand timezone (UTC+7)
-    return dayjs(datetime).add(7, 'hour').format('DD/MM/YYYY HH:mm')
+    // Backend sends UTC string — convert to local timezone
+    return dayjs.utc(datetime).local().format('DD/MM/YYYY HH:mm')
   }
 
   return (

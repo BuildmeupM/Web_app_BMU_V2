@@ -55,10 +55,15 @@ export async function getHolidays(year?: number, activeOnly = true): Promise<Hol
     if (year) params.append('year', year.toString())
     if (activeOnly) params.append('active_only', 'true')
 
+    params.append('_t', Date.now().toString())
     const response = await axios.get<HolidaysResponse>(
         `${API_URL}/api/holidays?${params.toString()}`,
         {
-            headers: { Authorization: `Bearer ${token}` }
+            headers: {
+                Authorization: `Bearer ${token}`,
+                'Cache-Control': 'no-cache',
+                'Pragma': 'no-cache',
+            }
         }
     )
     return response.data

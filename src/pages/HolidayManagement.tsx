@@ -55,6 +55,7 @@ export default function HolidayManagement() {
     const [modalOpened, setModalOpened] = useState(false)
     const [editingHoliday, setEditingHoliday] = useState<Holiday | null>(null)
     const [selectedYear, setSelectedYear] = useState<string>(String(new Date().getFullYear() + 543))
+    const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
 
     // Form state
     const [formDate, setFormDate] = useState<Date | null>(null)
@@ -72,7 +73,22 @@ export default function HolidayManagement() {
 
     // Create mutation
     const createMutation = useMutation(holidayService.createHoliday, {
-        onSuccess: () => {
+        onSuccess: async (newHoliday) => {
+            // Optimistic update: immediately add to cache for instant UI refresh
+            queryClient.setQueryData(['holidays', selectedYear], (old: any) => {
+                if (!old) return old
+                const updatedHolidays = [...(old.data?.holidays || []), newHoliday]
+                    .sort((a: Holiday, b: Holiday) => a.holiday_date.localeCompare(b.holiday_date))
+                return {
+                    ...old,
+                    data: {
+                        ...old.data,
+                        holidays: updatedHolidays,
+                        count: updatedHolidays.length,
+                    }
+                }
+            })
+            // Also refetch in background for consistency
             queryClient.invalidateQueries(['holidays'])
             notifications.show({
                 title: 'สำเร็จ',
@@ -95,7 +111,22 @@ export default function HolidayManagement() {
     const updateMutation = useMutation(
         ({ id, data }: { id: string; data: Partial<Holiday> }) => holidayService.updateHoliday(id, data),
         {
-            onSuccess: () => {
+            onSuccess: async (updatedHoliday) => {
+                // Optimistic update: replace updated holiday in cache
+                queryClient.setQueryData(['holidays', selectedYear], (old: any) => {
+                    if (!old) return old
+                    const updatedHolidays = (old.data?.holidays || []).map((h: Holiday) =>
+                        h.id === updatedHoliday.id ? updatedHoliday : h
+                    ).sort((a: Holiday, b: Holiday) => a.holiday_date.localeCompare(b.holiday_date))
+                    return {
+                        ...old,
+                        data: {
+                            ...old.data,
+                            holidays: updatedHolidays,
+                            count: updatedHolidays.length,
+                        }
+                    }
+                })
                 queryClient.invalidateQueries(['holidays'])
                 notifications.show({
                     title: 'สำเร็จ',
@@ -117,7 +148,20 @@ export default function HolidayManagement() {
 
     // Delete mutation
     const deleteMutation = useMutation(holidayService.deleteHoliday, {
-        onSuccess: () => {
+        onSuccess: async (_data, deletedId) => {
+            // Optimistic update: remove deleted holiday from cache
+            queryClient.setQueryData(['holidays', selectedYear], (old: any) => {
+                if (!old) return old
+                const updatedHolidays = (old.data?.holidays || []).filter((h: Holiday) => h.id !== deletedId)
+                return {
+                    ...old,
+                    data: {
+                        ...old.data,
+                        holidays: updatedHolidays,
+                        count: updatedHolidays.length,
+                    }
+                }
+            })
             queryClient.invalidateQueries(['holidays'])
             notifications.show({
                 title: 'สำเร็จ',
@@ -198,8 +242,13 @@ export default function HolidayManagement() {
     }
 
     const handleDelete = (id: string) => {
-        if (window.confirm('คุณแน่ใจหรือไม่ที่จะลบวันหยุดนี้?')) {
-            deleteMutation.mutate(id)
+        setDeleteConfirmId(id)
+    }
+
+    const handleConfirmDelete = () => {
+        if (deleteConfirmId) {
+            deleteMutation.mutate(deleteConfirmId)
+            setDeleteConfirmId(null)
         }
     }
 
@@ -419,6 +468,31 @@ export default function HolidayManagement() {
                             style={{ backgroundColor: '#ff6b35' }}
                         >
                             {editingHoliday ? 'บันทึก' : 'เพิ่ม'}
+                        </Button>
+                    </Group>
+                </Stack>
+            </Modal>
+
+            {/* Delete Confirmation Modal */}
+            <Modal
+                opened={!!deleteConfirmId}
+                onClose={() => setDeleteConfirmId(null)}
+                title="ยืนยันการลบ"
+                size="sm"
+                centered
+            >
+                <Stack gap="md">
+                    <Text>คุณแน่ใจหรือไม่ที่จะลบวันหยุดนี้?</Text>
+                    <Group justify="flex-end">
+                        <Button variant="subtle" onClick={() => setDeleteConfirmId(null)}>
+                            ยกเลิก
+                        </Button>
+                        <Button
+                            color="red"
+                            onClick={handleConfirmDelete}
+                            loading={deleteMutation.isLoading}
+                        >
+                            ลบ
                         </Button>
                     </Group>
                 </Stack>

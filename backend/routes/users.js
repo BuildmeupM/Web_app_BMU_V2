@@ -179,7 +179,7 @@ router.post('/', authenticateToken, authorize('admin'), async (req, res) => {
     }
 
     // Validate role
-    const validRoles = ['admin', 'data_entry', 'data_entry_and_service', 'audit', 'service']
+    const validRoles = ['admin', 'data_entry', 'data_entry_and_service', 'audit', 'service', 'hr', 'registration', 'marketing']
     if (!validRoles.includes(role)) {
       return res.status(400).json({
         success: false,
@@ -356,7 +356,7 @@ router.put('/:id', authenticateToken, authorize('admin'), async (req, res) => {
     }
 
     // Validate role
-    const validRoles = ['admin', 'data_entry', 'data_entry_and_service', 'audit', 'service']
+    const validRoles = ['admin', 'data_entry', 'data_entry_and_service', 'audit', 'service', 'hr', 'registration', 'marketing']
     if (!validRoles.includes(role)) {
       return res.status(400).json({
         success: false,

@@ -96,37 +96,37 @@ export const validateEmployee = [
  */
 export const validateEmployeeUpdate = [
   body('employee_id')
-    .optional()
+    .optional({ values: 'falsy' })
     .isLength({ min: 1, max: 20 })
     .withMessage('Employee ID must be between 1 and 20 characters'),
 
   body('id_card')
-    .optional()
+    .optional({ values: 'falsy' })
     .matches(/^\d{13}$/)
     .withMessage('ID Card must be exactly 13 digits'),
 
   body('gender')
-    .optional()
+    .optional({ values: 'falsy' })
     .isIn(['male', 'female', 'other'])
     .withMessage('Gender must be male, female, or other'),
 
   body('phone')
-    .optional()
+    .optional({ values: 'falsy' })
     .matches(/^[0-9-+() ]+$/)
     .withMessage('Phone number format is invalid'),
 
   body('personal_email')
-    .optional()
+    .optional({ values: 'falsy' })
     .isEmail()
     .withMessage('Personal email must be a valid email'),
 
   body('company_email')
-    .optional()
+    .optional({ values: 'falsy' })
     .isEmail()
     .withMessage('Company email must be a valid email'),
 
   body('postal_code')
-    .optional()
+    .optional({ values: 'falsy' })
     .matches(/^\d{5}$/)
     .withMessage('Postal code must be 5 digits'),
 
@@ -134,6 +134,8 @@ export const validateEmployeeUpdate = [
   (req, res, next) => {
     const errors = validationResult(req)
     if (!errors.isEmpty()) {
+      console.error('=== Employee Update Validation Failed ===')
+      console.error('Validation errors:', JSON.stringify(errors.array(), null, 2))
       return res.status(400).json({
         success: false,
         message: 'Validation failed',

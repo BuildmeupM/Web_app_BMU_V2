@@ -200,10 +200,11 @@ export default function OfficeAttendance() {
   )
 
   // Fetch holidays (react-query v3 syntax)
+  const buddhistYear = currentYear + 543
   const { data: holidaysData } = useQuery(
-    ['holidays', currentYear],
+    ['holidays', buddhistYear],
     async () => {
-      const response = await api.get(`/holidays?year=${currentYear}&active_only=true`)
+      const response = await api.get(`/holidays?year=${buddhistYear}&active_only=true`)
       return response.data.data?.holidays as Holiday[] ?? []
     }
   )
@@ -272,13 +273,22 @@ export default function OfficeAttendance() {
     (emp) => !allGroupedPositions.includes(emp.position || '')
   ).sort((a, b) => a.first_name.localeCompare(b.first_name, 'th'))
 
-  // Upcoming holidays (today or later)
-  const upcomingHolidays = (holidaysData || [])
+  // Calculate 3-month-ahead cutoff (current month + 2 more months)
+  const threeMonthsLater = new Date(currentYear, new Date().getMonth() + 3, 0) // last day of 3rd month
+  const threeMonthsCutoff = threeMonthsLater.toISOString().split('T')[0]
+  const currentMonthStart = `${currentYear}-${String(new Date().getMonth() + 1).padStart(2, '0')}-01`
+
+  // Filter holidays: current month to 3 months ahead
+  const relevantHolidays = (holidaysData || [])
+    .filter((h) => h.holiday_date >= currentMonthStart && h.holiday_date <= threeMonthsCutoff)
+
+  // Upcoming holidays (today or later, within 3 months)
+  const upcomingHolidays = relevantHolidays
     .filter((h) => h.holiday_date >= today)
     .sort((a, b) => a.holiday_date.localeCompare(b.holiday_date))
 
-  // Past holidays this year
-  const pastHolidays = (holidaysData || [])
+  // Past holidays this month only
+  const pastHolidays = relevantHolidays
     .filter((h) => h.holiday_date < today)
     .sort((a, b) => a.holiday_date.localeCompare(b.holiday_date))
 
@@ -630,9 +640,9 @@ export default function OfficeAttendance() {
             <ThemeIcon size={28} radius="md" color="violet" variant="light">
               <TbCalendarEvent size={16} />
             </ThemeIcon>
-            <Text fw={700} size="sm">📅 วันหยุดประจำปี {currentYear + 543}</Text>
+            <Text fw={700} size="sm">📅 วันหยุดประจำเดือน (ล่วงหน้า 3 เดือน)</Text>
             <Badge size="sm" variant="light" color="violet">
-              {(holidaysData || []).length} วัน
+              {relevantHolidays.length} วัน
             </Badge>
           </Group>
 

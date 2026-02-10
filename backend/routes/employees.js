@@ -167,8 +167,11 @@ router.get('/', authenticateToken, async (req, res) => {
       `SELECT 
         e.id,
         e.employee_id,
+        e.first_name,
         e.full_name,
+        e.english_name,
         e.nick_name,
+        e.company_email,
         e.position,
         e.status,
         DATE_FORMAT(e.hire_date, '%Y-%m-%d') as hire_date,
