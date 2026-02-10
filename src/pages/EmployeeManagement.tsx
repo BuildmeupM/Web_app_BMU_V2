@@ -464,7 +464,7 @@ export default function EmployeeManagement() {
                 color="red"
                 leftSection={<TbTrash size={16} />}
                 onClick={confirmDelete}
-                loading={deleteMutation.isPending}
+                loading={deleteMutation.isLoading}
               >
                 ลบข้อมูล
               </Button>

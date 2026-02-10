@@ -20,7 +20,7 @@ const dbConfig = {
   charset: 'utf8mb4',
   // เพิ่มการจัดการ connection ที่ขาด
   enableKeepAlive: true,
-  keepAliveInitialDelay: 0,
+  keepAliveInitialDelay: 10000, // ส่ง TCP keep-alive ทุก 10 วินาที ป้องกัน stale connection (ETIMEDOUT)
   // ✅ Performance: timeout configuration
   // ⚠️ สำคัญ: MySQL2 รองรับเฉพาะ connectTimeout สำหรับการเชื่อมต่อครั้งแรก
   // ไม่มี acquireTimeout และ timeout options สำหรับ createPool
