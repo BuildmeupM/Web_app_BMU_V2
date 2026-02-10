@@ -18,6 +18,7 @@ const dbConfig = {
   connectionLimit: 20, // ✅ Performance: เพิ่มจาก 10 เป็น 20 เพื่อรองรับ concurrent users ได้มากขึ้น
   queueLimit: 0,
   charset: 'utf8mb4',
+  timezone: '+07:00', // ✅ สำคัญ: ตั้ง timezone เป็น Bangkok (UTC+7) เพื่อให้ mysql2 แปลง DATETIME ถูกต้อง ทั้ง local และ cloud (Railway/UTC)
   // เพิ่มการจัดการ connection ที่ขาด
   enableKeepAlive: true,
   keepAliveInitialDelay: 10000, // ส่ง TCP keep-alive ทุก 10 วินาที ป้องกัน stale connection (ETIMEDOUT)
