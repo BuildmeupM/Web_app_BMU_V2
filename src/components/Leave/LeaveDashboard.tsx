@@ -20,7 +20,7 @@ dayjs.extend(buddhistEra)
 
 export default function LeaveDashboard() {
   const user = useAuthStore((state) => state.user)
-  const isAdmin = user?.role === 'admin'
+  const isAdmin = user?.role === 'admin' || user?.role === 'hr'
   const [comparePrevious, setComparePrevious] = useState(false)
   const [selectedMonth, setSelectedMonth] = useState<string>(dayjs().format('YYYY-MM'))
 
@@ -109,9 +109,9 @@ export default function LeaveDashboard() {
     // Get all days in current month
     const [year, month] = selectedMonth.split('-').map(Number)
     const daysInMonth = dayjs(`${year}-${month}-01`).daysInMonth()
-    
+
     const chartData = []
-    
+
     // Normalize date strings for comparison (YYYY-MM-DD format)
     const normalizeDate = (dateStr: string) => {
       if (!dateStr) return ''
@@ -119,17 +119,17 @@ export default function LeaveDashboard() {
       const date = dayjs(dateStr)
       return date.format('YYYY-MM-DD')
     }
-    
+
     for (let day = 1; day <= daysInMonth; day++) {
       const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
       const normalizedDateStr = normalizeDate(dateStr)
-      
+
       // Find matching data - handle both string and Date object formats
       const currentDayData = currentMonth.daily_stats.find((d: any) => {
         const normalizedLeaveDate = normalizeDate(d.leave_date)
         return normalizedLeaveDate === normalizedDateStr
       })
-      
+
       const prevDayData = previousMonth?.daily_stats.find((d: any) => {
         const dDate = dayjs(d.leave_date)
         return dDate.date() === day && dDate.month() === (month === 1 ? 11 : month - 2)
@@ -175,18 +175,18 @@ export default function LeaveDashboard() {
               {isLoadingPending ? '...' : pendingData?.data?.pagination?.total || 0} รายการ
             </Badge>
           </Group>
-          
+
           {isLoadingPending ? (
             <Text>กำลังโหลดข้อมูล...</Text>
           ) : pendingData?.data?.leave_requests && pendingData.data.leave_requests.length > 0 ? (
             <Stack gap="xs">
               {pendingData.data.leave_requests.slice(0, 10).map((leave: any) => (
-                <Group 
-                  key={leave.id} 
-                  justify="space-between" 
-                  p="sm" 
-                  style={{ 
-                    border: '1px solid #ffc107', 
+                <Group
+                  key={leave.id}
+                  justify="space-between"
+                  p="sm"
+                  style={{
+                    border: '1px solid #ffc107',
                     borderRadius: '8px',
                     backgroundColor: 'white'
                   }}
@@ -282,7 +282,7 @@ export default function LeaveDashboard() {
               />
             </Group>
           </Group>
-          
+
           {isLoadingDaily ? (
             <Text>กำลังโหลดข้อมูลกราฟ...</Text>
           ) : dailyStatsData?.data ? (
@@ -290,15 +290,15 @@ export default function LeaveDashboard() {
               <ResponsiveContainer width="100%" height={400}>
                 <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis 
-                    dataKey="day" 
+                  <XAxis
+                    dataKey="day"
                     tickFormatter={(value) => {
                       const item = chartData.find(d => d.day === value)
                       return item ? item.label : String(value)
                     }}
                   />
                   <YAxis allowDecimals={false} />
-                  <Tooltip 
+                  <Tooltip
                     formatter={(value: number, name: string) => {
                       if (name === 'current') return [`${value} คน`, 'อนุมัติแล้ว - เดือนปัจจุบัน']
                       if (name === 'currentPending') return [`${value} คน`, 'รออนุมัติ - เดือนปัจจุบัน']
@@ -311,7 +311,7 @@ export default function LeaveDashboard() {
                       return item ? `วันที่ ${item.day} ${item.label}` : label
                     }}
                   />
-                  <Legend 
+                  <Legend
                     formatter={(value) => {
                       if (value === 'current') return 'อนุมัติแล้ว - เดือนปัจจุบัน'
                       if (value === 'currentPending') return 'รออนุมัติ - เดือนปัจจุบัน'

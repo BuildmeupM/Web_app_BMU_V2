@@ -55,7 +55,7 @@ const LeaveRequestList = memo(function LeaveRequestList({ pendingOnly = false }:
   const [rejectionReasonModalOpened, setRejectionReasonModalOpened] = useState(false)
   const [selectedRejectedRequest, setSelectedRejectedRequest] = useState<LeaveRequest | null>(null)
   const user = useAuthStore((state) => state.user)
-  const isAdmin = user?.role === 'admin'
+  const isAdmin = user?.role === 'admin' || user?.role === 'hr'
 
   // Get employee details if employee_id exists
   const { data: employeeListData } = useQuery(

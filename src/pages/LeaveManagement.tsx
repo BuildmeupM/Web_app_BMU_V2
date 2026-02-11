@@ -19,7 +19,7 @@ export default function LeaveManagement() {
   const [leaveFormOpened, setLeaveFormOpened] = useState(false)
   const [wfhFormOpened, setWfhFormOpened] = useState(false)
   const user = useAuthStore((state) => state.user)
-  const isAdmin = user?.role === 'admin'
+  const isAdmin = user?.role === 'admin' || user?.role === 'hr'
 
   return (
     <Container fluid>

@@ -34,7 +34,7 @@ dayjs.extend(buddhistEra)
 
 export default function WFHDashboard() {
   const user = useAuthStore((state) => state.user)
-  const isAdmin = user?.role === 'admin'
+  const isAdmin = user?.role === 'admin' || user?.role === 'hr'
   const [page, setPage] = useState(1)
   const [limit] = useState(5) // แสดง 5 รายการต่อหน้า
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
@@ -42,7 +42,7 @@ export default function WFHDashboard() {
   const [chartMonth, setChartMonth] = useState<string>(dayjs().format('YYYY-MM'))
   const [filterCalendarMonth, setFilterCalendarMonth] = useState<Date>(new Date())
   const [filterSelectedDate, setFilterSelectedDate] = useState<Date | null>(null)
-  
+
   // Track calendar month changes by listening to calendar navigation clicks
   useEffect(() => {
     let timeoutId: NodeJS.Timeout | null = null
@@ -107,7 +107,7 @@ export default function WFHDashboard() {
     const setupButtonListeners = () => {
       const prevButton = document.querySelector('.mantine-Calendar-calendarHeader > button:first-child')
       const nextButton = document.querySelector('.mantine-Calendar-calendarHeader > button:last-child')
-      
+
       if (prevButton) {
         prevButton.addEventListener('click', handleCalendarNavigation, true)
       }
@@ -235,7 +235,7 @@ export default function WFHDashboard() {
   // Create a map of date to request count for quick lookup (combine all months)
   const dateRequestCountMap = useMemo(() => {
     const map = new Map<string, number>()
-    
+
     // Helper function to process calendar data
     const processCalendarData = (data: any) => {
       if (data?.data?.calendar) {
@@ -248,12 +248,12 @@ export default function WFHDashboard() {
         })
       }
     }
-    
+
     // Process all calendar data
     processCalendarData(calendarData)
     processCalendarData(prevCalendarData)
     processCalendarData(nextCalendarData)
-    
+
     return map
   }, [calendarData, prevCalendarData, nextCalendarData])
 
@@ -366,7 +366,7 @@ export default function WFHDashboard() {
     today.setHours(0, 0, 0, 0)
     const isPast = date < today
     const isWeekendDay = isWeekend(date)
-    
+
     // Disable weekends
     if (isWeekendDay) {
       return {
@@ -410,8 +410,8 @@ export default function WFHDashboard() {
           employeeCount >= 3
             ? '1px solid #ffcdd2'
             : employeeCount >= 1
-            ? '1px solid #ffe082'
-            : '1px solid rgba(0, 0, 0, 0.1)',
+              ? '1px solid #ffe082'
+              : '1px solid rgba(0, 0, 0, 0.1)',
         margin: '1px',
         transition: 'all 0.2s ease',
         fontWeight: 600,
@@ -490,7 +490,7 @@ export default function WFHDashboard() {
     today.setHours(0, 0, 0, 0)
     const isPast = date < today
     const isWeekendDay = isWeekend(date)
-    
+
     // Disable weekends (Saturday and Sunday)
     if (isWeekendDay) {
       return {
@@ -507,7 +507,7 @@ export default function WFHDashboard() {
         onClick: undefined,
       }
     }
-    
+
     // Get request count from map (works for any month since we fetch 3 months)
     const requestCount = dateRequestCountMap.get(dateStr) || 0
 
@@ -535,8 +535,8 @@ export default function WFHDashboard() {
           requestCount >= 3
             ? '1px solid #ffcdd2'
             : requestCount >= 1
-            ? '1px solid #ffe082'
-            : '1px solid rgba(0, 0, 0, 0.1)',
+              ? '1px solid #ffe082'
+              : '1px solid rgba(0, 0, 0, 0.1)',
         margin: '1px',
         transition: 'all 0.2s ease',
         fontWeight: 600,
@@ -549,7 +549,7 @@ export default function WFHDashboard() {
     setSelectedDate(null)
     setPage(1) // Reset to first page when clearing filter
   }
-  
+
   // Update calendarMonth when selectedDate changes
   useEffect(() => {
     if (selectedDate) {
@@ -749,47 +749,47 @@ export default function WFHDashboard() {
           <Text>กำลังโหลดข้อมูลกราฟ...</Text>
         ) : dailyStatsData?.data ? (
           chartData.length > 0 ? (
-          <ResponsiveContainer width="100%" height={400}>
-            <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis
-                dataKey="day"
-                tickFormatter={(value) => {
-                  const item = chartData.find((d) => d.day === value)
-                  return item ? item.label : String(value)
-                }}
-              />
-              <YAxis allowDecimals={false} />
-              <Tooltip
-                formatter={(value: number, name: string) => {
-                  if (name === 'approved') return [`${value} คน`, 'อนุมัติแล้ว']
-                  if (name === 'pending') return [`${value} คน`, 'รออนุมัติ']
-                  return value
-                }}
-                labelFormatter={(label) => {
-                  const item = chartData.find((d) => d.day === Number(label))
-                  return item ? `วันที่ ${item.day} ${item.label}` : label
-                }}
-              />
-              <Legend
-                formatter={(value) => {
-                  if (value === 'approved') return 'อนุมัติแล้ว'
-                  if (value === 'pending') return 'รออนุมัติ'
-                  return value
-                }}
-              />
-              <Bar dataKey="approved" fill="#ff6b35" name="approved" radius={[4, 4, 0, 0]}>
-                {chartData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.approved > 0 ? '#ff6b35' : '#e0e0e0'} />
-                ))}
-              </Bar>
-              <Bar dataKey="pending" fill="#ffc107" name="pending" radius={[4, 4, 0, 0]}>
-                {chartData.map((entry, index) => (
-                  <Cell key={`pending-cell-${index}`} fill={entry.pending > 0 ? '#ffc107' : '#e0e0e0'} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+            <ResponsiveContainer width="100%" height={400}>
+              <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis
+                  dataKey="day"
+                  tickFormatter={(value) => {
+                    const item = chartData.find((d) => d.day === value)
+                    return item ? item.label : String(value)
+                  }}
+                />
+                <YAxis allowDecimals={false} />
+                <Tooltip
+                  formatter={(value: number, name: string) => {
+                    if (name === 'approved') return [`${value} คน`, 'อนุมัติแล้ว']
+                    if (name === 'pending') return [`${value} คน`, 'รออนุมัติ']
+                    return value
+                  }}
+                  labelFormatter={(label) => {
+                    const item = chartData.find((d) => d.day === Number(label))
+                    return item ? `วันที่ ${item.day} ${item.label}` : label
+                  }}
+                />
+                <Legend
+                  formatter={(value) => {
+                    if (value === 'approved') return 'อนุมัติแล้ว'
+                    if (value === 'pending') return 'รออนุมัติ'
+                    return value
+                  }}
+                />
+                <Bar dataKey="approved" fill="#ff6b35" name="approved" radius={[4, 4, 0, 0]}>
+                  {chartData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.approved > 0 ? '#ff6b35' : '#e0e0e0'} />
+                  ))}
+                </Bar>
+                <Bar dataKey="pending" fill="#ffc107" name="pending" radius={[4, 4, 0, 0]}>
+                  {chartData.map((entry, index) => (
+                    <Cell key={`pending-cell-${index}`} fill={entry.pending > 0 ? '#ffc107' : '#e0e0e0'} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
           ) : (
             <Alert color="blue">ไม่พบข้อมูลการ WFH ในเดือนนี้</Alert>
           )
@@ -803,7 +803,7 @@ export default function WFHDashboard() {
         <Title order={3} mb="md">
           รายงานการทำงาน
         </Title>
-        
+
         {/* Filter Section */}
         <Card withBorder padding="md" radius="md" mb="lg" style={{ backgroundColor: '#f8f9fa' }}>
           <Text size="sm" c="dimmed" mb="md">
@@ -841,150 +841,150 @@ export default function WFHDashboard() {
 
         {/* Work Reports Grid - 2 Columns */}
         <Grid>
-        {/* Column 1: Submitted Work Reports */}
-        <Grid.Col span={{ base: 12, md: 6 }}>
-          <Card withBorder padding="lg" radius="md" h="100%">
-            <Group mb="md">
-              <TbCheck size={24} color="#4caf50" />
-              <Title order={3}>รายงานการทำงานแล้ว</Title>
-              <Badge color="green" size="lg">
-                {filterSelectedDate
-                  ? workReportsData?.data?.submitted?.filter(
+          {/* Column 1: Submitted Work Reports */}
+          <Grid.Col span={{ base: 12, md: 6 }}>
+            <Card withBorder padding="lg" radius="md" h="100%">
+              <Group mb="md">
+                <TbCheck size={24} color="#4caf50" />
+                <Title order={3}>รายงานการทำงานแล้ว</Title>
+                <Badge color="green" size="lg">
+                  {filterSelectedDate
+                    ? workReportsData?.data?.submitted?.filter(
                       (r: any) => r.wfh_date === dayjs(filterSelectedDate).format('YYYY-MM-DD')
                     ).length || 0
-                  : workReportsData?.data?.summary?.submitted || 0}{' '}
-                รายการ
-              </Badge>
-            </Group>
+                    : workReportsData?.data?.summary?.submitted || 0}{' '}
+                  รายการ
+                </Badge>
+              </Group>
 
-            {isLoadingWorkReports ? (
-              <Text>กำลังโหลดข้อมูล...</Text>
-            ) : (() => {
-              const submittedData = filterSelectedDate
-                ? workReportsData?.data?.submitted?.filter(
+              {isLoadingWorkReports ? (
+                <Text>กำลังโหลดข้อมูล...</Text>
+              ) : (() => {
+                const submittedData = filterSelectedDate
+                  ? workReportsData?.data?.submitted?.filter(
                     (r: any) => r.wfh_date === dayjs(filterSelectedDate).format('YYYY-MM-DD')
                   ) || []
-                : workReportsData?.data?.submitted || []
-              
-              return submittedData.length > 0 ? (
-                <ScrollArea h={400}>
-                  <Stack gap="xs">
-                    {submittedData.map((report: any) => (
-                    <Card key={report.id} withBorder padding="sm" radius="md">
-                      <Group gap="xs" mb="xs">
-                        <Text fw={500} size="sm">
-                          {report.employee_name}
-                          {report.employee_nick_name && ` (${report.employee_nick_name})`}
-                        </Text>
-                        <Badge color="green" size="sm">
-                          ส่งแล้ว
-                        </Badge>
-                      </Group>
-                      <Text size="xs" c="dimmed">
-                        {report.employee_position} • {report.employee_id}
-                      </Text>
-                      <Text size="xs" c="dimmed" mt="xs">
-                        วันที่ WFH: {formatThaiDate(report.wfh_date)}
-                      </Text>
-                      {report.work_report_submitted_at && (
-                        <Text size="xs" c="dimmed">
-                          ส่งเมื่อ: {dayjs(report.work_report_submitted_at).format('DD/MM/YYYY HH:mm')}
-                        </Text>
-                      )}
-                      </Card>
-                    ))}
-                  </Stack>
-                </ScrollArea>
-              ) : (
-                <Alert color="green">
-                  {filterSelectedDate
-                    ? `ไม่มีรายงานการทำงานที่ส่งแล้วในวันที่ ${formatThaiDate(dayjs(filterSelectedDate).format('YYYY-MM-DD'))}`
-                    : 'ไม่มีรายงานการทำงานที่ส่งแล้ว'}
-                </Alert>
-              )
-            })()}
-          </Card>
-        </Grid.Col>
+                  : workReportsData?.data?.submitted || []
 
-        {/* Column 2: Not Submitted Work Reports */}
-        <Grid.Col span={{ base: 12, md: 6 }}>
-          <Card withBorder padding="lg" radius="md" h="100%">
-            <Group mb="md">
-              <TbClock size={24} color="#ff9800" />
-              <Title order={3}>ยังไม่ได้รายงาน</Title>
-              <Badge color="orange" size="lg">
-                {filterSelectedDate
-                  ? (workReportsData?.data?.not_submitted?.filter(
+                return submittedData.length > 0 ? (
+                  <ScrollArea h={400}>
+                    <Stack gap="xs">
+                      {submittedData.map((report: any) => (
+                        <Card key={report.id} withBorder padding="sm" radius="md">
+                          <Group gap="xs" mb="xs">
+                            <Text fw={500} size="sm">
+                              {report.employee_name}
+                              {report.employee_nick_name && ` (${report.employee_nick_name})`}
+                            </Text>
+                            <Badge color="green" size="sm">
+                              ส่งแล้ว
+                            </Badge>
+                          </Group>
+                          <Text size="xs" c="dimmed">
+                            {report.employee_position} • {report.employee_id}
+                          </Text>
+                          <Text size="xs" c="dimmed" mt="xs">
+                            วันที่ WFH: {formatThaiDate(report.wfh_date)}
+                          </Text>
+                          {report.work_report_submitted_at && (
+                            <Text size="xs" c="dimmed">
+                              ส่งเมื่อ: {dayjs(report.work_report_submitted_at).format('DD/MM/YYYY HH:mm')}
+                            </Text>
+                          )}
+                        </Card>
+                      ))}
+                    </Stack>
+                  </ScrollArea>
+                ) : (
+                  <Alert color="green">
+                    {filterSelectedDate
+                      ? `ไม่มีรายงานการทำงานที่ส่งแล้วในวันที่ ${formatThaiDate(dayjs(filterSelectedDate).format('YYYY-MM-DD'))}`
+                      : 'ไม่มีรายงานการทำงานที่ส่งแล้ว'}
+                  </Alert>
+                )
+              })()}
+            </Card>
+          </Grid.Col>
+
+          {/* Column 2: Not Submitted Work Reports */}
+          <Grid.Col span={{ base: 12, md: 6 }}>
+            <Card withBorder padding="lg" radius="md" h="100%">
+              <Group mb="md">
+                <TbClock size={24} color="#ff9800" />
+                <Title order={3}>ยังไม่ได้รายงาน</Title>
+                <Badge color="orange" size="lg">
+                  {filterSelectedDate
+                    ? (workReportsData?.data?.not_submitted?.filter(
                       (r: any) => r.wfh_date === dayjs(filterSelectedDate).format('YYYY-MM-DD')
                     ).length || 0) +
                     (workReportsData?.data?.overdue?.filter(
                       (r: any) => r.wfh_date === dayjs(filterSelectedDate).format('YYYY-MM-DD')
                     ).length || 0)
-                  : workReportsData?.data?.summary?.not_submitted || 0}{' '}
-                รายการ
-              </Badge>
-            </Group>
+                    : workReportsData?.data?.summary?.not_submitted || 0}{' '}
+                  รายการ
+                </Badge>
+              </Group>
 
-            {isLoadingWorkReports ? (
-              <Text>กำลังโหลดข้อมูล...</Text>
-            ) : (() => {
-              const notSubmittedData = filterSelectedDate
-                ? workReportsData?.data?.not_submitted?.filter(
+              {isLoadingWorkReports ? (
+                <Text>กำลังโหลดข้อมูล...</Text>
+              ) : (() => {
+                const notSubmittedData = filterSelectedDate
+                  ? workReportsData?.data?.not_submitted?.filter(
                     (r: any) => r.wfh_date === dayjs(filterSelectedDate).format('YYYY-MM-DD')
                   ) || []
-                : workReportsData?.data?.not_submitted || []
-              
-              const overdueData = filterSelectedDate
-                ? workReportsData?.data?.overdue?.filter(
+                  : workReportsData?.data?.not_submitted || []
+
+                const overdueData = filterSelectedDate
+                  ? workReportsData?.data?.overdue?.filter(
                     (r: any) => r.wfh_date === dayjs(filterSelectedDate).format('YYYY-MM-DD')
                   ) || []
-                : workReportsData?.data?.overdue || []
-              
-              const allNotSubmitted = [...notSubmittedData, ...overdueData]
-              
-              return allNotSubmitted.length > 0 ? (
-                <ScrollArea h={400}>
-                  <Stack gap="xs">
-                    {allNotSubmitted.map((report: any) => {
-                    const wfhDate = new Date(report.wfh_date)
-                    wfhDate.setHours(0, 0, 0, 0)
-                    const today = new Date()
-                    today.setHours(0, 0, 0, 0)
-                    const daysDiff = Math.floor((today.getTime() - wfhDate.getTime()) / (1000 * 60 * 60 * 24))
-                    const canStillSubmit = daysDiff >= 0 && daysDiff <= 2
+                  : workReportsData?.data?.overdue || []
 
-                    return (
-                      <Card key={report.id} withBorder padding="sm" radius="md">
-                        <Group gap="xs" mb="xs">
-                          <Text fw={500} size="sm">
-                            {report.employee_name}
-                            {report.employee_nick_name && ` (${report.employee_nick_name})`}
-                          </Text>
-                          <Badge color={canStillSubmit ? 'orange' : 'red'} size="sm">
-                            {canStillSubmit ? `ส่งภายใน ${2 - daysDiff} วัน` : 'เลยกำหนด'}
-                          </Badge>
-                        </Group>
-                        <Text size="xs" c="dimmed">
-                          {report.employee_position} • {report.employee_id}
-                        </Text>
-                        <Text size="xs" c="dimmed" mt="xs">
-                          วันที่ WFH: {formatThaiDate(report.wfh_date)}
-                        </Text>
-                      </Card>
-                      )
-                    })}
-                  </Stack>
-                </ScrollArea>
-              ) : (
-                <Alert color="green">
-                  {filterSelectedDate
-                    ? `ไม่มีรายงานการทำงานที่ยังไม่ได้ส่งในวันที่ ${formatThaiDate(dayjs(filterSelectedDate).format('YYYY-MM-DD'))}`
-                    : 'ไม่มีรายงานการทำงานที่ยังไม่ได้ส่ง'}
-                </Alert>
-              )
-            })()}
-          </Card>
-        </Grid.Col>
+                const allNotSubmitted = [...notSubmittedData, ...overdueData]
+
+                return allNotSubmitted.length > 0 ? (
+                  <ScrollArea h={400}>
+                    <Stack gap="xs">
+                      {allNotSubmitted.map((report: any) => {
+                        const wfhDate = new Date(report.wfh_date)
+                        wfhDate.setHours(0, 0, 0, 0)
+                        const today = new Date()
+                        today.setHours(0, 0, 0, 0)
+                        const daysDiff = Math.floor((today.getTime() - wfhDate.getTime()) / (1000 * 60 * 60 * 24))
+                        const canStillSubmit = daysDiff >= 0 && daysDiff <= 2
+
+                        return (
+                          <Card key={report.id} withBorder padding="sm" radius="md">
+                            <Group gap="xs" mb="xs">
+                              <Text fw={500} size="sm">
+                                {report.employee_name}
+                                {report.employee_nick_name && ` (${report.employee_nick_name})`}
+                              </Text>
+                              <Badge color={canStillSubmit ? 'orange' : 'red'} size="sm">
+                                {canStillSubmit ? `ส่งภายใน ${2 - daysDiff} วัน` : 'เลยกำหนด'}
+                              </Badge>
+                            </Group>
+                            <Text size="xs" c="dimmed">
+                              {report.employee_position} • {report.employee_id}
+                            </Text>
+                            <Text size="xs" c="dimmed" mt="xs">
+                              วันที่ WFH: {formatThaiDate(report.wfh_date)}
+                            </Text>
+                          </Card>
+                        )
+                      })}
+                    </Stack>
+                  </ScrollArea>
+                ) : (
+                  <Alert color="green">
+                    {filterSelectedDate
+                      ? `ไม่มีรายงานการทำงานที่ยังไม่ได้ส่งในวันที่ ${formatThaiDate(dayjs(filterSelectedDate).format('YYYY-MM-DD'))}`
+                      : 'ไม่มีรายงานการทำงานที่ยังไม่ได้ส่ง'}
+                  </Alert>
+                )
+              })()}
+            </Card>
+          </Grid.Col>
         </Grid>
       </Card>
     </Stack>

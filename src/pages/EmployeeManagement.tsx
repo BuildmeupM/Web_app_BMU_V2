@@ -103,7 +103,7 @@ function EmployeeDetailView({
 export default function EmployeeManagement() {
   const { user } = useAuthStore()
   const queryClient = useQueryClient()
-  const isAdmin = user?.role === 'admin'
+  const isAdmin = user?.role === 'admin' || user?.role === 'hr'
   const isEmployee = !isAdmin // พนักงานที่ไม่ใช่ admin
 
   // State

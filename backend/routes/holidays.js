@@ -113,7 +113,7 @@ router.get('/dates', authenticateToken, async (req, res) => {
  * เพิ่มวันหยุดใหม่
  * Access: Admin only
  */
-router.post('/', authenticateToken, authorize('admin'), async (req, res) => {
+router.post('/', authenticateToken, authorize('admin', 'hr'), async (req, res) => {
     try {
         const { holiday_date, name, name_en, year } = req.body
 
@@ -177,7 +177,7 @@ router.post('/', authenticateToken, authorize('admin'), async (req, res) => {
  * แก้ไขวันหยุด
  * Access: Admin only
  */
-router.put('/:id', authenticateToken, authorize('admin'), async (req, res) => {
+router.put('/:id', authenticateToken, authorize('admin', 'hr'), async (req, res) => {
     try {
         const { id } = req.params
         const { holiday_date, name, name_en, year, is_active } = req.body
@@ -252,7 +252,7 @@ router.put('/:id', authenticateToken, authorize('admin'), async (req, res) => {
  * ลบวันหยุด (soft delete)
  * Access: Admin only
  */
-router.delete('/:id', authenticateToken, authorize('admin'), async (req, res) => {
+router.delete('/:id', authenticateToken, authorize('admin', 'hr'), async (req, res) => {
     try {
         const { id } = req.params
 

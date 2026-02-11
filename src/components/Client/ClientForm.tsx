@@ -1,13 +1,15 @@
 /**
  * ClientForm Component
- * Form สำหรับเพิ่ม/แก้ไขข้อมูลลูกค้า
+ * Form สำหรับเพิ่ม/แก้ไขข้อมูลลูกค้า (ข้อมูลพื้นฐาน + BOI + ค่าทำบัญชีเบื้องต้น)
+ * ส่วนค่าธรรมเนียมรายเดือน, Line Chat, DBD, รหัสหน่วยงานราชการ จะกรอกในหน้ารายละเอียดแยก
  */
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Modal,
   Stack,
   TextInput,
+  NumberInput,
   Select,
   Textarea,
   Button,
@@ -18,6 +20,8 @@ import {
 } from '@mantine/core'
 import { DateInput, DateValue } from '@mantine/dates'
 import { useForm } from '@mantine/form'
+import { notifications } from '@mantine/notifications'
+import { TbAlertCircle } from 'react-icons/tb'
 import { Client } from '../../services/clientsService'
 
 interface ClientFormProps {
@@ -32,6 +36,10 @@ const businessTypeOptions = [
   { value: 'บริษัทจำกัด', label: 'บริษัทจำกัด' },
   { value: 'บริษัทมหาชนจำกัด', label: 'บริษัทมหาชนจำกัด' },
   { value: 'ห้างหุ้นส่วน', label: 'ห้างหุ้นส่วน' },
+  { value: 'มูลนิธิ', label: 'มูลนิธิ' },
+  { value: 'สมาคม', label: 'สมาคม' },
+  { value: 'กิจการร่วมค้า', label: 'กิจการร่วมค้า' },
+  { value: 'อื่น ๆ', label: 'อื่น ๆ' },
 ]
 
 const companyStatusOptions = [
@@ -69,6 +77,7 @@ export default function ClientForm({
 
   const form = useForm({
     initialValues: {
+      // === Basic Info ===
       build: '',
       business_type: '',
       company_name: '',
@@ -79,6 +88,8 @@ export default function ClientForm({
       company_size: '',
       tax_registration_status: '',
       vat_registration_date: null as DateValue | null,
+      company_status: 'รายเดือน',
+      // === Address ===
       full_address: '',
       village: '',
       building: '',
@@ -92,15 +103,20 @@ export default function ClientForm({
       district: '',
       province: '',
       postal_code: '',
-      company_status: 'รายเดือน',
+      // === Accounting Fees (basic only) ===
+      peak_code: '',
+      accounting_start_date: null as DateValue | null,
+      accounting_end_date: null as DateValue | null,
+      accounting_end_reason: '',
+      fee_year: new Date().getFullYear(),
+      // === BOI Info ===
+      boi_approval_date: null as DateValue | null,
+      boi_first_use_date: null as DateValue | null,
+      boi_expiry_date: null as DateValue | null,
     },
     validate: {
       build: (value) => {
         if (!value) return 'กรุณากรอก Build code'
-        // Build Code can be:
-        // - Pure numbers: at least 3 digits (e.g., 001, 122, 375)
-        // - Numbers with decimal: at least 3 characters total (e.g., 122.1, 214.2)
-        // - Maximum 10 characters (database VARCHAR(10))
         const str = String(value).trim()
         if (str.length < 3 || str.length > 10) {
           return 'Build code ต้องมีความยาวอย่างน้อย 3 ตัวอักษร และไม่เกิน 10 ตัวอักษร'
@@ -118,26 +134,35 @@ export default function ClientForm({
         if (!/^\d{13}$/.test(cleaned)) return 'เลขทะเบียนนิติบุคคลต้องเป็นตัวเลข 13 หลัก'
         return null
       },
+      company_status: (value) => (!value ? 'กรุณาเลือกสถานะบริษัท' : null),
+      tax_registration_status: (value) => (!value ? 'กรุณาเลือกสถานะจดภาษีมูลค่าเพิ่ม' : null),
+      vat_registration_date: (value, values) => {
+        if (values.tax_registration_status === 'จดภาษีมูลค่าเพิ่ม' && !value) {
+          return 'กรุณาเลือกวันที่จดภาษีมูลค่าเพิ่ม (บังคับเมื่อเลือก "จดภาษีมูลค่าเพิ่ม")'
+        }
+        return null
+      },
+      peak_code: (value) => (!value ? 'กรุณากรอก Peak Code' : null),
+      accounting_start_date: (value) => (!value ? 'กรุณาเลือกวันเริ่มทำบัญชี' : null),
       postal_code: (value) =>
         value && !/^\d{5}$/.test(value) ? 'รหัสไปรษณีย์ต้องเป็นตัวเลข 5 หลัก' : null,
     },
   })
 
-  // Helper function to parse date string (YYYY-MM-DD) to Date object
   const parseDate = (dateString: string | null | undefined): DateValue | null => {
     if (!dateString) return null
-    // Handle both "YYYY-MM-DD" and "YYYY-MM-DDTHH:mm:ss.sssZ" formats
-    const dateOnly = dateString.split('T')[0] // Get YYYY-MM-DD part only
+    const dateOnly = dateString.split('T')[0]
     const [year, month, day] = dateOnly.split('-').map(Number)
     if (isNaN(year) || isNaN(month) || isNaN(day)) return null
-    // Create date in local timezone to avoid timezone issues
-    const date = new Date(year, month - 1, day)
-    return date
+    return new Date(year, month - 1, day)
   }
 
   useEffect(() => {
     if (opened) {
       if (isEditMode && client) {
+        const af = client.accounting_fees
+        const boi = client.boi_info
+
         form.setValues({
           build: client.build,
           business_type: client.business_type,
@@ -149,6 +174,7 @@ export default function ClientForm({
           company_size: client.company_size || '',
           tax_registration_status: client.tax_registration_status || '',
           vat_registration_date: parseDate(client.vat_registration_date),
+          company_status: client.company_status || 'รายเดือน',
           full_address: client.full_address || '',
           village: client.village || '',
           building: client.building || '',
@@ -162,7 +188,16 @@ export default function ClientForm({
           district: client.district || '',
           province: client.province || '',
           postal_code: client.postal_code || '',
-          company_status: client.company_status || 'รายเดือน',
+          // Accounting Fees (basic)
+          peak_code: af?.peak_code || '',
+          accounting_start_date: parseDate(af?.accounting_start_date),
+          accounting_end_date: parseDate(af?.accounting_end_date),
+          accounting_end_reason: af?.accounting_end_reason || '',
+          fee_year: af?.fee_year || new Date().getFullYear(),
+          // BOI Info
+          boi_approval_date: parseDate(boi?.boi_approval_date),
+          boi_first_use_date: parseDate(boi?.boi_first_use_date),
+          boi_expiry_date: parseDate(boi?.boi_expiry_date),
         })
       } else {
         form.reset()
@@ -178,9 +213,57 @@ export default function ClientForm({
     return `${year}-${month}-${day}`
   }
 
-  const handleSubmit = async (values: typeof form.values) => {
+  // Controlled accordion state
+  const [openedSections, setOpenedSections] = useState<string[]>(['basic'])
+
+  // Map fields to their accordion sections
+  const fieldToSection: Record<string, string> = {
+    build: 'basic',
+    business_type: 'basic',
+    company_name: 'basic',
+    legal_entity_number: 'basic',
+    company_status: 'basic',
+    tax_registration_status: 'tax',
+    vat_registration_date: 'tax',
+    postal_code: 'address',
+    peak_code: 'fees',
+    accounting_start_date: 'fees',
+  }
+
+  const handleFormSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    // Run Mantine validation manually
+    const validation = form.validate()
+    if (validation.hasErrors) {
+      // Find the first error field and expand its accordion section
+      const errorFields = Object.keys(validation.errors)
+      const errorMessages = Object.values(validation.errors).filter(Boolean)
+      const sectionsToOpen = new Set<string>(openedSections)
+      errorFields.forEach((field) => {
+        const section = fieldToSection[field]
+        if (section) sectionsToOpen.add(section)
+      })
+      setOpenedSections(Array.from(sectionsToOpen))
+
+      // Show notification with error info
+      notifications.show({
+        title: 'กรุณาตรวจสอบข้อมูล',
+        message: errorMessages.join(', '),
+        color: 'red',
+        icon: <TbAlertCircle size={16} />,
+        autoClose: 5000,
+      })
+      return
+    }
+
+    // Validation passed — build the submit data
+    const values = form.values
     const cleanedLegalEntityNumber = values.legal_entity_number.replace(/-/g, '')
-    
+
+    const hasAccountingFees = values.peak_code || values.accounting_start_date
+    const hasBoiInfo = values.boi_approval_date || values.boi_first_use_date || values.boi_expiry_date
+
     const submitData: Partial<Client> = {
       build: values.build,
       business_type: values.business_type,
@@ -210,6 +293,19 @@ export default function ClientForm({
       province: values.province || null,
       postal_code: values.postal_code || null,
       company_status: values.company_status,
+      // Accounting fees (basic info only — monthly fees added separately)
+      accounting_fees: hasAccountingFees ? {
+        peak_code: values.peak_code || null,
+        accounting_start_date: values.accounting_start_date ? formatDateToLocal(values.accounting_start_date) : null,
+        accounting_end_date: values.accounting_end_date ? formatDateToLocal(values.accounting_end_date) : null,
+        accounting_end_reason: values.accounting_end_reason || null,
+        fee_year: values.fee_year,
+      } : undefined,
+      boi_info: hasBoiInfo ? {
+        boi_approval_date: values.boi_approval_date ? formatDateToLocal(values.boi_approval_date) : null,
+        boi_first_use_date: values.boi_first_use_date ? formatDateToLocal(values.boi_first_use_date) : null,
+        boi_expiry_date: values.boi_expiry_date ? formatDateToLocal(values.boi_expiry_date) : null,
+      } : undefined,
     }
 
     await onSubmit(submitData)
@@ -223,11 +319,14 @@ export default function ClientForm({
       title={isEditMode ? 'แก้ไขข้อมูลลูกค้า' : 'เพิ่มลูกค้าใหม่'}
       size="xl"
       centered
+      styles={{
+        body: { maxHeight: '80vh', overflowY: 'auto' },
+      }}
     >
-      <form onSubmit={form.onSubmit(handleSubmit)}>
+      <form onSubmit={handleFormSubmit} noValidate>
         <Stack gap="md">
-          {/* Basic Information */}
-          <Accordion defaultValue="basic" variant="separated">
+          <Accordion multiple value={openedSections} onChange={setOpenedSections} variant="separated">
+            {/* ========== 1. ข้อมูลพื้นฐาน ========== */}
             <Accordion.Item value="basic">
               <Accordion.Control>ข้อมูลพื้นฐาน</Accordion.Control>
               <Accordion.Panel>
@@ -313,7 +412,7 @@ export default function ClientForm({
               </Accordion.Panel>
             </Accordion.Item>
 
-            {/* Tax Information */}
+            {/* ========== 2. ข้อมูลภาษี ========== */}
             <Accordion.Item value="tax">
               <Accordion.Control>ข้อมูลภาษี</Accordion.Control>
               <Accordion.Panel>
@@ -323,8 +422,8 @@ export default function ClientForm({
                       <Select
                         label="สถานะจดภาษีมูลค่าเพิ่ม"
                         placeholder="เลือกสถานะ"
+                        withAsterisk
                         data={taxRegistrationStatusOptions}
-                        clearable
                         {...form.getInputProps('tax_registration_status')}
                       />
                     </Grid.Col>
@@ -333,6 +432,7 @@ export default function ClientForm({
                         label="วันที่จดภาษีมูลค่าเพิ่ม"
                         placeholder="เลือกวันที่"
                         valueFormat="DD/MM/YYYY"
+                        required={form.values.tax_registration_status === 'จดภาษีมูลค่าเพิ่ม'}
                         {...form.getInputProps('vat_registration_date')}
                       />
                     </Grid.Col>
@@ -341,7 +441,7 @@ export default function ClientForm({
               </Accordion.Panel>
             </Accordion.Item>
 
-            {/* Address */}
+            {/* ========== 3. ที่อยู่ ========== */}
             <Accordion.Item value="address">
               <Accordion.Control>ที่อยู่</Accordion.Control>
               <Accordion.Panel>
@@ -357,87 +457,122 @@ export default function ClientForm({
                   </Text>
                   <Grid>
                     <Grid.Col span={{ base: 12, sm: 6 }}>
-                      <TextInput
-                        label="หมู่บ้าน"
-                        placeholder="กรอกหมู่บ้าน"
-                        {...form.getInputProps('village')}
-                      />
+                      <TextInput label="หมู่บ้าน" placeholder="กรอกหมู่บ้าน" {...form.getInputProps('village')} />
                     </Grid.Col>
                     <Grid.Col span={{ base: 12, sm: 6 }}>
-                      <TextInput
-                        label="อาคาร"
-                        placeholder="กรอกอาคาร"
-                        {...form.getInputProps('building')}
-                      />
+                      <TextInput label="อาคาร" placeholder="กรอกอาคาร" {...form.getInputProps('building')} />
                     </Grid.Col>
                     <Grid.Col span={{ base: 12, sm: 6 }}>
-                      <TextInput
-                        label="ห้องเลขที่"
-                        placeholder="กรอกห้องเลขที่"
-                        {...form.getInputProps('room_number')}
-                      />
+                      <TextInput label="ห้องเลขที่" placeholder="กรอกห้องเลขที่" {...form.getInputProps('room_number')} />
                     </Grid.Col>
                     <Grid.Col span={{ base: 12, sm: 6 }}>
-                      <TextInput
-                        label="ชั้นที่"
-                        placeholder="กรอกชั้นที่"
-                        {...form.getInputProps('floor_number')}
-                      />
+                      <TextInput label="ชั้นที่" placeholder="กรอกชั้นที่" {...form.getInputProps('floor_number')} />
                     </Grid.Col>
                     <Grid.Col span={{ base: 12, sm: 6 }}>
-                      <TextInput
-                        label="เลขที่"
-                        placeholder="กรอกเลขที่"
-                        {...form.getInputProps('address_number')}
-                      />
+                      <TextInput label="เลขที่" placeholder="กรอกเลขที่" {...form.getInputProps('address_number')} />
                     </Grid.Col>
                     <Grid.Col span={{ base: 12, sm: 6 }}>
-                      <TextInput
-                        label="ซอย/ตรอก"
-                        placeholder="กรอกซอย/ตรอก"
-                        {...form.getInputProps('soi')}
-                      />
+                      <TextInput label="ซอย/ตรอก" placeholder="กรอกซอย/ตรอก" {...form.getInputProps('soi')} />
                     </Grid.Col>
                     <Grid.Col span={{ base: 12, sm: 6 }}>
-                      <TextInput
-                        label="หมู่ที่"
-                        placeholder="กรอกหมู่ที่"
-                        {...form.getInputProps('moo')}
-                      />
+                      <TextInput label="หมู่ที่" placeholder="กรอกหมู่ที่" {...form.getInputProps('moo')} />
                     </Grid.Col>
                     <Grid.Col span={{ base: 12, sm: 6 }}>
-                      <TextInput
-                        label="ถนน"
-                        placeholder="กรอกถนน"
-                        {...form.getInputProps('road')}
-                      />
+                      <TextInput label="ถนน" placeholder="กรอกถนน" {...form.getInputProps('road')} />
                     </Grid.Col>
                     <Grid.Col span={{ base: 12, sm: 6 }}>
-                      <TextInput
-                        label="แขวง/ตำบล"
-                        placeholder="กรอกแขวง/ตำบล"
-                        {...form.getInputProps('subdistrict')}
-                      />
+                      <TextInput label="แขวง/ตำบล" placeholder="กรอกแขวง/ตำบล" {...form.getInputProps('subdistrict')} />
                     </Grid.Col>
                     <Grid.Col span={{ base: 12, sm: 6 }}>
-                      <TextInput
-                        label="อำเภอ/เขต"
-                        placeholder="กรอกอำเภอ/เขต"
-                        {...form.getInputProps('district')}
-                      />
+                      <TextInput label="อำเภอ/เขต" placeholder="กรอกอำเภอ/เขต" {...form.getInputProps('district')} />
                     </Grid.Col>
                     <Grid.Col span={{ base: 12, sm: 6 }}>
-                      <TextInput
-                        label="จังหวัด"
-                        placeholder="กรอกจังหวัด"
-                        {...form.getInputProps('province')}
-                      />
+                      <TextInput label="จังหวัด" placeholder="กรอกจังหวัด" {...form.getInputProps('province')} />
                     </Grid.Col>
                     <Grid.Col span={{ base: 12, sm: 6 }}>
-                      <TextInput
-                        label="รหัสไปรษณี"
-                        placeholder="12345"
-                        {...form.getInputProps('postal_code')}
+                      <TextInput label="รหัสไปรษณีย์" placeholder="12345" {...form.getInputProps('postal_code')} />
+                    </Grid.Col>
+                  </Grid>
+                </Stack>
+              </Accordion.Panel>
+            </Accordion.Item>
+
+            {/* ========== 4. ค่าทำบัญชี / ค่าบริการ HR (เฉพาะเพิ่มใหม่) ========== */}
+            {mode === 'create' && (
+              <Accordion.Item value="fees">
+                <Accordion.Control>ค่าทำบัญชี / ค่าบริการ HR</Accordion.Control>
+                <Accordion.Panel>
+                  <Stack gap="md">
+                    <Grid>
+                      <Grid.Col span={{ base: 12, sm: 4 }}>
+                        <TextInput
+                          label="Peak Code"
+                          placeholder="กรอก Peak Code"
+                          withAsterisk
+                          {...form.getInputProps('peak_code')}
+                        />
+                      </Grid.Col>
+                      <Grid.Col span={{ base: 12, sm: 4 }}>
+                        <DateInput
+                          label="วันเริ่มทำบัญชี"
+                          placeholder="เลือกวันที่"
+                          valueFormat="DD/MM/YYYY"
+                          withAsterisk
+                          {...form.getInputProps('accounting_start_date')}
+                        />
+                      </Grid.Col>
+                      <Grid.Col span={{ base: 12, sm: 4 }}>
+                        <DateInput
+                          label="วันสิ้นสุดทำบัญชี"
+                          placeholder="เลือกวันที่"
+                          valueFormat="DD/MM/YYYY"
+                          {...form.getInputProps('accounting_end_date')}
+                        />
+                      </Grid.Col>
+                      <Grid.Col span={12}>
+                        <TextInput
+                          label="เหตุผลสิ้นสุด"
+                          placeholder="กรอกเหตุผล (ถ้ามี)"
+                          {...form.getInputProps('accounting_end_reason')}
+                        />
+                      </Grid.Col>
+                    </Grid>
+                    <Text size="xs" c="dimmed" ta="center" fs="italic">
+                      * ค่าทำบัญชีรายเดือนและ Line Chat/Billing สามารถเพิ่มได้ในหน้ารายละเอียดลูกค้า
+                    </Text>
+                  </Stack>
+                </Accordion.Panel>
+              </Accordion.Item>
+            )}
+
+            {/* ========== 5. ข้อมูล BOI ========== */}
+            <Accordion.Item value="boi">
+              <Accordion.Control>ข้อมูลสิทธิ์ BOI</Accordion.Control>
+              <Accordion.Panel>
+                <Stack gap="md">
+                  <Grid>
+                    <Grid.Col span={{ base: 12, sm: 4 }}>
+                      <DateInput
+                        label="วันที่อนุมัติ BOI"
+                        placeholder="เลือกวันที่"
+                        valueFormat="DD/MM/YYYY"
+                        {...form.getInputProps('boi_approval_date')}
+                      />
+                    </Grid.Col>
+                    <Grid.Col span={{ base: 12, sm: 4 }}>
+                      <DateInput
+                        label="วันที่เริ่มใช้สิทธิ์ BOI"
+                        placeholder="เลือกวันที่"
+                        valueFormat="DD/MM/YYYY"
+                        {...form.getInputProps('boi_first_use_date')}
+                      />
+                    </Grid.Col>
+                    <Grid.Col span={{ base: 12, sm: 4 }}>
+                      <DateInput
+                        label="วันที่หมดอายุ BOI"
+                        placeholder="เลือกวันที่"
+                        valueFormat="DD/MM/YYYY"
+                        {...form.getInputProps('boi_expiry_date')}
                       />
                     </Grid.Col>
                   </Grid>

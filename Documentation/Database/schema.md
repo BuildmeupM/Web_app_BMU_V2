@@ -524,6 +524,8 @@ CREATE TABLE accounting_fees (
   line_chat_id VARCHAR(200) NULL,
   line_billing_chat_type VARCHAR(50) NULL,
   line_billing_id VARCHAR(200) NULL,
+  -- ลิงค์รูปค่าทำบัญชี
+  accounting_fee_image_url VARCHAR(500) NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   deleted_at TIMESTAMP NULL,

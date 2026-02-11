@@ -83,6 +83,192 @@ function padLegalEntityNumber(value) {
 }
 
 /**
+ * GET /api/clients/accounting-fees-dashboard
+ * ดึงข้อมูลสรุปค่าทำบัญชีสำหรับ Dashboard
+ * Access: All authenticated users
+ */
+router.get('/accounting-fees-dashboard', authenticateToken, async (req, res) => {
+  try {
+    const { fee_year } = req.query
+    const currentYear = fee_year || new Date().getFullYear()
+
+    // 1. Get total clients with monthly statuses
+    const [statusCounts] = await pool.execute(
+      `SELECT company_status, COUNT(*) as count 
+       FROM clients WHERE deleted_at IS NULL 
+       AND company_status LIKE '%รายเดือน%'
+       GROUP BY company_status`
+    )
+
+    // 2. Get tax registration status counts  
+    const [taxCounts] = await pool.execute(
+      `SELECT tax_registration_status, COUNT(*) as count 
+       FROM clients WHERE deleted_at IS NULL 
+       AND company_status LIKE '%รายเดือน%'
+       GROUP BY tax_registration_status`
+    )
+
+    // 3. Get monthly fee totals for the year
+    const [monthlyTotals] = await pool.execute(
+      `SELECT 
+        COALESCE(SUM(accounting_fee_jan), 0) as acc_jan, COALESCE(SUM(accounting_fee_feb), 0) as acc_feb,
+        COALESCE(SUM(accounting_fee_mar), 0) as acc_mar, COALESCE(SUM(accounting_fee_apr), 0) as acc_apr,
+        COALESCE(SUM(accounting_fee_may), 0) as acc_may, COALESCE(SUM(accounting_fee_jun), 0) as acc_jun,
+        COALESCE(SUM(accounting_fee_jul), 0) as acc_jul, COALESCE(SUM(accounting_fee_aug), 0) as acc_aug,
+        COALESCE(SUM(accounting_fee_sep), 0) as acc_sep, COALESCE(SUM(accounting_fee_oct), 0) as acc_oct,
+        COALESCE(SUM(accounting_fee_nov), 0) as acc_nov, COALESCE(SUM(accounting_fee_dec), 0) as acc_dec,
+        COALESCE(SUM(hr_fee_jan), 0) as hr_jan, COALESCE(SUM(hr_fee_feb), 0) as hr_feb,
+        COALESCE(SUM(hr_fee_mar), 0) as hr_mar, COALESCE(SUM(hr_fee_apr), 0) as hr_apr,
+        COALESCE(SUM(hr_fee_may), 0) as hr_may, COALESCE(SUM(hr_fee_jun), 0) as hr_jun,
+        COALESCE(SUM(hr_fee_jul), 0) as hr_jul, COALESCE(SUM(hr_fee_aug), 0) as hr_aug,
+        COALESCE(SUM(hr_fee_sep), 0) as hr_sep, COALESCE(SUM(hr_fee_oct), 0) as hr_oct,
+        COALESCE(SUM(hr_fee_nov), 0) as hr_nov, COALESCE(SUM(hr_fee_dec), 0) as hr_dec,
+        COUNT(*) as total_with_fees
+       FROM accounting_fees af
+       INNER JOIN clients c ON af.build = c.build AND c.deleted_at IS NULL
+       WHERE af.fee_year = ? AND af.deleted_at IS NULL`,
+      [currentYear]
+    )
+
+    // 4. Get total clients with "รายเดือน" statuses
+    const [totalMonthly] = await pool.execute(
+      `SELECT COUNT(*) as total FROM clients WHERE deleted_at IS NULL AND company_status LIKE '%รายเดือน%'`
+    )
+
+    // 5. Count clients that have fee data for this year
+    const [clientsWithFees] = await pool.execute(
+      `SELECT COUNT(DISTINCT af.build) as count 
+       FROM accounting_fees af
+       INNER JOIN clients c ON af.build = c.build AND c.deleted_at IS NULL AND c.company_status LIKE '%รายเดือน%'
+       WHERE af.fee_year = ? AND af.deleted_at IS NULL`,
+      [currentYear]
+    )
+
+    // 6. Top 10 clients by total fees
+    const [topClients] = await pool.execute(
+      `SELECT af.build, c.company_name,
+        (COALESCE(af.accounting_fee_jan,0) + COALESCE(af.accounting_fee_feb,0) + COALESCE(af.accounting_fee_mar,0) +
+         COALESCE(af.accounting_fee_apr,0) + COALESCE(af.accounting_fee_may,0) + COALESCE(af.accounting_fee_jun,0) +
+         COALESCE(af.accounting_fee_jul,0) + COALESCE(af.accounting_fee_aug,0) + COALESCE(af.accounting_fee_sep,0) +
+         COALESCE(af.accounting_fee_oct,0) + COALESCE(af.accounting_fee_nov,0) + COALESCE(af.accounting_fee_dec,0)) as total_accounting,
+        (COALESCE(af.hr_fee_jan,0) + COALESCE(af.hr_fee_feb,0) + COALESCE(af.hr_fee_mar,0) +
+         COALESCE(af.hr_fee_apr,0) + COALESCE(af.hr_fee_may,0) + COALESCE(af.hr_fee_jun,0) +
+         COALESCE(af.hr_fee_jul,0) + COALESCE(af.hr_fee_aug,0) + COALESCE(af.hr_fee_sep,0) +
+         COALESCE(af.hr_fee_oct,0) + COALESCE(af.hr_fee_nov,0) + COALESCE(af.hr_fee_dec,0)) as total_hr
+       FROM accounting_fees af
+       INNER JOIN clients c ON af.build = c.build AND c.deleted_at IS NULL
+       WHERE af.fee_year = ? AND af.deleted_at IS NULL
+       ORDER BY total_accounting DESC
+       LIMIT 10`,
+      [currentYear]
+    )
+
+    const totals = monthlyTotals[0] || {}
+
+    res.json({
+      success: true,
+      data: {
+        fee_year: parseInt(currentYear),
+        totalMonthlyClients: Number(totalMonthly[0]?.total) || 0,
+        clientsWithFees: Number(clientsWithFees[0]?.count) || 0,
+        statusBreakdown: statusCounts.map(s => ({ ...s, count: Number(s.count) })),
+        taxStatusBreakdown: taxCounts.map(t => ({ ...t, count: Number(t.count) })),
+        monthlyTotals: {
+          accounting: [
+            Number(totals.acc_jan) || 0, Number(totals.acc_feb) || 0, Number(totals.acc_mar) || 0, Number(totals.acc_apr) || 0,
+            Number(totals.acc_may) || 0, Number(totals.acc_jun) || 0, Number(totals.acc_jul) || 0, Number(totals.acc_aug) || 0,
+            Number(totals.acc_sep) || 0, Number(totals.acc_oct) || 0, Number(totals.acc_nov) || 0, Number(totals.acc_dec) || 0,
+          ],
+          hr: [
+            Number(totals.hr_jan) || 0, Number(totals.hr_feb) || 0, Number(totals.hr_mar) || 0, Number(totals.hr_apr) || 0,
+            Number(totals.hr_may) || 0, Number(totals.hr_jun) || 0, Number(totals.hr_jul) || 0, Number(totals.hr_aug) || 0,
+            Number(totals.hr_sep) || 0, Number(totals.hr_oct) || 0, Number(totals.hr_nov) || 0, Number(totals.hr_dec) || 0,
+          ],
+        },
+        topClients: topClients.map(c => ({
+          ...c,
+          total_accounting: Number(c.total_accounting) || 0,
+          total_hr: Number(c.total_hr) || 0,
+        })),
+      },
+    })
+  } catch (error) {
+    console.error('Get accounting fees dashboard error:', error)
+    res.status(500).json({ success: false, message: 'Internal server error' })
+  }
+})
+
+/**
+ * GET /api/clients/accounting-fees-compare
+ * เปรียบเทียบค่าทำบัญชีระหว่าง 2 เดือน — แสดงข้อมูลรายบริษัท
+ * Query params: fee_year, month_a (jan-dec), month_b (jan-dec)
+ * Access: All authenticated users
+ */
+router.get('/accounting-fees-compare', authenticateToken, async (req, res) => {
+  try {
+    const { fee_year, month_a, month_b } = req.query
+    const currentYear = fee_year || new Date().getFullYear()
+
+    if (!month_a || !month_b) {
+      return res.status(400).json({
+        success: false,
+        message: 'month_a and month_b are required (jan, feb, ... dec)',
+      })
+    }
+
+    const accColA = `accounting_fee_${month_a}`
+    const accColB = `accounting_fee_${month_b}`
+    const hrColA = `hr_fee_${month_a}`
+    const hrColB = `hr_fee_${month_b}`
+
+    // Validate column names to prevent SQL injection
+    const validMonths = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
+    if (!validMonths.includes(month_a) || !validMonths.includes(month_b)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid month key. Use: jan, feb, mar, apr, may, jun, jul, aug, sep, oct, nov, dec',
+      })
+    }
+
+    const [rows] = await pool.execute(
+      `SELECT 
+        af.build, c.company_name, c.company_status, c.tax_registration_status,
+        COALESCE(af.${accColA}, 0) as acc_month_a,
+        COALESCE(af.${accColB}, 0) as acc_month_b,
+        COALESCE(af.${hrColA}, 0) as hr_month_a,
+        COALESCE(af.${hrColB}, 0) as hr_month_b
+       FROM accounting_fees af
+       INNER JOIN clients c ON af.build = c.build AND c.deleted_at IS NULL AND c.company_status LIKE '%รายเดือน%'
+       WHERE af.fee_year = ? AND af.deleted_at IS NULL
+       ORDER BY af.${accColA} DESC`,
+      [currentYear]
+    )
+
+    // Calculate totals
+    const totals = rows.reduce((acc, r) => ({
+      acc_month_a: acc.acc_month_a + Number(r.acc_month_a),
+      acc_month_b: acc.acc_month_b + Number(r.acc_month_b),
+      hr_month_a: acc.hr_month_a + Number(r.hr_month_a),
+      hr_month_b: acc.hr_month_b + Number(r.hr_month_b),
+    }), { acc_month_a: 0, acc_month_b: 0, hr_month_a: 0, hr_month_b: 0 })
+
+    res.json({
+      success: true,
+      data: {
+        fee_year: parseInt(currentYear),
+        month_a,
+        month_b,
+        clients: rows,
+        totals,
+      },
+    })
+  } catch (error) {
+    console.error('Compare accounting fees error:', error)
+    res.status(500).json({ success: false, message: 'Internal server error' })
+  }
+})
+
+/**
  * GET /api/clients
  * ดึงรายการลูกค้า (paginated, search, filter)
  * Access: All authenticated users (Admin/HR can see all, others limited)
@@ -177,8 +363,11 @@ router.get('/', authenticateToken, async (req, res) => {
         c.postal_code,
         c.company_status,
         c.created_at,
-        c.updated_at
+        c.updated_at,
+        af.peak_code,
+        DATE_FORMAT(af.accounting_start_date, '%Y-%m-%d') as accounting_start_date
       FROM clients c
+      LEFT JOIN accounting_fees af ON af.build = c.build AND af.deleted_at IS NULL
       ${whereClause}
       ORDER BY c.${sortField} ${sortDirection}
       LIMIT ? OFFSET ?`,
@@ -273,7 +462,7 @@ router.get('/statistics', authenticateToken, async (req, res) => {
 
 /**
  * GET /api/clients/:build
- * ดึงข้อมูลลูกค้าตาม Build code
+ * ดึงข้อมูลลูกค้าตาม Build code (รวมข้อมูลจาก 4 ตารางที่เกี่ยวข้อง)
  * Access: All authenticated users
  */
 router.get('/:build', authenticateToken, async (req, res) => {
@@ -321,9 +510,70 @@ router.get('/:build', authenticateToken, async (req, res) => {
       })
     }
 
+    const clientData = clients[0]
+
+    // Fetch related data from 4 tables
+    const [dbdRows] = await pool.execute(
+      `SELECT 
+        accounting_period, registered_capital, paid_capital,
+        business_code, business_objective_at_registration,
+        latest_business_code, latest_business_objective
+      FROM dbd_info WHERE build = ? AND deleted_at IS NULL`,
+      [build]
+    )
+
+    const [boiRows] = await pool.execute(
+      `SELECT 
+        DATE_FORMAT(boi_approval_date, '%Y-%m-%d') as boi_approval_date,
+        DATE_FORMAT(boi_first_use_date, '%Y-%m-%d') as boi_first_use_date,
+        DATE_FORMAT(boi_expiry_date, '%Y-%m-%d') as boi_expiry_date
+      FROM boi_info WHERE build = ? AND deleted_at IS NULL`,
+      [build]
+    )
+
+    const [credentialRows] = await pool.execute(
+      `SELECT 
+        efiling_username, efiling_password,
+        sso_username, sso_password,
+        dbd_username, dbd_password,
+        student_loan_username, student_loan_password,
+        enforcement_username, enforcement_password
+      FROM agency_credentials WHERE build = ? AND deleted_at IS NULL`,
+      [build]
+    )
+
+    const [feeRows] = await pool.execute(
+      `SELECT 
+        peak_code,
+        DATE_FORMAT(accounting_start_date, '%Y-%m-%d') as accounting_start_date,
+        DATE_FORMAT(accounting_end_date, '%Y-%m-%d') as accounting_end_date,
+        accounting_end_reason,
+        fee_year,
+        accounting_fee_jan, accounting_fee_feb, accounting_fee_mar,
+        accounting_fee_apr, accounting_fee_may, accounting_fee_jun,
+        accounting_fee_jul, accounting_fee_aug, accounting_fee_sep,
+        accounting_fee_oct, accounting_fee_nov, accounting_fee_dec,
+        hr_fee_jan, hr_fee_feb, hr_fee_mar,
+        hr_fee_apr, hr_fee_may, hr_fee_jun,
+        hr_fee_jul, hr_fee_aug, hr_fee_sep,
+        hr_fee_oct, hr_fee_nov, hr_fee_dec,
+        line_chat_type, line_chat_id,
+        line_billing_chat_type, line_billing_id,
+        accounting_fee_image_url
+      FROM accounting_fees WHERE build = ? AND deleted_at IS NULL
+      ORDER BY fee_year DESC LIMIT 1`,
+      [build]
+    )
+
     res.json({
       success: true,
-      data: clients[0],
+      data: {
+        ...clientData,
+        dbd_info: dbdRows[0] || null,
+        boi_info: boiRows[0] || null,
+        agency_credentials: credentialRows[0] || null,
+        accounting_fees: feeRows[0] || null,
+      },
     })
   } catch (error) {
     console.error('Get client error:', error)
@@ -336,10 +586,10 @@ router.get('/:build', authenticateToken, async (req, res) => {
 
 /**
  * POST /api/clients
- * สร้างลูกค้าใหม่
+ * สร้างลูกค้าใหม่ (รวมข้อมูล 4 ตารางที่เกี่ยวข้อง)
  * Access: Admin/HR only
  */
-router.post('/', authenticateToken, authorize('admin'), async (req, res) => {
+router.post('/', authenticateToken, authorize('admin', 'hr'), async (req, res) => {
   try {
     const {
       build,
@@ -366,6 +616,11 @@ router.post('/', authenticateToken, authorize('admin'), async (req, res) => {
       province,
       postal_code,
       company_status = 'รายเดือน',
+      // Related tables data
+      dbd_info,
+      boi_info,
+      agency_credentials,
+      accounting_fees,
     } = req.body
 
     // Validation
@@ -457,40 +712,127 @@ router.post('/', authenticateToken, authorize('admin'), async (req, res) => {
       ]
     )
 
-    // Get created client
-    const [newClients] = await pool.execute(
-      `SELECT 
-        c.id,
-        c.build,
-        c.business_type,
-        c.company_name,
-        c.legal_entity_number,
-        DATE_FORMAT(c.establishment_date, '%Y-%m-%d') as establishment_date,
-        c.business_category,
-        c.business_subcategory,
-        c.company_size,
-        c.tax_registration_status,
-        DATE_FORMAT(c.vat_registration_date, '%Y-%m-%d') as vat_registration_date,
-        c.full_address,
-        c.village,
-        c.building,
-        c.room_number,
-        c.floor_number,
-        c.address_number,
-        c.soi,
-        c.moo,
-        c.road,
-        c.subdistrict,
-        c.district,
-        c.province,
-        c.postal_code,
-        c.company_status,
-        c.created_at,
-        c.updated_at
-      FROM clients c
-      WHERE c.id = ?`,
-      [id]
-    )
+    // Insert related data: dbd_info
+    if (dbd_info) {
+      await pool.execute(
+        `INSERT INTO dbd_info (
+          id, build, accounting_period, registered_capital, paid_capital,
+          business_code, business_objective_at_registration,
+          latest_business_code, latest_business_objective
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          generateUUID(), build,
+          dbd_info.accounting_period || null,
+          dbd_info.registered_capital || null,
+          dbd_info.paid_capital || null,
+          dbd_info.business_code || null,
+          dbd_info.business_objective_at_registration || null,
+          dbd_info.latest_business_code || null,
+          dbd_info.latest_business_objective || null,
+        ]
+      )
+    }
+
+    // Insert related data: boi_info
+    if (boi_info) {
+      await pool.execute(
+        `INSERT INTO boi_info (
+          id, build, boi_approval_date, boi_first_use_date, boi_expiry_date
+        ) VALUES (?, ?, ?, ?, ?)`,
+        [
+          generateUUID(), build,
+          boi_info.boi_approval_date || null,
+          boi_info.boi_first_use_date || null,
+          boi_info.boi_expiry_date || null,
+        ]
+      )
+    }
+
+    // Insert related data: agency_credentials
+    if (agency_credentials) {
+      await pool.execute(
+        `INSERT INTO agency_credentials (
+          id, build,
+          efiling_username, efiling_password,
+          sso_username, sso_password,
+          dbd_username, dbd_password,
+          student_loan_username, student_loan_password,
+          enforcement_username, enforcement_password
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          generateUUID(), build,
+          agency_credentials.efiling_username || null,
+          agency_credentials.efiling_password || null,
+          agency_credentials.sso_username || null,
+          agency_credentials.sso_password || null,
+          agency_credentials.dbd_username || null,
+          agency_credentials.dbd_password || null,
+          agency_credentials.student_loan_username || null,
+          agency_credentials.student_loan_password || null,
+          agency_credentials.enforcement_username || null,
+          agency_credentials.enforcement_password || null,
+        ]
+      )
+    }
+
+    // Insert related data: accounting_fees
+    if (accounting_fees) {
+      const currentYear = new Date().getFullYear()
+      await pool.execute(
+        `INSERT INTO accounting_fees (
+          id, build, peak_code, accounting_start_date, accounting_end_date, accounting_end_reason,
+          fee_year,
+          accounting_fee_jan, accounting_fee_feb, accounting_fee_mar,
+          accounting_fee_apr, accounting_fee_may, accounting_fee_jun,
+          accounting_fee_jul, accounting_fee_aug, accounting_fee_sep,
+          accounting_fee_oct, accounting_fee_nov, accounting_fee_dec,
+          hr_fee_jan, hr_fee_feb, hr_fee_mar,
+          hr_fee_apr, hr_fee_may, hr_fee_jun,
+          hr_fee_jul, hr_fee_aug, hr_fee_sep,
+          hr_fee_oct, hr_fee_nov, hr_fee_dec,
+          line_chat_type, line_chat_id,
+          line_billing_chat_type, line_billing_id,
+          accounting_fee_image_url
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          generateUUID(), build,
+          accounting_fees.peak_code || null,
+          accounting_fees.accounting_start_date || null,
+          accounting_fees.accounting_end_date || null,
+          accounting_fees.accounting_end_reason || null,
+          accounting_fees.fee_year || currentYear,
+          accounting_fees.accounting_fee_jan || null,
+          accounting_fees.accounting_fee_feb || null,
+          accounting_fees.accounting_fee_mar || null,
+          accounting_fees.accounting_fee_apr || null,
+          accounting_fees.accounting_fee_may || null,
+          accounting_fees.accounting_fee_jun || null,
+          accounting_fees.accounting_fee_jul || null,
+          accounting_fees.accounting_fee_aug || null,
+          accounting_fees.accounting_fee_sep || null,
+          accounting_fees.accounting_fee_oct || null,
+          accounting_fees.accounting_fee_nov || null,
+          accounting_fees.accounting_fee_dec || null,
+          accounting_fees.hr_fee_jan || null,
+          accounting_fees.hr_fee_feb || null,
+          accounting_fees.hr_fee_mar || null,
+          accounting_fees.hr_fee_apr || null,
+          accounting_fees.hr_fee_may || null,
+          accounting_fees.hr_fee_jun || null,
+          accounting_fees.hr_fee_jul || null,
+          accounting_fees.hr_fee_aug || null,
+          accounting_fees.hr_fee_sep || null,
+          accounting_fees.hr_fee_oct || null,
+          accounting_fees.hr_fee_nov || null,
+          accounting_fees.hr_fee_dec || null,
+          accounting_fees.line_chat_type || null,
+          accounting_fees.line_chat_id || null,
+          accounting_fees.line_billing_chat_type || null,
+          accounting_fees.line_billing_id || null,
+          accounting_fees.accounting_fee_image_url || null,
+        ]
+      )
+    }
 
     // Invalidate cache for clients list and statistics
     invalidateCache('GET:/api/clients')
@@ -498,11 +840,11 @@ router.post('/', authenticateToken, authorize('admin'), async (req, res) => {
     res.status(201).json({
       success: true,
       message: 'Client created successfully',
-      data: newClients[0],
+      data: { id, build },
     })
   } catch (error) {
     console.error('Create client error:', error)
-    
+
     // Handle MySQL errors
     if (error.code === 'ER_DUP_ENTRY') {
       return res.status(409).json({
@@ -520,10 +862,10 @@ router.post('/', authenticateToken, authorize('admin'), async (req, res) => {
 
 /**
  * PUT /api/clients/:build
- * แก้ไขข้อมูลลูกค้า
+ * แก้ไขข้อมูลลูกค้า (รวมข้อมูล 4 ตารางที่เกี่ยวข้อง)
  * Access: Admin/HR only
  */
-router.put('/:build', authenticateToken, authorize('admin'), async (req, res) => {
+router.put('/:build', authenticateToken, authorize('admin', 'hr'), async (req, res) => {
   try {
     const { build } = req.params
     const {
@@ -550,6 +892,11 @@ router.put('/:build', authenticateToken, authorize('admin'), async (req, res) =>
       province,
       postal_code,
       company_status,
+      // Related tables data
+      dbd_info,
+      boi_info,
+      agency_credentials,
+      accounting_fees,
     } = req.body
 
     // Check if client exists
@@ -644,40 +991,189 @@ router.put('/:build', authenticateToken, authorize('admin'), async (req, res) =>
       ]
     )
 
-    // Get updated client
-    const [updatedClients] = await pool.execute(
-      `SELECT 
-        c.id,
-        c.build,
-        c.business_type,
-        c.company_name,
-        c.legal_entity_number,
-        DATE_FORMAT(c.establishment_date, '%Y-%m-%d') as establishment_date,
-        c.business_category,
-        c.business_subcategory,
-        c.company_size,
-        c.tax_registration_status,
-        DATE_FORMAT(c.vat_registration_date, '%Y-%m-%d') as vat_registration_date,
-        c.full_address,
-        c.village,
-        c.building,
-        c.room_number,
-        c.floor_number,
-        c.address_number,
-        c.soi,
-        c.moo,
-        c.road,
-        c.subdistrict,
-        c.district,
-        c.province,
-        c.postal_code,
-        c.company_status,
-        c.created_at,
-        c.updated_at
-      FROM clients c
-      WHERE c.build = ?`,
-      [build]
-    )
+    // Upsert related data: dbd_info (delete old + insert new)
+    if (dbd_info !== undefined) {
+      await pool.execute('DELETE FROM dbd_info WHERE build = ? AND deleted_at IS NULL', [build])
+      if (dbd_info) {
+        await pool.execute(
+          `INSERT INTO dbd_info (
+            id, build, accounting_period, registered_capital, paid_capital,
+            business_code, business_objective_at_registration,
+            latest_business_code, latest_business_objective
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            generateUUID(), build,
+            dbd_info.accounting_period || null,
+            dbd_info.registered_capital || null,
+            dbd_info.paid_capital || null,
+            dbd_info.business_code || null,
+            dbd_info.business_objective_at_registration || null,
+            dbd_info.latest_business_code || null,
+            dbd_info.latest_business_objective || null,
+          ]
+        )
+      }
+    }
+
+    // Upsert related data: boi_info
+    if (boi_info !== undefined) {
+      await pool.execute('DELETE FROM boi_info WHERE build = ? AND deleted_at IS NULL', [build])
+      if (boi_info) {
+        await pool.execute(
+          `INSERT INTO boi_info (
+            id, build, boi_approval_date, boi_first_use_date, boi_expiry_date
+          ) VALUES (?, ?, ?, ?, ?)`,
+          [
+            generateUUID(), build,
+            boi_info.boi_approval_date || null,
+            boi_info.boi_first_use_date || null,
+            boi_info.boi_expiry_date || null,
+          ]
+        )
+      }
+    }
+
+    // Upsert related data: agency_credentials
+    if (agency_credentials !== undefined) {
+      await pool.execute('DELETE FROM agency_credentials WHERE build = ? AND deleted_at IS NULL', [build])
+      if (agency_credentials) {
+        await pool.execute(
+          `INSERT INTO agency_credentials (
+            id, build,
+            efiling_username, efiling_password,
+            sso_username, sso_password,
+            dbd_username, dbd_password,
+            student_loan_username, student_loan_password,
+            enforcement_username, enforcement_password
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            generateUUID(), build,
+            agency_credentials.efiling_username || null,
+            agency_credentials.efiling_password || null,
+            agency_credentials.sso_username || null,
+            agency_credentials.sso_password || null,
+            agency_credentials.dbd_username || null,
+            agency_credentials.dbd_password || null,
+            agency_credentials.student_loan_username || null,
+            agency_credentials.student_loan_password || null,
+            agency_credentials.enforcement_username || null,
+            agency_credentials.enforcement_password || null,
+          ]
+        )
+      }
+    }
+
+    // Upsert related data: accounting_fees
+    // Only update the fields that are actually sent — preserve monthly fees
+    if (accounting_fees !== undefined && accounting_fees) {
+      const currentYear = new Date().getFullYear()
+      const feeYear = accounting_fees.fee_year || currentYear
+
+      // Check if a row already exists
+      const [existingFees] = await pool.execute(
+        'SELECT id FROM accounting_fees WHERE build = ? AND fee_year = ? AND deleted_at IS NULL',
+        [build, feeYear]
+      )
+
+      if (existingFees.length > 0) {
+        // UPDATE only the fields that are provided (non-undefined)
+        // Build dynamic SET clause from provided fields
+        const updateFields = []
+        const updateValues = []
+
+        // Basic info fields (from ClientForm edit)
+        if (accounting_fees.peak_code !== undefined) { updateFields.push('peak_code = ?'); updateValues.push(accounting_fees.peak_code || null) }
+        if (accounting_fees.accounting_start_date !== undefined) { updateFields.push('accounting_start_date = ?'); updateValues.push(accounting_fees.accounting_start_date || null) }
+        if (accounting_fees.accounting_end_date !== undefined) { updateFields.push('accounting_end_date = ?'); updateValues.push(accounting_fees.accounting_end_date || null) }
+        if (accounting_fees.accounting_end_reason !== undefined) { updateFields.push('accounting_end_reason = ?'); updateValues.push(accounting_fees.accounting_end_reason || null) }
+
+        // Monthly fee fields (from MonthlyFeesForm)
+        const monthlyFields = [
+          'accounting_fee_jan', 'accounting_fee_feb', 'accounting_fee_mar',
+          'accounting_fee_apr', 'accounting_fee_may', 'accounting_fee_jun',
+          'accounting_fee_jul', 'accounting_fee_aug', 'accounting_fee_sep',
+          'accounting_fee_oct', 'accounting_fee_nov', 'accounting_fee_dec',
+          'hr_fee_jan', 'hr_fee_feb', 'hr_fee_mar',
+          'hr_fee_apr', 'hr_fee_may', 'hr_fee_jun',
+          'hr_fee_jul', 'hr_fee_aug', 'hr_fee_sep',
+          'hr_fee_oct', 'hr_fee_nov', 'hr_fee_dec',
+          'line_chat_type', 'line_chat_id',
+          'line_billing_chat_type', 'line_billing_id',
+          'accounting_fee_image_url',
+        ]
+        for (const field of monthlyFields) {
+          if (accounting_fees[field] !== undefined) {
+            updateFields.push(`${field} = ?`)
+            updateValues.push(accounting_fees[field] ?? null)
+          }
+        }
+
+        if (updateFields.length > 0) {
+          updateFields.push('updated_at = CURRENT_TIMESTAMP')
+          updateValues.push(build, feeYear)
+          await pool.execute(
+            `UPDATE accounting_fees SET ${updateFields.join(', ')} WHERE build = ? AND fee_year = ? AND deleted_at IS NULL`,
+            updateValues
+          )
+        }
+      } else {
+        // No existing row — INSERT new record
+        await pool.execute(
+          `INSERT INTO accounting_fees (
+            id, build, peak_code, accounting_start_date, accounting_end_date, accounting_end_reason,
+            fee_year,
+            accounting_fee_jan, accounting_fee_feb, accounting_fee_mar,
+            accounting_fee_apr, accounting_fee_may, accounting_fee_jun,
+            accounting_fee_jul, accounting_fee_aug, accounting_fee_sep,
+            accounting_fee_oct, accounting_fee_nov, accounting_fee_dec,
+            hr_fee_jan, hr_fee_feb, hr_fee_mar,
+            hr_fee_apr, hr_fee_may, hr_fee_jun,
+            hr_fee_jul, hr_fee_aug, hr_fee_sep,
+            hr_fee_oct, hr_fee_nov, hr_fee_dec,
+            line_chat_type, line_chat_id,
+            line_billing_chat_type, line_billing_id,
+            accounting_fee_image_url
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            generateUUID(), build,
+            accounting_fees.peak_code || null,
+            accounting_fees.accounting_start_date || null,
+            accounting_fees.accounting_end_date || null,
+            accounting_fees.accounting_end_reason || null,
+            feeYear,
+            accounting_fees.accounting_fee_jan || null,
+            accounting_fees.accounting_fee_feb || null,
+            accounting_fees.accounting_fee_mar || null,
+            accounting_fees.accounting_fee_apr || null,
+            accounting_fees.accounting_fee_may || null,
+            accounting_fees.accounting_fee_jun || null,
+            accounting_fees.accounting_fee_jul || null,
+            accounting_fees.accounting_fee_aug || null,
+            accounting_fees.accounting_fee_sep || null,
+            accounting_fees.accounting_fee_oct || null,
+            accounting_fees.accounting_fee_nov || null,
+            accounting_fees.accounting_fee_dec || null,
+            accounting_fees.hr_fee_jan || null,
+            accounting_fees.hr_fee_feb || null,
+            accounting_fees.hr_fee_mar || null,
+            accounting_fees.hr_fee_apr || null,
+            accounting_fees.hr_fee_may || null,
+            accounting_fees.hr_fee_jun || null,
+            accounting_fees.hr_fee_jul || null,
+            accounting_fees.hr_fee_aug || null,
+            accounting_fees.hr_fee_sep || null,
+            accounting_fees.hr_fee_oct || null,
+            accounting_fees.hr_fee_nov || null,
+            accounting_fees.hr_fee_dec || null,
+            accounting_fees.line_chat_type || null,
+            accounting_fees.line_chat_id || null,
+            accounting_fees.line_billing_chat_type || null,
+            accounting_fees.line_billing_id || null,
+            accounting_fees.accounting_fee_image_url || null,
+          ]
+        )
+      }
+    }
 
     // Invalidate cache for clients list, statistics, and this specific client
     invalidateCache('GET:/api/clients')
@@ -685,11 +1181,11 @@ router.put('/:build', authenticateToken, authorize('admin'), async (req, res) =>
     res.json({
       success: true,
       message: 'Client updated successfully',
-      data: updatedClients[0],
+      data: { build },
     })
   } catch (error) {
     console.error('Update client error:', error)
-    
+
     // Handle MySQL errors
     if (error.code === 'ER_DUP_ENTRY') {
       return res.status(409).json({
@@ -698,6 +1194,160 @@ router.put('/:build', authenticateToken, authorize('admin'), async (req, res) =>
       })
     }
 
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+    })
+  }
+})
+
+/**
+ * PATCH /api/clients/:build/accounting-fees
+ * อัพเดทเฉพาะข้อมูลค่าทำบัญชี/HR (ไม่ต้องส่งข้อมูลลูกค้าทั้งหมด)
+ * Access: Admin, HR, Data Entry, Data Entry & Service
+ */
+router.patch('/:build/accounting-fees', authenticateToken, authorize('admin', 'hr', 'data_entry', 'data_entry_and_service'), async (req, res) => {
+  try {
+    const { build } = req.params
+    const accounting_fees = req.body
+
+    // Check if client exists
+    const [existingClients] = await pool.execute(
+      'SELECT id FROM clients WHERE build = ? AND deleted_at IS NULL',
+      [build]
+    )
+
+    if (existingClients.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Client not found',
+      })
+    }
+
+    if (!accounting_fees || Object.keys(accounting_fees).length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No accounting fees data provided',
+      })
+    }
+
+    const currentYear = new Date().getFullYear()
+    const feeYear = accounting_fees.fee_year || currentYear
+
+    // Check if a row already exists for this year
+    const [existingFees] = await pool.execute(
+      'SELECT id FROM accounting_fees WHERE build = ? AND fee_year = ? AND deleted_at IS NULL',
+      [build, feeYear]
+    )
+
+    if (existingFees.length > 0) {
+      // UPDATE only the fields that are actually provided — preserve all other data
+      const updateFields = []
+      const updateValues = []
+
+      // Basic info fields
+      if (accounting_fees.peak_code !== undefined) { updateFields.push('peak_code = ?'); updateValues.push(accounting_fees.peak_code || null) }
+      if (accounting_fees.accounting_start_date !== undefined) { updateFields.push('accounting_start_date = ?'); updateValues.push(accounting_fees.accounting_start_date || null) }
+      if (accounting_fees.accounting_end_date !== undefined) { updateFields.push('accounting_end_date = ?'); updateValues.push(accounting_fees.accounting_end_date || null) }
+      if (accounting_fees.accounting_end_reason !== undefined) { updateFields.push('accounting_end_reason = ?'); updateValues.push(accounting_fees.accounting_end_reason || null) }
+
+      // Monthly fee fields and other fields
+      const dynamicFields = [
+        'accounting_fee_jan', 'accounting_fee_feb', 'accounting_fee_mar',
+        'accounting_fee_apr', 'accounting_fee_may', 'accounting_fee_jun',
+        'accounting_fee_jul', 'accounting_fee_aug', 'accounting_fee_sep',
+        'accounting_fee_oct', 'accounting_fee_nov', 'accounting_fee_dec',
+        'hr_fee_jan', 'hr_fee_feb', 'hr_fee_mar',
+        'hr_fee_apr', 'hr_fee_may', 'hr_fee_jun',
+        'hr_fee_jul', 'hr_fee_aug', 'hr_fee_sep',
+        'hr_fee_oct', 'hr_fee_nov', 'hr_fee_dec',
+        'line_chat_type', 'line_chat_id',
+        'line_billing_chat_type', 'line_billing_id',
+        'accounting_fee_image_url',
+      ]
+      for (const field of dynamicFields) {
+        if (accounting_fees[field] !== undefined) {
+          updateFields.push(`${field} = ?`)
+          updateValues.push(accounting_fees[field] ?? null)
+        }
+      }
+
+      if (updateFields.length > 0) {
+        updateFields.push('updated_at = CURRENT_TIMESTAMP')
+        updateValues.push(build, feeYear)
+        await pool.execute(
+          `UPDATE accounting_fees SET ${updateFields.join(', ')} WHERE build = ? AND fee_year = ? AND deleted_at IS NULL`,
+          updateValues
+        )
+      }
+    } else {
+      // No existing row — INSERT new record
+      await pool.execute(
+        `INSERT INTO accounting_fees (
+          id, build, peak_code, accounting_start_date, accounting_end_date, accounting_end_reason,
+          fee_year,
+          accounting_fee_jan, accounting_fee_feb, accounting_fee_mar,
+          accounting_fee_apr, accounting_fee_may, accounting_fee_jun,
+          accounting_fee_jul, accounting_fee_aug, accounting_fee_sep,
+          accounting_fee_oct, accounting_fee_nov, accounting_fee_dec,
+          hr_fee_jan, hr_fee_feb, hr_fee_mar,
+          hr_fee_apr, hr_fee_may, hr_fee_jun,
+          hr_fee_jul, hr_fee_aug, hr_fee_sep,
+          hr_fee_oct, hr_fee_nov, hr_fee_dec,
+          line_chat_type, line_chat_id,
+          line_billing_chat_type, line_billing_id,
+          accounting_fee_image_url
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          generateUUID(), build,
+          accounting_fees.peak_code || null,
+          accounting_fees.accounting_start_date || null,
+          accounting_fees.accounting_end_date || null,
+          accounting_fees.accounting_end_reason || null,
+          feeYear,
+          accounting_fees.accounting_fee_jan ?? null,
+          accounting_fees.accounting_fee_feb ?? null,
+          accounting_fees.accounting_fee_mar ?? null,
+          accounting_fees.accounting_fee_apr ?? null,
+          accounting_fees.accounting_fee_may ?? null,
+          accounting_fees.accounting_fee_jun ?? null,
+          accounting_fees.accounting_fee_jul ?? null,
+          accounting_fees.accounting_fee_aug ?? null,
+          accounting_fees.accounting_fee_sep ?? null,
+          accounting_fees.accounting_fee_oct ?? null,
+          accounting_fees.accounting_fee_nov ?? null,
+          accounting_fees.accounting_fee_dec ?? null,
+          accounting_fees.hr_fee_jan ?? null,
+          accounting_fees.hr_fee_feb ?? null,
+          accounting_fees.hr_fee_mar ?? null,
+          accounting_fees.hr_fee_apr ?? null,
+          accounting_fees.hr_fee_may ?? null,
+          accounting_fees.hr_fee_jun ?? null,
+          accounting_fees.hr_fee_jul ?? null,
+          accounting_fees.hr_fee_aug ?? null,
+          accounting_fees.hr_fee_sep ?? null,
+          accounting_fees.hr_fee_oct ?? null,
+          accounting_fees.hr_fee_nov ?? null,
+          accounting_fees.hr_fee_dec ?? null,
+          accounting_fees.line_chat_type || null,
+          accounting_fees.line_chat_id || null,
+          accounting_fees.line_billing_chat_type || null,
+          accounting_fees.line_billing_id || null,
+          accounting_fees.accounting_fee_image_url || null,
+        ]
+      )
+    }
+
+    // Invalidate cache
+    invalidateCache('GET:/api/clients')
+
+    res.json({
+      success: true,
+      message: 'Accounting fees updated successfully',
+      data: { build, fee_year: feeYear },
+    })
+  } catch (error) {
+    console.error('Update accounting fees error:', error)
     res.status(500).json({
       success: false,
       message: 'Internal server error',

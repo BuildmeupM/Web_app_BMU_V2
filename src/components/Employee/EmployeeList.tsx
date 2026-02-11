@@ -36,7 +36,7 @@ const EmployeeList = memo(function EmployeeList({
   onDelete,
 }: EmployeeListProps) {
   const { user } = useAuthStore()
-  const isAdmin = user?.role === 'admin'
+  const isAdmin = user?.role === 'admin' || user?.role === 'hr'
 
   // Check if employee has incomplete data
   const hasIncompleteData = (employee: Employee) => {

@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore } from './store/authStore'
 import Layout from './components/Layout/Layout'
+import InternalLayout from './components/Layout/InternalLayout'
 import ProtectedRoute from './components/Auth/ProtectedRoute'
 import LoadingFallback from './components/Loading/LoadingFallback'
 import LoadingSpinner from './components/Loading/LoadingSpinner'
@@ -24,6 +25,10 @@ const ClientManagement = lazy(() => import('./pages/ClientManagement'))
 const UserManagement = lazy(() => import('./pages/UserManagement'))
 const AccountingMarketplace = lazy(() => import('./pages/AccountingMarketplace'))
 const HolidayManagement = lazy(() => import('./pages/HolidayManagement'))
+const AccountingFeesManagement = lazy(() => import('./pages/AccountingFeesManagement'))
+const AccountingFeesDashboard = lazy(() => import('./pages/AccountingFeesDashboard'))
+const BotExportManagement = lazy(() => import('./pages/BotExportManagement'))
+const AccountingFeeNotifications = lazy(() => import('./pages/AccountingFeeNotifications'))
 
 function App() {
   const { isAuthenticated, _hasHydrated, setHasHydrated } = useAuthStore()
@@ -234,6 +239,58 @@ function App() {
               }
             />
           </Route>
+
+          {/* Internal System Layout — แยก layout ของตัวเอง */}
+          <Route
+            path="/"
+            element={
+              <ProtectedRoute>
+                <InternalLayout />
+              </ProtectedRoute>
+            }
+          >
+            <Route
+              path="accounting-fees-dashboard"
+              element={
+                <ProtectedRoute allowedRoles={['admin', 'registration']}>
+                  <Suspense fallback={<LoadingFallback />}>
+                    <AccountingFeesDashboard />
+                  </Suspense>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="accounting-fees"
+              element={
+                <ProtectedRoute allowedRoles={['admin', 'registration']}>
+                  <Suspense fallback={<LoadingFallback />}>
+                    <AccountingFeesManagement />
+                  </Suspense>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="bot-export"
+              element={
+                <ProtectedRoute allowedRoles={['admin', 'registration']}>
+                  <Suspense fallback={<LoadingFallback />}>
+                    <BotExportManagement />
+                  </Suspense>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="accounting-fee-notifications"
+              element={
+                <ProtectedRoute allowedRoles={['admin', 'registration']}>
+                  <Suspense fallback={<LoadingFallback />}>
+                    <AccountingFeeNotifications />
+                  </Suspense>
+                </ProtectedRoute>
+              }
+            />
+          </Route>
+
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </BrowserRouter>

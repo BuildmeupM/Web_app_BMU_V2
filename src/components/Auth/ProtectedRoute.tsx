@@ -1,14 +1,16 @@
 import { Navigate } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
+import type { UserRole } from '../../store/authStore'
 import LoadingSpinner from '../Loading/LoadingSpinner'
 import { useEffect } from 'react'
 
 interface ProtectedRouteProps {
   children: React.ReactNode
+  allowedRoles?: UserRole[]
 }
 
-export default function ProtectedRoute({ children }: ProtectedRouteProps) {
-  const { isAuthenticated, token, _hasHydrated, setHasHydrated } = useAuthStore()
+export default function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
+  const { isAuthenticated, token, user, _hasHydrated, setHasHydrated } = useAuthStore()
 
   // ✅ BUG-168: Fallback hydration ใน ProtectedRoute เพื่อป้องกันปัญหาที่ App.tsx fallback ไม่ทำงาน
   useEffect(() => {
@@ -44,6 +46,11 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   // Token validation จะทำโดย API interceptor (ถ้า token ไม่ valid จะได้ 401 และ logout อัตโนมัติ)
   if (!token || !isAuthenticated) {
     return <Navigate to="/login" replace />
+  }
+
+  // ✅ Role-based access control: ถ้ากำหนด allowedRoles ให้ตรวจสอบ role ของ user
+  if (allowedRoles && user && !allowedRoles.includes(user.role)) {
+    return <Navigate to="/" replace />
   }
 
   return <>{children}</>

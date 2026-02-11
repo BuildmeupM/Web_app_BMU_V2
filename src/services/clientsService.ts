@@ -32,6 +32,96 @@ export interface Client {
   company_status: string
   created_at: string
   updated_at: string
+  // Fields from list API JOIN with accounting_fees
+  peak_code?: string | null
+  accounting_start_date?: string | null
+  // Related data from 4 tables (only available from getByBuild)
+  dbd_info?: DbdInfo | null
+  boi_info?: BoiInfo | null
+  agency_credentials?: AgencyCredentials | null
+  accounting_fees?: AccountingFees | null
+}
+
+/**
+ * DBD Info Interface
+ * ข้อมูลกรมพัฒนาธุรกิจการค้า
+ */
+export interface DbdInfo {
+  accounting_period?: string | null
+  registered_capital?: number | null
+  paid_capital?: number | null
+  business_code?: string | null
+  business_objective_at_registration?: string | null
+  latest_business_code?: string | null
+  latest_business_objective?: string | null
+}
+
+/**
+ * BOI Info Interface
+ * ข้อมูลสิทธิ์ BOI
+ */
+export interface BoiInfo {
+  boi_approval_date?: string | null
+  boi_first_use_date?: string | null
+  boi_expiry_date?: string | null
+}
+
+/**
+ * Agency Credentials Interface
+ * รหัสผู้ใช้หน่วยงานราชการ
+ */
+export interface AgencyCredentials {
+  efiling_username?: string | null
+  efiling_password?: string | null
+  sso_username?: string | null
+  sso_password?: string | null
+  dbd_username?: string | null
+  dbd_password?: string | null
+  student_loan_username?: string | null
+  student_loan_password?: string | null
+  enforcement_username?: string | null
+  enforcement_password?: string | null
+}
+
+/**
+ * Accounting Fees Interface
+ * ค่าทำบัญชี/HR รายเดือน
+ */
+export interface AccountingFees {
+  peak_code?: string | null
+  accounting_start_date?: string | null
+  accounting_end_date?: string | null
+  accounting_end_reason?: string | null
+  fee_year?: number | null
+  accounting_fee_jan?: number | null
+  accounting_fee_feb?: number | null
+  accounting_fee_mar?: number | null
+  accounting_fee_apr?: number | null
+  accounting_fee_may?: number | null
+  accounting_fee_jun?: number | null
+  accounting_fee_jul?: number | null
+  accounting_fee_aug?: number | null
+  accounting_fee_sep?: number | null
+  accounting_fee_oct?: number | null
+  accounting_fee_nov?: number | null
+  accounting_fee_dec?: number | null
+  hr_fee_jan?: number | null
+  hr_fee_feb?: number | null
+  hr_fee_mar?: number | null
+  hr_fee_apr?: number | null
+  hr_fee_may?: number | null
+  hr_fee_jun?: number | null
+  hr_fee_jul?: number | null
+  hr_fee_aug?: number | null
+  hr_fee_sep?: number | null
+  hr_fee_oct?: number | null
+  hr_fee_nov?: number | null
+  hr_fee_dec?: number | null
+  line_chat_type?: string | null
+  line_chat_id?: string | null
+  line_billing_chat_type?: string | null
+  line_billing_id?: string | null
+  accounting_fee_image_url?: string | null
 }
 
 /**
@@ -77,7 +167,7 @@ const clientsService = {
   },
 
   /**
-   * Get client by build code
+   * Get client by build code (includes related data from 4 tables)
    */
   async getByBuild(build: string): Promise<Client> {
     const response = await api.get<ClientDetailResponse>(`/clients/${build}`)
@@ -85,7 +175,7 @@ const clientsService = {
   },
 
   /**
-   * Create new client
+   * Create new client (includes related data)
    */
   async create(data: Partial<Client>): Promise<Client> {
     const response = await api.post<ClientDetailResponse>('/clients', data)
@@ -93,7 +183,7 @@ const clientsService = {
   },
 
   /**
-   * Update client
+   * Update client (includes related data)
    */
   async update(build: string, data: Partial<Client>): Promise<Client> {
     const response = await api.put<ClientDetailResponse>(`/clients/${build}`, data)
@@ -124,6 +214,14 @@ const clientsService = {
       }
     }>('/clients/statistics')
     return response.data.data
+  },
+
+  /**
+   * Update accounting fees only (dedicated endpoint)
+   * ใช้สำหรับหน้า AccountingFeesManagement
+   */
+  async updateAccountingFees(build: string, data: AccountingFees): Promise<void> {
+    await api.patch(`/clients/${build}/accounting-fees`, data)
   },
 }
 

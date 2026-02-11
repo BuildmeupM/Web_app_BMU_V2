@@ -39,7 +39,7 @@ router.get('/', authenticateToken, async (req, res) => {
     const offset = (pageNum - 1) * limitNum
 
     // Role-based access control
-    const isHRorAdmin = req.user.role === 'admin'
+    const isHRorAdmin = req.user.role === 'admin' || req.user.role === 'hr'
 
     // Build WHERE clause
     const whereConditions = ['wr.deleted_at IS NULL']
@@ -143,7 +143,7 @@ router.get('/', authenticateToken, async (req, res) => {
  * ดึงการขอ WFH ที่รออนุมัติ
  * Access: HR/Admin only
  */
-router.get('/pending', authenticateToken, authorize('admin'), async (req, res) => {
+router.get('/pending', authenticateToken, authorize('admin', 'hr'), async (req, res) => {
   try {
     const {
       page = 1,
@@ -270,31 +270,31 @@ router.get('/calendar', authenticateToken, async (req, res) => {
       // Parse requests
       const requests = item.requests
         ? item.requests.split('||').map(req => {
-            const parts = req.split('|')
-            // Handle both old format (4 parts) and new format (6 parts)
-            if (parts.length >= 6) {
-              const [id, employee_id, employee_name, employee_nick_name, employee_position, reqStatus] = parts
-              return {
-                id,
-                employee_id,
-                employee_name,
-                employee_nick_name: employee_nick_name || null,
-                employee_position: employee_position || null,
-                status: reqStatus,
-              }
-            } else {
-              // Old format (backward compatibility)
-              const [id, employee_id, employee_name, reqStatus] = parts
-              return {
-                id,
-                employee_id,
-                employee_name,
-                employee_nick_name: null,
-                employee_position: null,
-                status: reqStatus,
-              }
+          const parts = req.split('|')
+          // Handle both old format (4 parts) and new format (6 parts)
+          if (parts.length >= 6) {
+            const [id, employee_id, employee_name, employee_nick_name, employee_position, reqStatus] = parts
+            return {
+              id,
+              employee_id,
+              employee_name,
+              employee_nick_name: employee_nick_name || null,
+              employee_position: employee_position || null,
+              status: reqStatus,
             }
-          })
+          } else {
+            // Old format (backward compatibility)
+            const [id, employee_id, employee_name, reqStatus] = parts
+            return {
+              id,
+              employee_id,
+              employee_name,
+              employee_nick_name: null,
+              employee_position: null,
+              status: reqStatus,
+            }
+          }
+        })
         : []
 
       return {
@@ -344,28 +344,28 @@ router.get('/calendar', authenticateToken, async (req, res) => {
  * 
  * NOTE: Route นี้ต้องอยู่ก่อน route /:id เพื่อไม่ให้ Express match /:id ก่อน
  */
-router.get('/work-reports', authenticateToken, authorize('admin'), async (req, res) => {
+router.get('/work-reports', authenticateToken, authorize('admin', 'hr'), async (req, res) => {
   try {
     const { month } = req.query
-    
+
     // Parse month (YYYY-MM) or use current month
     let targetMonth = month || new Date().toISOString().slice(0, 7)
     const [year, monthNum] = targetMonth.split('-').map(Number)
-    
+
     // Get first and last day of target month
     // monthNum - 1 because JavaScript months are 0-indexed
     const firstDay = new Date(year, monthNum - 1, 1)
     // monthNum (not monthNum - 1) gives us the last day of the previous month
     // So monthNum gives us the last day of targetMonth
     const lastDay = new Date(year, monthNum, 0)
-    
+
     // Format dates as YYYY-MM-DD
     const firstDayStr = `${year}-${String(monthNum).padStart(2, '0')}-01`
     const lastDayStr = `${year}-${String(monthNum).padStart(2, '0')}-${String(lastDay.getDate()).padStart(2, '0')}`
-    
+
     const today = new Date()
     today.setHours(0, 0, 0, 0)
-    
+
     // Get all approved WFH requests in the month
     // Use DATE() function to ensure proper date comparison
     const [wfhRequests] = await pool.execute(
@@ -399,10 +399,10 @@ router.get('/work-reports', authenticateToken, authorize('admin'), async (req, r
       const wfhDate = new Date(wfhDateStr)
       wfhDate.setHours(0, 0, 0, 0)
       const daysDiff = Math.floor((today.getTime() - wfhDate.getTime()) / (1000 * 60 * 60 * 24))
-      
+
       // Check if work_report exists and is not empty
       const hasWorkReport = req.work_report && req.work_report.trim() !== ''
-      
+
       if (hasWorkReport) {
         // Already submitted
         submitted.push(req)
@@ -450,7 +450,7 @@ router.get('/work-reports', authenticateToken, authorize('admin'), async (req, r
 router.get('/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params
-    const isHRorAdmin = req.user.role === 'admin'
+    const isHRorAdmin = req.user.role === 'admin' || req.user.role === 'hr'
 
     // Build WHERE clause with access control
     let whereClause = 'WHERE wr.id = ? AND wr.deleted_at IS NULL'
@@ -516,7 +516,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
 router.get('/dashboard/summary', authenticateToken, async (req, res) => {
   try {
     const { employee_id, month } = req.query
-    const isHRorAdmin = req.user.role === 'admin'
+    const isHRorAdmin = req.user.role === 'admin' || req.user.role === 'hr'
     const targetEmployeeId = isHRorAdmin ? employee_id : req.user.employee_id
 
     if (!targetEmployeeId) {
@@ -578,25 +578,25 @@ router.get('/dashboard/summary', authenticateToken, async (req, res) => {
  * ดึงข้อมูล WFH รายวันสำหรับกราฟ (สำหรับ Admin)
  * Access: Admin only
  */
-router.get('/dashboard/daily', authenticateToken, authorize('admin'), async (req, res) => {
+router.get('/dashboard/daily', authenticateToken, authorize('admin', 'hr'), async (req, res) => {
   try {
     const { month } = req.query
-    
+
     // Parse month (YYYY-MM) or use current month
     let targetMonth = month || new Date().toISOString().slice(0, 7)
     const [year, monthNum] = targetMonth.split('-').map(Number)
-    
+
     // Get first and last day of target month
     // monthNum - 1 because JavaScript months are 0-indexed
     const firstDay = new Date(year, monthNum - 1, 1)
     // monthNum (not monthNum - 1) gives us the last day of the previous month
     // So monthNum gives us the last day of targetMonth
     const lastDay = new Date(year, monthNum, 0)
-    
+
     // Format dates as YYYY-MM-DD
     const firstDayStr = `${year}-${String(monthNum).padStart(2, '0')}-01`
     const lastDayStr = `${year}-${String(monthNum).padStart(2, '0')}-${String(lastDay.getDate()).padStart(2, '0')}`
-    
+
     // Get daily WFH statistics for target month
     const [dailyStats] = await pool.execute(
       `SELECT 
@@ -803,7 +803,7 @@ router.post('/', authenticateToken, async (req, res) => {
  * อนุมัติการขอ WFH
  * Access: HR/Admin only
  */
-router.put('/:id/approve', authenticateToken, authorize('admin'), async (req, res) => {
+router.put('/:id/approve', authenticateToken, authorize('admin', 'hr'), async (req, res) => {
   try {
     const { id } = req.params
     const { approver_note } = req.body
@@ -883,7 +883,7 @@ router.put('/:id/approve', authenticateToken, authorize('admin'), async (req, re
  * ปฏิเสธการขอ WFH
  * Access: HR/Admin only
  */
-router.put('/:id/reject', authenticateToken, authorize('admin'), async (req, res) => {
+router.put('/:id/reject', authenticateToken, authorize('admin', 'hr'), async (req, res) => {
   try {
     const { id } = req.params
     const { approver_note } = req.body

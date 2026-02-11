@@ -31,7 +31,7 @@ interface EmployeeDetailProps {
 
 export default function EmployeeDetail({ employee, onEdit }: EmployeeDetailProps) {
   const { user } = useAuthStore()
-  const isAdmin = user?.role === 'admin'
+  const isAdmin = user?.role === 'admin' || user?.role === 'hr'
   const canEdit = isAdmin || user?.employee_id === employee.employee_id
 
   const [workingDaysData, setWorkingDaysData] = useState<{

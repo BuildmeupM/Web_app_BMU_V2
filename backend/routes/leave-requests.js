@@ -152,7 +152,7 @@ router.get('/', authenticateToken, async (req, res) => {
  * ดึงการลาที่รออนุมัติ
  * Access: HR/Admin only
  */
-router.get('/pending', authenticateToken, authorize('admin'), async (req, res) => {
+router.get('/pending', authenticateToken, authorize('admin', 'hr'), async (req, res) => {
   try {
     const {
       page = 1,
@@ -224,7 +224,7 @@ router.get('/pending', authenticateToken, authorize('admin'), async (req, res) =
 router.get('/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params
-    const isHRorAdmin = req.user.role === 'admin'
+    const isHRorAdmin = req.user.role === 'admin' || req.user.role === 'hr'
 
     // Build WHERE clause with access control
     let whereClause = 'WHERE lr.id = ? AND lr.deleted_at IS NULL'
@@ -295,7 +295,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
 router.get('/dashboard/summary', authenticateToken, async (req, res) => {
   try {
     const { employee_id, year } = req.query
-    const isHRorAdmin = req.user.role === 'admin'
+    const isHRorAdmin = req.user.role === 'admin' || req.user.role === 'hr'
     const targetYear = year || new Date().getFullYear()
     const targetEmployeeId = isHRorAdmin ? employee_id : req.user.employee_id
 
@@ -393,10 +393,10 @@ router.get('/dashboard/summary', authenticateToken, async (req, res) => {
  * ดึงข้อมูลการลาแบบรายวันสำหรับกราฟแท่ง
  * Access: HR/Admin only
  */
-router.get('/dashboard/daily', authenticateToken, authorize('admin'), async (req, res) => {
+router.get('/dashboard/daily', authenticateToken, authorize('admin', 'hr'), async (req, res) => {
   try {
     const { month, compare_previous } = req.query
-    const isHRorAdmin = req.user.role === 'admin'
+    const isHRorAdmin = req.user.role === 'admin' || req.user.role === 'hr'
 
     if (!isHRorAdmin) {
       return res.status(403).json({
@@ -784,7 +784,7 @@ router.post('/', authenticateToken, leaveRequestRateLimiter, async (req, res) =>
  * อนุมัติการลา
  * Access: HR/Admin only
  */
-router.put('/:id/approve', authenticateToken, authorize('admin'), async (req, res) => {
+router.put('/:id/approve', authenticateToken, authorize('admin', 'hr'), async (req, res) => {
   try {
     const { id } = req.params
     const { approver_note } = req.body
@@ -855,7 +855,7 @@ router.put('/:id/approve', authenticateToken, authorize('admin'), async (req, re
  * ปฏิเสธการลา
  * Access: HR/Admin only
  */
-router.put('/:id/reject', authenticateToken, authorize('admin'), async (req, res) => {
+router.put('/:id/reject', authenticateToken, authorize('admin', 'hr'), async (req, res) => {
   try {
     const { id } = req.params
     const { approver_note } = req.body

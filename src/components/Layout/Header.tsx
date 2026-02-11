@@ -1,6 +1,19 @@
 import { memo } from 'react'
-import { Group, Text, Button, Menu, Avatar } from '@mantine/core'
-import { TbLogout, TbUser } from 'react-icons/tb'
+import {
+  Group,
+  Text,
+  Button,
+  Menu,
+  Avatar,
+  ActionIcon,
+  Popover,
+  Stack,
+  SimpleGrid,
+  UnstyledButton,
+  Box,
+  Divider,
+} from '@mantine/core'
+import { TbLogout, TbUser, TbApps, TbCoin } from 'react-icons/tb'
 import { useAuthStore } from '../../store/authStore'
 import { useNavigate } from 'react-router-dom'
 import { authService } from '../../services/authService'
@@ -8,10 +21,24 @@ import NotificationsMenu from './NotificationsMenu'
 import ChangePasswordModal from './ChangePasswordModal'
 import { useState } from 'react'
 
+// Internal system hub items
+const internalSystemItems = [
+  {
+    icon: TbCoin,
+    label: 'ค่าทำบัญชี / ค่าบริการ HR',
+    path: '/accounting-fees',
+    color: '#ff6b35',
+    bgColor: 'linear-gradient(135deg, #ff6b35 0%, #ff8c42 100%)',
+    openInNewTab: true,
+    allowedRoles: ['admin', 'registration'] as string[],
+  },
+]
+
 const Header = memo(function Header() {
   const { user, logout } = useAuthStore()
   const navigate = useNavigate()
   const [changePasswordOpened, setChangePasswordOpened] = useState(false)
+  const [hubOpened, setHubOpened] = useState(false)
 
   const handleLogout = async () => {
     try {
@@ -35,6 +62,111 @@ const Header = memo(function Header() {
         </Text>
         <Group gap="md">
           <NotificationsMenu />
+
+          {/* Internal System Hub */}
+          <Popover
+            width={280}
+            position="bottom-end"
+            shadow="lg"
+            radius="lg"
+            opened={hubOpened}
+            onChange={setHubOpened}
+          >
+            <Popover.Target>
+              <ActionIcon
+                variant="subtle"
+                size="lg"
+                radius="xl"
+                onClick={() => setHubOpened((o) => !o)}
+                style={{
+                  transition: 'all 0.2s ease',
+                }}
+                styles={{
+                  root: {
+                    '&:hover': {
+                      backgroundColor: 'rgba(255, 107, 53, 0.1)',
+                    },
+                  },
+                }}
+              >
+                <TbApps size={22} />
+              </ActionIcon>
+            </Popover.Target>
+            <Popover.Dropdown
+              p="md"
+              style={{
+                border: '1px solid #eee',
+                borderRadius: 16,
+              }}
+            >
+              <Text fw={700} size="sm" ta="center" mb="md" c="dimmed">
+                ศูนย์รวมระบบภายใน
+              </Text>
+              <Divider mb="md" />
+
+              <SimpleGrid cols={3} spacing="xs">
+                {internalSystemItems
+                  .filter((item) => !item.allowedRoles || item.allowedRoles.includes(user?.role || ''))
+                  .map((item) => (
+                    <UnstyledButton
+                      key={item.path}
+                      onClick={() => {
+                        if (item.openInNewTab) {
+                          window.open(item.path, '_blank')
+                        } else {
+                          navigate(item.path)
+                        }
+                        setHubOpened(false)
+                      }}
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: 8,
+                        padding: '12px 4px',
+                        borderRadius: 12,
+                        transition: 'all 0.2s ease',
+                      }}
+                      onMouseEnter={(e: React.MouseEvent<HTMLButtonElement>) => {
+                        e.currentTarget.style.backgroundColor = '#f8f9fa'
+                        e.currentTarget.style.transform = 'translateY(-2px)'
+                      }}
+                      onMouseLeave={(e: React.MouseEvent<HTMLButtonElement>) => {
+                        e.currentTarget.style.backgroundColor = 'transparent'
+                        e.currentTarget.style.transform = 'translateY(0)'
+                      }}
+                    >
+                      <Box
+                        style={{
+                          width: 48,
+                          height: 48,
+                          borderRadius: '50%',
+                          background: item.bgColor,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          boxShadow: `0 4px 12px ${item.color}40`,
+                          transition: 'transform 0.2s ease',
+                        }}
+                      >
+                        <item.icon size={24} color="white" />
+                      </Box>
+                      <Text
+                        size="xs"
+                        fw={500}
+                        ta="center"
+                        c="#555"
+                        style={{ lineHeight: 1.3 }}
+                      >
+                        {item.label}
+                      </Text>
+                    </UnstyledButton>
+                  ))}
+              </SimpleGrid>
+            </Popover.Dropdown>
+          </Popover>
+
+          {/* User menu */}
           <Menu shadow="md" width={200}>
             <Menu.Target>
               <Group style={{ cursor: 'pointer' }} gap="xs">

@@ -48,7 +48,7 @@ router.get('/', authenticateToken, async (req, res) => {
 
     // Role-based access control
     // HR = admin role (ตาม requirements: Role : HR , Admin จะมองเห็นทุกระบบ)
-    const isHRorAdmin = req.user.role === 'admin'
+    const isHRorAdmin = req.user.role === 'admin' || req.user.role === 'hr'
 
     // Check if should include deleted records (only for admin)
     const shouldIncludeDeleted = isHRorAdmin && includeDeleted === 'true'
@@ -305,7 +305,7 @@ router.get('/positions', authenticateToken, async (req, res) => {
 router.get('/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params
-    const isHRorAdmin = req.user.role === 'admin'
+    const isHRorAdmin = req.user.role === 'admin' || req.user.role === 'hr'
 
     // Build WHERE clause with access control
     // Support both UUID (e.id) and employee_id (e.employee_id) formats
@@ -538,7 +538,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
  * Create employee
  * Access: HR, Admin only
  */
-router.post('/', authenticateToken, authorize('admin'), validateEmployee, async (req, res) => {
+router.post('/', authenticateToken, authorize('admin', 'hr'), validateEmployee, async (req, res) => {
   try {
     const {
       employee_id,
@@ -696,7 +696,7 @@ router.post('/', authenticateToken, authorize('admin'), validateEmployee, async 
 router.put('/:id', authenticateToken, validateEmployeeUpdate, async (req, res) => {
   try {
     const { id } = req.params
-    const isHRorAdmin = req.user.role === 'admin'
+    const isHRorAdmin = req.user.role === 'admin' || req.user.role === 'hr'
 
     // Check if employee exists and access control
     let whereClause = 'WHERE id = ? AND deleted_at IS NULL'
@@ -792,7 +792,7 @@ router.put('/:id', authenticateToken, validateEmployeeUpdate, async (req, res) =
  * Delete employee (soft delete)
  * Access: HR, Admin only
  */
-router.delete('/:id', authenticateToken, authorize('admin'), async (req, res) => {
+router.delete('/:id', authenticateToken, authorize('admin', 'hr'), async (req, res) => {
   try {
     const { id } = req.params
 
@@ -862,7 +862,7 @@ router.delete('/reset/all', authenticateToken, authorize('admin'), async (req, r
 router.get('/:id/working-days', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params
-    const isHRorAdmin = req.user.role === 'admin'
+    const isHRorAdmin = req.user.role === 'admin' || req.user.role === 'hr'
 
     // Build WHERE clause with access control
     let whereClause = 'WHERE e.id = ? AND e.deleted_at IS NULL'
@@ -1013,7 +1013,7 @@ router.get('/:id/working-days', authenticateToken, async (req, res) => {
 router.get('/:id/statistics', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params
-    const isHRorAdmin = req.user.role === 'admin'
+    const isHRorAdmin = req.user.role === 'admin' || req.user.role === 'hr'
 
     // Build WHERE clause with access control
     let whereClause = 'WHERE e.id = ? AND e.deleted_at IS NULL'

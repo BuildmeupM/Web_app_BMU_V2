@@ -39,15 +39,18 @@ import {
 } from 'react-icons/tb'
 import { useQuery, useMutation, useQueryClient } from 'react-query'
 import { useAuthStore } from '../store/authStore'
-import clientsService, { Client } from '../services/clientsService'
+import clientsService, { Client, AccountingFees, DbdInfo, AgencyCredentials } from '../services/clientsService'
 import ClientList from '../components/Client/ClientList'
 import ClientDetail from '../components/Client/ClientDetail'
 import ClientForm from '../components/Client/ClientForm'
 import ClientDeleteModal from '../components/Client/ClientDeleteModal'
 import ClientImport from '../components/Client/ClientImport'
+import MonthlyFeesForm from '../components/Client/MonthlyFeesForm'
+import DbdInfoForm from '../components/Client/DbdInfoForm'
+import AgencyCredentialsForm from '../components/Client/AgencyCredentialsForm'
 import { notifications } from '@mantine/notifications'
 
-// Component to load and display client detail
+// Component to load and display client detail + manage related-data modals
 function ClientDetailView({
   build,
   onBack,
@@ -55,29 +58,68 @@ function ClientDetailView({
 }: {
   build: string
   onBack?: () => void
-  onEdit: () => void
+  onEdit: (client: Client) => void
 }) {
+  const queryClient = useQueryClient()
   const { data: client, isLoading, error } = useQuery(
     ['client', build],
     () => clientsService.getByBuild(build),
-    {
-      enabled: !!build,
-    }
+    { enabled: !!build }
   )
+
+  // Modal states
+  const [monthlyFeesOpened, setMonthlyFeesOpened] = useState(false)
+  const [dbdOpened, setDbdOpened] = useState(false)
+  const [credentialsOpened, setCredentialsOpened] = useState(false)
+
+  // Save handler for monthly fees
+  const handleSaveMonthlyFees = async (data: AccountingFees) => {
+    try {
+      // Merge with existing accounting_fees (preserve peak_code, dates)
+      const existingFees = client?.accounting_fees || {}
+      const merged = { ...existingFees, ...data }
+      await clientsService.update(build, { accounting_fees: merged })
+      notifications.show({ title: 'บันทึกสำเร็จ', message: 'บันทึกค่าทำบัญชีรายเดือนเรียบร้อย', color: 'green' })
+      queryClient.invalidateQueries(['client', build])
+      setMonthlyFeesOpened(false)
+    } catch (err: any) {
+      notifications.show({ title: 'เกิดข้อผิดพลาด', message: err?.response?.data?.message || 'ไม่สามารถบันทึกได้', color: 'red' })
+    }
+  }
+
+  // Save handler for DBD info
+  const handleSaveDbdInfo = async (data: DbdInfo) => {
+    try {
+      await clientsService.update(build, { dbd_info: data })
+      notifications.show({ title: 'บันทึกสำเร็จ', message: 'บันทึกข้อมูล DBD เรียบร้อย', color: 'green' })
+      queryClient.invalidateQueries(['client', build])
+      setDbdOpened(false)
+    } catch (err: any) {
+      notifications.show({ title: 'เกิดข้อผิดพลาด', message: err?.response?.data?.message || 'ไม่สามารถบันทึกได้', color: 'red' })
+    }
+  }
+
+  // Save handler for credentials
+  const handleSaveCredentials = async (data: AgencyCredentials) => {
+    try {
+      await clientsService.update(build, { agency_credentials: data })
+      notifications.show({ title: 'บันทึกสำเร็จ', message: 'บันทึกรหัสผู้ใช้เรียบร้อย', color: 'green' })
+      queryClient.invalidateQueries(['client', build])
+      setCredentialsOpened(false)
+    } catch (err: any) {
+      notifications.show({ title: 'เกิดข้อผิดพลาด', message: err?.response?.data?.message || 'ไม่สามารถบันทึกได้', color: 'red' })
+    }
+  }
 
   if (isLoading) {
     return (
       <Card>
         {onBack && (
           <Group justify="space-between" mb="md">
-            <Button variant="subtle" onClick={onBack}>
-              ← กลับไปรายชื่อ
-            </Button>
+            <Button variant="subtle" onClick={onBack}>← กลับไปรายชื่อ</Button>
           </Group>
         )}
-        <Center py="xl">
-          <Loader />
-        </Center>
+        <Center py="xl"><Loader /></Center>
       </Card>
     )
   }
@@ -87,9 +129,7 @@ function ClientDetailView({
       <Card>
         {onBack && (
           <Group justify="space-between" mb="md">
-            <Button variant="subtle" onClick={onBack}>
-              ← กลับไปรายชื่อ
-            </Button>
+            <Button variant="subtle" onClick={onBack}>← กลับไปรายชื่อ</Button>
           </Group>
         )}
         <Alert icon={<TbAlertCircle size={16} />} color="red">
@@ -100,16 +140,49 @@ function ClientDetailView({
   }
 
   return (
-    <Card>
-      {onBack && (
-        <Group justify="space-between" mb="md">
-          <Button variant="subtle" onClick={onBack}>
-            ← กลับไปรายชื่อ
-          </Button>
-        </Group>
-      )}
-      <ClientDetail client={client} onEdit={onEdit} />
-    </Card>
+    <>
+      <Card>
+        {onBack && (
+          <Group justify="space-between" mb="md">
+            <Button variant="subtle" onClick={onBack}>← กลับไปรายชื่อ</Button>
+          </Group>
+        )}
+        <ClientDetail
+          client={client}
+          onEdit={() => onEdit(client)}
+          onEditMonthlyFees={() => setMonthlyFeesOpened(true)}
+          onEditDbdInfo={() => setDbdOpened(true)}
+          onEditCredentials={() => setCredentialsOpened(true)}
+        />
+      </Card>
+
+      {/* Monthly Fees Modal */}
+      <MonthlyFeesForm
+        opened={monthlyFeesOpened}
+        onClose={() => setMonthlyFeesOpened(false)}
+        onSubmit={handleSaveMonthlyFees}
+        data={client.accounting_fees}
+        build={build}
+      />
+
+      {/* DBD Info Modal */}
+      <DbdInfoForm
+        opened={dbdOpened}
+        onClose={() => setDbdOpened(false)}
+        onSubmit={handleSaveDbdInfo}
+        data={client.dbd_info}
+        build={build}
+      />
+
+      {/* Credentials Modal */}
+      <AgencyCredentialsForm
+        opened={credentialsOpened}
+        onClose={() => setCredentialsOpened(false)}
+        onSubmit={handleSaveCredentials}
+        data={client.agency_credentials}
+        build={build}
+      />
+    </>
   )
 }
 
@@ -117,7 +190,7 @@ export default function ClientManagement() {
   const { user } = useAuthStore()
   const queryClient = useQueryClient()
   const isAdmin = user?.role === 'admin'
-  const canEdit = isAdmin || user?.role === 'data_entry' || user?.role === 'data_entry_and_service'
+  const canEdit = isAdmin || user?.role === 'hr' || user?.role === 'data_entry' || user?.role === 'data_entry_and_service'
 
   // State
   const [search, setSearch] = useState('')
@@ -255,10 +328,22 @@ export default function ClientManagement() {
     setFormOpened(true)
   }
 
-  const handleEdit = (client: Client) => {
-    setFormMode('edit')
-    setEditingClient(client)
-    setFormOpened(true)
+  const handleEdit = async (client: Client) => {
+    try {
+      // Fetch full client data (includes accounting_fees, boi_info, etc.)
+      const fullClient = await clientsService.getByBuild(client.build)
+      setFormMode('edit')
+      setEditingClient(fullClient)
+      setFormOpened(true)
+    } catch (error) {
+      console.error('Failed to load client details:', error)
+      notifications.show({
+        title: 'เกิดข้อผิดพลาด',
+        message: 'ไม่สามารถโหลดข้อมูลลูกค้าได้',
+        color: 'red',
+        icon: <TbAlertCircle size={16} />,
+      })
+    }
   }
 
   const handleDelete = (client: Client) => {
@@ -400,7 +485,7 @@ export default function ClientManagement() {
           <ClientDetailView
             build={selectedClient.build}
             onBack={handleBackToList}
-            onEdit={() => handleEdit(selectedClient)}
+            onEdit={handleEdit}
           />
         ) : (
           /* Client List View */
@@ -555,7 +640,7 @@ export default function ClientManagement() {
                     </Text>
                     <SimpleGrid cols={1} spacing="xs">
                       {statisticsData?.byTaxRegistrationStatus &&
-                      statisticsData.byTaxRegistrationStatus.length > 0 ? (
+                        statisticsData.byTaxRegistrationStatus.length > 0 ? (
                         statisticsData.byTaxRegistrationStatus.map((item) => {
                           const TaxIcon = getTaxStatusIcon(item.tax_registration_status)
                           const colorValue =

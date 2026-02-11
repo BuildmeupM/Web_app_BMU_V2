@@ -49,7 +49,7 @@ dayjs.locale('th')
 
 export default function HolidayManagement() {
     const user = useAuthStore((state) => state.user)
-    const isAdmin = user?.role === 'admin'
+    const isAdmin = user?.role === 'admin' || user?.role === 'hr'
     const queryClient = useQueryClient()
 
     const [modalOpened, setModalOpened] = useState(false)

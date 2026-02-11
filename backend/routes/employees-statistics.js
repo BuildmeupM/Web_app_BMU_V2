@@ -16,10 +16,10 @@ const router = express.Router()
  * @param month - Format: YYYY-MM (e.g., "2025-08")
  * NOTE: This route must be defined BEFORE /statistics route to avoid route conflicts
  */
-router.get('/statistics/by-month/:month', authenticateToken, authorize('admin'), async (req, res) => {
+router.get('/statistics/by-month/:month', authenticateToken, authorize('admin', 'hr'), async (req, res) => {
   try {
     const { month } = req.params
-    
+
     // Validate month format (YYYY-MM)
     if (!/^\d{4}-\d{2}$/.test(month)) {
       return res.status(400).json({
@@ -84,7 +84,7 @@ router.get('/statistics/by-month/:month', authenticateToken, authorize('admin'),
  * Get employee statistics (for Dashboard)
  * Access: Admin only
  */
-router.get('/statistics', authenticateToken, authorize('admin'), async (req, res) => {
+router.get('/statistics', authenticateToken, authorize('admin', 'hr'), async (req, res) => {
   try {
     // Get total active and resigned employees
     const [statusCounts] = await pool.execute(
@@ -157,11 +157,11 @@ router.get('/statistics', authenticateToken, authorize('admin'), async (req, res
 
     // Combine hire and resign trends
     const trendMap = new Map()
-    
+
     hireTrend.forEach((item) => {
       trendMap.set(item.month, { month: item.month, hired: item.hired, resigned: 0 })
     })
-    
+
     resignTrend.forEach((item) => {
       if (trendMap.has(item.month)) {
         trendMap.get(item.month).resigned = item.resigned

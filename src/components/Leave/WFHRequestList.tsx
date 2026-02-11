@@ -29,6 +29,7 @@ import dayjs from 'dayjs'
 
 interface WFHRequestListProps {
   pendingOnly?: boolean
+  showWorkReportOnly?: boolean
 }
 
 const WFHRequestList = memo(function WFHRequestList({ pendingOnly = false, showWorkReportOnly = false }: WFHRequestListProps) {
@@ -44,7 +45,7 @@ const WFHRequestList = memo(function WFHRequestList({ pendingOnly = false, showW
   const [workReportModalOpened, setWorkReportModalOpened] = useState(false)
   const [selectedWorkReportRequest, setSelectedWorkReportRequest] = useState<WFHRequest | null>(null)
   const user = useAuthStore((state) => state.user)
-  const isAdmin = user?.role === 'admin'
+  const isAdmin = user?.role === 'admin' || user?.role === 'hr'
 
   // Fetch WFH requests
   // For "ข้อมูลการ WFH" (history tab), always show only own data
@@ -92,13 +93,13 @@ const WFHRequestList = memo(function WFHRequestList({ pendingOnly = false, showW
   const canSubmitWorkReport = (request: WFHRequest): boolean => {
     if (request.status !== 'อนุมัติแล้ว') return false
     if (request.work_report) return false // Already submitted
-    
+
     // Check if WFH date is today or in the past (allow submission on WFH date)
     const wfhDate = new Date(request.wfh_date)
     wfhDate.setHours(0, 0, 0, 0)
     const today = new Date()
     today.setHours(0, 0, 0, 0)
-    
+
     return wfhDate <= today
   }
 
@@ -106,15 +107,15 @@ const WFHRequestList = memo(function WFHRequestList({ pendingOnly = false, showW
   const getWorkReportStatus = (request: WFHRequest): { status: 'pending' | 'due-soon' | 'overdue' | 'submitted'; daysDiff: number } | null => {
     if (request.status !== 'อนุมัติแล้ว') return null
     if (request.work_report) return { status: 'submitted', daysDiff: 0 }
-    
+
     const wfhDate = new Date(request.wfh_date)
     wfhDate.setHours(0, 0, 0, 0)
     const today = new Date()
     today.setHours(0, 0, 0, 0)
-    
+
     // Calculate days difference (positive = days after WFH date)
     const daysDiff = Math.floor((today.getTime() - wfhDate.getTime()) / (1000 * 60 * 60 * 24))
-    
+
     if (daysDiff < 0) return null // Not yet WFH date
     if (daysDiff <= 2) return { status: 'due-soon', daysDiff } // Within 1-2 days
     return { status: 'overdue', daysDiff } // Over 2 days
@@ -123,15 +124,15 @@ const WFHRequestList = memo(function WFHRequestList({ pendingOnly = false, showW
   // Filter data for work report only view
   const filteredData = showWorkReportOnly && displayData
     ? {
-        ...displayData,
-        data: {
-          ...displayData.data,
-          wfh_requests: displayData.data.wfh_requests.filter((request: WFHRequest) => {
-            const reportStatus = getWorkReportStatus(request)
-            return reportStatus && reportStatus.status !== 'submitted'
-          }),
-        },
-      }
+      ...displayData,
+      data: {
+        ...displayData.data,
+        wfh_requests: displayData.data.wfh_requests.filter((request: WFHRequest) => {
+          const reportStatus = getWorkReportStatus(request)
+          return reportStatus && reportStatus.status !== 'submitted'
+        }),
+      },
+    }
     : displayData
 
   const getStatusColor = (status: string) => {
@@ -154,19 +155,19 @@ const WFHRequestList = memo(function WFHRequestList({ pendingOnly = false, showW
    */
   const formatThaiDate = (dateString: string): string => {
     if (!dateString) return '-'
-    
+
     const date = dayjs(dateString)
     const thaiWeekdays = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์']
     const thaiMonths = [
       'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
       'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม',
     ]
-    
+
     const weekday = thaiWeekdays[date.day()]
     const day = date.date()
     const month = thaiMonths[date.month()]
     const year = date.year() + 543 // Convert to Buddhist Era
-    
+
     return `${weekday} ที่ ${day} ${month} ${year}`
   }
 
@@ -261,115 +262,115 @@ const WFHRequestList = memo(function WFHRequestList({ pendingOnly = false, showW
               {filteredData?.data.wfh_requests.map((request: WFHRequest) => {
                 const reportStatus = getWorkReportStatus(request)
                 return (
-                <Table.Tr key={request.id}>
-                  <Table.Td>{request.employee_id}</Table.Td>
-                  <Table.Td>
-                    {request.employee_name || '-'}
-                    {request.employee_nick_name && (
-                      <Text component="span" c="black" ml="xs">
-                        ({request.employee_nick_name})
-                      </Text>
-                    )}
-                  </Table.Td>
-                  <Table.Td>{formatThaiDate(request.request_date)}</Table.Td>
-                  <Table.Td>{formatThaiDate(request.wfh_date)}</Table.Td>
-                  <Table.Td>
-                    <Badge color={getStatusColor(request.status)}>{request.status}</Badge>
-                  </Table.Td>
-                  <Table.Td>
-                    {request.status === 'อนุมัติแล้ว' ? (
-                      request.work_report ? (
-                        <Group gap="xs">
-                          <Badge color="green" variant="light">ส่งแล้ว</Badge>
-                          {request.work_report_submitted_at && (
-                            <Text size="xs" c="dimmed">
-                              {dayjs(request.work_report_submitted_at).format('DD/MM/YYYY HH:mm')}
-                            </Text>
-                          )}
-                        </Group>
-                      ) : canSubmitWorkReport(request) ? (
-                        <Stack gap="xs">
-                          <Button
-                            size="xs"
-                            variant="light"
-                            color={
-                              reportStatus?.status === 'overdue'
-                                ? 'red'
-                                : reportStatus?.status === 'due-soon'
-                                ? 'orange'
-                                : 'blue'
-                            }
-                            leftSection={<TbFileText size={14} />}
-                            onClick={() => {
-                              setSelectedWorkReportRequest(request)
-                              setWorkReportModalOpened(true)
-                            }}
-                          >
-                            กรอกรายงาน
-                          </Button>
-                          {reportStatus && (
-                            <Text
-                              size="xs"
-                              c={
-                                reportStatus.status === 'overdue'
-                                  ? 'red'
-                                  : reportStatus.status === 'due-soon'
-                                  ? 'orange'
-                                  : 'blue'
-                              }
-                              fw={500}
-                            >
-                              {reportStatus.status === 'overdue'
-                                ? `เลยกำหนด ${reportStatus.daysDiff} วัน`
-                                : reportStatus.status === 'due-soon'
-                                ? `ส่งภายใน ${2 - reportStatus.daysDiff} วัน`
-                                : 'ต้องรายงาน'}
-                            </Text>
-                          )}
-                        </Stack>
-                      ) : (
-                        <Text size="sm" c="dimmed">ยังไม่ถึงวันที่ WFH</Text>
-                      )
-                    ) : (
-                      <Text size="sm" c="dimmed">-</Text>
-                    )}
-                  </Table.Td>
-                  {isAdmin && (
+                  <Table.Tr key={request.id}>
+                    <Table.Td>{request.employee_id}</Table.Td>
                     <Table.Td>
-                      {request.status === 'รออนุมัติ' && (
-                        <Group gap="xs">
-                          <Tooltip label="อนุมัติ">
-                            <ActionIcon
-                              variant="subtle"
-                              color="green"
-                              onClick={() => {
-                                setSelectedRequest(request)
-                                setApprovalMode('approve')
-                                setApprovalModalOpened(true)
-                              }}
-                            >
-                              <TbCheck size={18} />
-                            </ActionIcon>
-                          </Tooltip>
-                          <Tooltip label="ไม่อนุมัติ">
-                            <ActionIcon
-                              variant="subtle"
-                              color="red"
-                              onClick={() => {
-                                setSelectedRequest(request)
-                                setApprovalMode('reject')
-                                setApprovalModalOpened(true)
-                              }}
-                            >
-                              <TbX size={18} />
-                            </ActionIcon>
-                          </Tooltip>
-                        </Group>
+                      {request.employee_name || '-'}
+                      {request.employee_nick_name && (
+                        <Text component="span" c="black" ml="xs">
+                          ({request.employee_nick_name})
+                        </Text>
                       )}
                     </Table.Td>
-                  )}
-                </Table.Tr>
-              )
+                    <Table.Td>{formatThaiDate(request.request_date)}</Table.Td>
+                    <Table.Td>{formatThaiDate(request.wfh_date)}</Table.Td>
+                    <Table.Td>
+                      <Badge color={getStatusColor(request.status)}>{request.status}</Badge>
+                    </Table.Td>
+                    <Table.Td>
+                      {request.status === 'อนุมัติแล้ว' ? (
+                        request.work_report ? (
+                          <Group gap="xs">
+                            <Badge color="green" variant="light">ส่งแล้ว</Badge>
+                            {request.work_report_submitted_at && (
+                              <Text size="xs" c="dimmed">
+                                {dayjs(request.work_report_submitted_at).format('DD/MM/YYYY HH:mm')}
+                              </Text>
+                            )}
+                          </Group>
+                        ) : canSubmitWorkReport(request) ? (
+                          <Stack gap="xs">
+                            <Button
+                              size="xs"
+                              variant="light"
+                              color={
+                                reportStatus?.status === 'overdue'
+                                  ? 'red'
+                                  : reportStatus?.status === 'due-soon'
+                                    ? 'orange'
+                                    : 'blue'
+                              }
+                              leftSection={<TbFileText size={14} />}
+                              onClick={() => {
+                                setSelectedWorkReportRequest(request)
+                                setWorkReportModalOpened(true)
+                              }}
+                            >
+                              กรอกรายงาน
+                            </Button>
+                            {reportStatus && (
+                              <Text
+                                size="xs"
+                                c={
+                                  reportStatus.status === 'overdue'
+                                    ? 'red'
+                                    : reportStatus.status === 'due-soon'
+                                      ? 'orange'
+                                      : 'blue'
+                                }
+                                fw={500}
+                              >
+                                {reportStatus.status === 'overdue'
+                                  ? `เลยกำหนด ${reportStatus.daysDiff} วัน`
+                                  : reportStatus.status === 'due-soon'
+                                    ? `ส่งภายใน ${2 - reportStatus.daysDiff} วัน`
+                                    : 'ต้องรายงาน'}
+                              </Text>
+                            )}
+                          </Stack>
+                        ) : (
+                          <Text size="sm" c="dimmed">ยังไม่ถึงวันที่ WFH</Text>
+                        )
+                      ) : (
+                        <Text size="sm" c="dimmed">-</Text>
+                      )}
+                    </Table.Td>
+                    {isAdmin && (
+                      <Table.Td>
+                        {request.status === 'รออนุมัติ' && (
+                          <Group gap="xs">
+                            <Tooltip label="อนุมัติ">
+                              <ActionIcon
+                                variant="subtle"
+                                color="green"
+                                onClick={() => {
+                                  setSelectedRequest(request)
+                                  setApprovalMode('approve')
+                                  setApprovalModalOpened(true)
+                                }}
+                              >
+                                <TbCheck size={18} />
+                              </ActionIcon>
+                            </Tooltip>
+                            <Tooltip label="ไม่อนุมัติ">
+                              <ActionIcon
+                                variant="subtle"
+                                color="red"
+                                onClick={() => {
+                                  setSelectedRequest(request)
+                                  setApprovalMode('reject')
+                                  setApprovalModalOpened(true)
+                                }}
+                              >
+                                <TbX size={18} />
+                              </ActionIcon>
+                            </Tooltip>
+                          </Group>
+                        )}
+                      </Table.Td>
+                    )}
+                  </Table.Tr>
+                )
               })}
             </Table.Tbody>
           </Table>

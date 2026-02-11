@@ -40,7 +40,7 @@ export default function EmployeeForm({
   mode,
 }: EmployeeFormProps) {
   const { user } = useAuthStore()
-  const isAdmin = user?.role === 'admin'
+  const isAdmin = user?.role === 'admin' || user?.role === 'hr'
   const isAdminOrHR = user?.role === 'admin' || (user?.role as string) === 'hr'
   const isEditMode = mode === 'edit'
   const isOwnData = !isAdminOrHR && employee && user?.employee_id === employee.employee_id
