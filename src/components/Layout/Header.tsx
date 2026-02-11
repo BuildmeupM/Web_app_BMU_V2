@@ -46,7 +46,7 @@ const Header = memo(function Header() {
                     {user?.name}
                   </Text>
                   <Text size="xs" c="dimmed">
-                    {user?.role}
+                    {user?.employee_id || user?.role}
                   </Text>
                 </div>
               </Group>
