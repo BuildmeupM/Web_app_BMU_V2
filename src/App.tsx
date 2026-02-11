@@ -3,6 +3,8 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore } from './store/authStore'
 import Layout from './components/Layout/Layout'
 import InternalLayout from './components/Layout/InternalLayout'
+import RegistrationLayout from './components/Layout/RegistrationLayout'
+import MarketingLayout from './components/Layout/MarketingLayout'
 import ProtectedRoute from './components/Auth/ProtectedRoute'
 import LoadingFallback from './components/Loading/LoadingFallback'
 import LoadingSpinner from './components/Loading/LoadingSpinner'
@@ -29,6 +31,10 @@ const AccountingFeesManagement = lazy(() => import('./pages/AccountingFeesManage
 const AccountingFeesDashboard = lazy(() => import('./pages/AccountingFeesDashboard'))
 const BotExportManagement = lazy(() => import('./pages/BotExportManagement'))
 const AccountingFeeNotifications = lazy(() => import('./pages/AccountingFeeNotifications'))
+const RegistrationWork = lazy(() => import('./pages/RegistrationWork'))
+const RegistrationSettings = lazy(() => import('./pages/RegistrationSettings'))
+const MessengerRoutes = lazy(() => import('./pages/MessengerRoutes'))
+const MarketingWork = lazy(() => import('./pages/MarketingWork'))
 
 function App() {
   const { isAuthenticated, _hasHydrated, setHasHydrated } = useAuthStore()
@@ -287,6 +293,60 @@ function App() {
                     <AccountingFeeNotifications />
                   </Suspense>
                 </ProtectedRoute>
+              }
+            />
+          </Route>
+
+          {/* Registration Work Layout — แยก layout งานทะเบียน */}
+          <Route
+            path="/registration-work"
+            element={
+              <ProtectedRoute allowedRoles={['admin', 'registration']}>
+                <RegistrationLayout />
+              </ProtectedRoute>
+            }
+          >
+            <Route
+              index
+              element={
+                <Suspense fallback={<LoadingFallback />}>
+                  <RegistrationWork />
+                </Suspense>
+              }
+            />
+            <Route
+              path="settings"
+              element={
+                <Suspense fallback={<LoadingFallback />}>
+                  <RegistrationSettings />
+                </Suspense>
+              }
+            />
+            <Route
+              path="messenger-routes"
+              element={
+                <Suspense fallback={<LoadingFallback />}>
+                  <MessengerRoutes />
+                </Suspense>
+              }
+            />
+          </Route>
+
+          {/* Marketing Work Layout — แยก layout งานออกแบบ/การตลาด */}
+          <Route
+            path="/marketing-work"
+            element={
+              <ProtectedRoute allowedRoles={['admin', 'marketing']}>
+                <MarketingLayout />
+              </ProtectedRoute>
+            }
+          >
+            <Route
+              index
+              element={
+                <Suspense fallback={<LoadingFallback />}>
+                  <MarketingWork />
+                </Suspense>
               }
             />
           </Route>

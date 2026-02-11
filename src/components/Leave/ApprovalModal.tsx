@@ -56,52 +56,100 @@ export default function ApprovalModal({
   const [approverNote, setApproverNote] = useState('')
   const queryClient = useQueryClient()
 
+  // Query key for cache operations (leave-requests or wfh-requests)
+  const queryKey = type === 'leave' ? 'leave-requests' : 'wfh-requests'
+  // Data key inside the response object
+  const dataKey = type === 'leave' ? 'leave_requests' : 'wfh_requests'
+
+  // Helper: Extract error message from error response
+  const extractErrorMessage = (error: any, defaultMsg: string) => {
+    let errorMessage = defaultMsg
+    let errorTitle = 'เกิดข้อผิดพลาด'
+
+    if (error.response) {
+      const errorData = error.response.data
+      if (errorData?.message) {
+        errorMessage = errorData.message
+      } else if (errorData?.errors) {
+        const errorMessages = Object.values(errorData.errors).filter(Boolean)
+        if (errorMessages.length > 0) {
+          errorMessage = (errorMessages as string[]).join(', ')
+        }
+      }
+    } else if (error.request) {
+      errorTitle = 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์'
+      errorMessage = 'กรุณาตรวจสอบว่า backend server กำลังทำงานอยู่ หรือตรวจสอบการเชื่อมต่อเครือข่าย'
+    } else {
+      errorMessage = error.message || defaultMsg
+    }
+
+    return { errorTitle, errorMessage }
+  }
+
+  // Helper: Optimistic update - remove item from all matching query caches
+  const optimisticRemoveItem = async () => {
+    // Cancel any outgoing refetches so they don't overwrite our optimistic update
+    await queryClient.cancelQueries({ queryKey: [queryKey] })
+
+    // Snapshot all matching queries for rollback
+    const previousQueries = queryClient.getQueriesData({ queryKey: [queryKey] })
+
+    // Optimistically remove the approved/rejected item from cache
+    queryClient.setQueriesData({ queryKey: [queryKey] }, (old: any) => {
+      if (!old?.data?.[dataKey]) return old
+      return {
+        ...old,
+        data: {
+          ...old.data,
+          [dataKey]: old.data[dataKey].filter((item: any) => item.id !== requestId),
+          pagination: old.data.pagination
+            ? { ...old.data.pagination, total: Math.max(0, old.data.pagination.total - 1) }
+            : undefined,
+        },
+      }
+    })
+
+    return { previousQueries }
+  }
+
+  // Helper: Rollback on error
+  const rollbackOnError = (_error: any, _variables: any, context: any) => {
+    if (context?.previousQueries) {
+      context.previousQueries.forEach(([key, data]: [any, any]) => {
+        queryClient.setQueryData(key, data)
+      })
+    }
+  }
+
   const approveMutation = useMutation({
     mutationFn: (data?: { approver_note?: string }) =>
       type === 'leave'
         ? leaveService.approve(requestId, data)
         : wfhService.approve(requestId, data),
+    onMutate: optimisticRemoveItem,
     onSuccess: () => {
       notifications.show({
         title: 'สำเร็จ',
         message: 'อนุมัติเรียบร้อยแล้ว',
         color: 'green',
       })
-      queryClient.invalidateQueries({ queryKey: [type === 'leave' ? 'leave-requests' : 'wfh-requests'] })
       handleClose()
     },
-    onError: (error: any) => {
-      // Extract error message from response
-      let errorMessage = 'ไม่สามารถอนุมัติได้'
-      let errorTitle = 'เกิดข้อผิดพลาด'
-      
-      if (error.response) {
-        // Server responded with error
-        const errorData = error.response.data
-        if (errorData?.message) {
-          errorMessage = errorData.message
-        } else if (errorData?.errors) {
-          // Handle validation errors
-          const errorMessages = Object.values(errorData.errors).filter(Boolean)
-          if (errorMessages.length > 0) {
-            errorMessage = errorMessages.join(', ')
-          }
-        }
-      } else if (error.request) {
-        // Request was made but no response received (Network Error)
-        errorTitle = 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์'
-        errorMessage = 'กรุณาตรวจสอบว่า backend server กำลังทำงานอยู่ หรือตรวจสอบการเชื่อมต่อเครือข่าย'
-      } else {
-        // Error setting up request
-        errorMessage = error.message || 'เกิดข้อผิดพลาดในการอนุมัติ'
-      }
-      
+    onError: (error: any, _variables: any, context: any) => {
+      // Rollback optimistic update
+      rollbackOnError(error, _variables, context)
+
+      const { errorTitle, errorMessage } = extractErrorMessage(error, 'ไม่สามารถอนุมัติได้')
       notifications.show({
         title: errorTitle,
         message: errorMessage,
         color: 'red',
         autoClose: 5000,
       })
+    },
+    onSettled: () => {
+      // Always refetch after mutation settles to ensure consistency with server
+      queryClient.invalidateQueries({ queryKey: [queryKey] })
     },
   })
 
@@ -110,47 +158,30 @@ export default function ApprovalModal({
       type === 'leave'
         ? leaveService.reject(requestId, data)
         : wfhService.reject(requestId, data),
+    onMutate: optimisticRemoveItem,
     onSuccess: () => {
       notifications.show({
         title: 'สำเร็จ',
         message: 'ปฏิเสธเรียบร้อยแล้ว',
         color: 'green',
       })
-      queryClient.invalidateQueries({ queryKey: [type === 'leave' ? 'leave-requests' : 'wfh-requests'] })
       handleClose()
     },
-    onError: (error: any) => {
-      // Extract error message from response
-      let errorMessage = 'ไม่สามารถปฏิเสธได้'
-      let errorTitle = 'เกิดข้อผิดพลาด'
-      
-      if (error.response) {
-        // Server responded with error
-        const errorData = error.response.data
-        if (errorData?.message) {
-          errorMessage = errorData.message
-        } else if (errorData?.errors) {
-          // Handle validation errors
-          const errorMessages = Object.values(errorData.errors).filter(Boolean)
-          if (errorMessages.length > 0) {
-            errorMessage = errorMessages.join(', ')
-          }
-        }
-      } else if (error.request) {
-        // Request was made but no response received (Network Error)
-        errorTitle = 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์'
-        errorMessage = 'กรุณาตรวจสอบว่า backend server กำลังทำงานอยู่ หรือตรวจสอบการเชื่อมต่อเครือข่าย'
-      } else {
-        // Error setting up request
-        errorMessage = error.message || 'เกิดข้อผิดพลาดในการปฏิเสธ'
-      }
-      
+    onError: (error: any, _variables: any, context: any) => {
+      // Rollback optimistic update
+      rollbackOnError(error, _variables, context)
+
+      const { errorTitle, errorMessage } = extractErrorMessage(error, 'ไม่สามารถปฏิเสธได้')
       notifications.show({
         title: errorTitle,
         message: errorMessage,
         color: 'red',
         autoClose: 5000,
       })
+    },
+    onSettled: () => {
+      // Always refetch after mutation settles to ensure consistency with server
+      queryClient.invalidateQueries({ queryKey: [queryKey] })
     },
   })
 
@@ -181,7 +212,7 @@ export default function ApprovalModal({
     }
   }
 
-  const isLoading = approveMutation.isPending || rejectMutation.isPending
+  const isLoading = approveMutation.isLoading || rejectMutation.isLoading
 
   // Helper function to format date to Thai format
   const formatThaiDate = (dateString: string) => {
@@ -219,8 +250,8 @@ export default function ApprovalModal({
         mode === 'approve'
           ? 'อนุมัติ'
           : type === 'wfh'
-          ? 'กรอกข้อมูลไม่อนุมัติให้ WFH'
-          : 'กรอกข้อมูลไม่อนุมัติให้ลา'
+            ? 'กรอกข้อมูลไม่อนุมัติให้ WFH'
+            : 'กรอกข้อมูลไม่อนุมัติให้ลา'
       }
       size="lg"
       centered

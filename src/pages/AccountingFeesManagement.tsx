@@ -7,6 +7,7 @@
  */
 
 import { useState, useMemo, useCallback, Fragment } from 'react'
+import ExportExcelModal from '../components/Client/ExportExcelModal'
 import {
     Container,
     Title,
@@ -53,6 +54,7 @@ import {
     TbMapPin,
     TbMessage,
     TbReceipt,
+    TbFileSpreadsheet,
 } from 'react-icons/tb'
 import { useQuery, useQueryClient } from 'react-query'
 import { useAuthStore } from '../store/authStore'
@@ -385,6 +387,7 @@ export default function AccountingFeesManagement() {
 
     // Modal state
     const [editClient, setEditClient] = useState<{ build: string; fees: AccountingFees | null } | null>(null)
+    const [exportModalOpened, setExportModalOpened] = useState(false)
 
     // Fetch clients list
     const { data: clientsData, isLoading, error, refetch, isFetching } = useQuery(
@@ -568,6 +571,15 @@ export default function AccountingFeesManagement() {
                                 color="orange"
                             />
                         </div>
+                        <Button
+                            variant="light"
+                            color="green"
+                            leftSection={<TbFileSpreadsheet size={16} />}
+                            onClick={() => setExportModalOpened(true)}
+                            style={{ alignSelf: 'flex-end' }}
+                        >
+                            ส่งออกข้อมูล Excel
+                        </Button>
                         <Button
                             variant="light"
                             color="orange"
@@ -764,6 +776,13 @@ export default function AccountingFeesManagement() {
                     build={editClient.build}
                 />
             )}
+
+            {/* Export Excel Modal */}
+            <ExportExcelModal
+                opened={exportModalOpened}
+                onClose={() => setExportModalOpened(false)}
+                clients={clientsData?.data || []}
+            />
         </Container>
     )
 }

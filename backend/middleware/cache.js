@@ -44,8 +44,9 @@ export function cacheMiddleware(req, res, next) {
   const skipCachePaths = [
     '/api/auth',
     '/health',
+    '/api/clients/accounting-fees-export',
   ]
-  
+
   const shouldSkipCache = skipCachePaths.some(path => req.path.startsWith(path))
   if (shouldSkipCache) {
     return next()
@@ -86,7 +87,7 @@ export function cacheMiddleware(req, res, next) {
 export function invalidateCache(pattern) {
   const keys = cache.keys()
   const regex = new RegExp(pattern)
-  
+
   keys.forEach(key => {
     if (regex.test(key)) {
       cache.del(key)

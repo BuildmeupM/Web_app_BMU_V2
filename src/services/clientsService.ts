@@ -223,6 +223,45 @@ const clientsService = {
   async updateAccountingFees(build: string, data: AccountingFees): Promise<void> {
     await api.patch(`/clients/${build}/accounting-fees`, data)
   },
+
+  /**
+   * Export accounting fees summary as Excel
+   * ส่งออกข้อมูลสรุปยอดค่าทำบัญชี / ค่าบริการ HR เป็น Excel
+   */
+  async exportAccountingFeesExcel(params: {
+    month: string
+    fee_year?: number
+    exempt_builds?: string
+  }): Promise<void> {
+    const response = await api.get('/clients/accounting-fees-export', {
+      params,
+      responseType: 'blob',
+    })
+
+    // Create download link
+    const blob = new Blob([response.data], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    })
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+
+    // Extract filename from Content-Disposition header or use default
+    const contentDisposition = response.headers['content-disposition']
+    let filename = `สรุปค่าบริการ.xlsx`
+    if (contentDisposition) {
+      const filenameMatch = contentDisposition.match(/filename\*?=(?:UTF-8'')?(.+)/i)
+      if (filenameMatch) {
+        filename = decodeURIComponent(filenameMatch[1].replace(/['"]/g, ''))
+      }
+    }
+
+    link.download = filename
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+  },
 }
 
 export default clientsService

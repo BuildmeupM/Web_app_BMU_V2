@@ -7,6 +7,7 @@ import express from 'express'
 import pool from '../config/database.js'
 import { authenticateToken, authorize } from '../middleware/auth.js'
 import { leaveRequestRateLimiter } from '../middleware/rateLimiter.js'
+import { invalidateCache } from '../middleware/cache.js'
 import {
   calculateWorkingDays,
   calculateWorkingDaysWithHolidays,
@@ -835,6 +836,9 @@ router.put('/:id/approve', authenticateToken, authorize('admin', 'hr'), async (r
       [id]
     )
 
+    // Clear backend cache so next GET returns fresh data
+    invalidateCache('leave-requests')
+
     res.json({
       success: true,
       data: {
@@ -916,6 +920,9 @@ router.put('/:id/reject', authenticateToken, authorize('admin', 'hr'), async (re
        WHERE lr.id = ?`,
       [id]
     )
+
+    // Clear backend cache so next GET returns fresh data
+    invalidateCache('leave-requests')
 
     res.json({
       success: true,

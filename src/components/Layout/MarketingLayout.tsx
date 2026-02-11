@@ -1,50 +1,60 @@
 /**
- * Internal System Layout
- * Layout แยกสำหรับระบบภายใน (ศูนย์รวมระบบภายใน)
+ * Marketing Work Layout
+ * Layout แยกสำหรับงานออกแบบ/การตลาด
  * มี sidebar และ header ของตัวเอง แยกจากระบบหลัก
+ * เข้าถึงได้เฉพาะ role: admin, marketing
  */
 
 import { Outlet, useLocation, NavLink, useNavigate } from 'react-router-dom'
-import { AppShell, Box, Stack, Text, NavLink as MantineNavLink, Group, Avatar, Menu, Button, ActionIcon, Tooltip, Badge } from '@mantine/core'
+import { AppShell, Box, Stack, Text, NavLink as MantineNavLink, Group, Avatar, Menu, ActionIcon, Tooltip, Badge } from '@mantine/core'
 import { Suspense, useState } from 'react'
-import { TbCoin, TbLogout, TbUser, TbArrowLeft, TbHome, TbChartBar, TbRobot, TbBellRinging, TbClipboardData } from 'react-icons/tb'
+import { TbPalette, TbLogout, TbUser, TbArrowLeft, TbHome, TbBrandInstagram, TbTargetArrow, TbSpeakerphone, TbPhoto, TbArticle } from 'react-icons/tb'
 import { useAuthStore } from '../../store/authStore'
 import { authService } from '../../services/authService'
 import LoadingSpinner from '../Loading/LoadingSpinner'
 import ChangePasswordModal from './ChangePasswordModal'
 import NotificationsMenu from './NotificationsMenu'
 
-// Internal system menu items
-const internalMenuItems = [
+// Marketing work menu items
+const marketingMenuItems = [
     {
-        path: '/accounting-fees-dashboard',
-        label: 'Dashboard ค่าทำบัญชี',
-        icon: TbChartBar,
-        allowedRoles: ['admin', 'registration'] as string[],
+        path: '/marketing-work',
+        label: 'ภาพรวมงานออกแบบ/การตลาด',
+        icon: TbPalette,
     },
     {
-        path: '/accounting-fees',
-        label: 'ค่าทำบัญชี / ค่าบริการ HR',
-        icon: TbCoin,
-        allowedRoles: ['admin', 'registration'] as string[],
-    },
-    {
-        path: '/bot-export',
-        label: 'จัดงานส่งออกระบบบอท',
-        icon: TbRobot,
+        path: '/marketing-work/graphic-design',
+        label: 'ออกแบบกราฟิก',
+        icon: TbPhoto,
         comingSoon: true,
-        allowedRoles: ['admin', 'registration'] as string[],
     },
     {
-        path: '/accounting-fee-notifications',
-        label: 'รับแจ้งเรื่องค่าทำบัญชี',
-        icon: TbBellRinging,
+        path: '/marketing-work/marketing-plan',
+        label: 'วางแผนการตลาด',
+        icon: TbTargetArrow,
         comingSoon: true,
-        allowedRoles: ['admin', 'registration'] as string[],
+    },
+    {
+        path: '/marketing-work/content',
+        label: 'จัดการ Content',
+        icon: TbArticle,
+        comingSoon: true,
+    },
+    {
+        path: '/marketing-work/social-media',
+        label: 'Social Media',
+        icon: TbBrandInstagram,
+        comingSoon: true,
+    },
+    {
+        path: '/marketing-work/campaign',
+        label: 'โปรโมชั่น / แคมเปญ',
+        icon: TbSpeakerphone,
+        comingSoon: true,
     },
 ]
 
-export default function InternalLayout() {
+export default function MarketingLayout() {
     const location = useLocation()
     const navigate = useNavigate()
     const { user, logout } = useAuthStore()
@@ -72,8 +82,8 @@ export default function InternalLayout() {
                 <AppShell.Header>
                     <Group justify="space-between" h="100%" px="md">
                         <Group gap="md">
-                            <Text size="xl" fw={700} c="orange">
-                                ศูนย์รวมระบบภายใน
+                            <Text size="xl" fw={700} c="#e91e63">
+                                ศูนย์รวมระบบภายใน — งานออกแบบ/การตลาด
                             </Text>
                         </Group>
                         <Group gap="md">
@@ -81,7 +91,7 @@ export default function InternalLayout() {
                             <Tooltip label="กลับไปหน้าหลัก">
                                 <ActionIcon
                                     variant="light"
-                                    color="orange"
+                                    color="pink"
                                     size="lg"
                                     radius="xl"
                                     onClick={() => { window.close(); window.location.href = '/'; }}
@@ -96,7 +106,7 @@ export default function InternalLayout() {
                             <Menu shadow="md" width={200}>
                                 <Menu.Target>
                                     <Group style={{ cursor: 'pointer' }} gap="xs">
-                                        <Avatar color="orange" radius="xl">
+                                        <Avatar color="pink" radius="xl">
                                             {user?.name.charAt(0).toUpperCase()}
                                         </Avatar>
                                         <div>
@@ -127,50 +137,48 @@ export default function InternalLayout() {
                             mb="md"
                             p="md"
                             style={{
-                                background: 'linear-gradient(135deg, #ff6b35 0%, #ff8c42 100%)',
+                                background: 'linear-gradient(135deg, #e91e63 0%, #f06292 100%)',
                                 borderRadius: 12,
                             }}
                         >
                             <Text size="lg" fw={700} c="white">
-                                Internal System
+                                งานออกแบบ/การตลาด
                             </Text>
                             <Text size="xs" c="white" style={{ opacity: 0.8 }}>
-                                ระบบบริหารจัดการภายใน
+                                ระบบจัดการงานออกแบบและการตลาด
                             </Text>
                         </Box>
 
                         {/* Menu Items */}
-                        {internalMenuItems
-                            .filter((item) => !('allowedRoles' in item) || (item as any).allowedRoles?.includes(user?.role || ''))
-                            .map((item) => {
-                                const Icon = item.icon
-                                return (
-                                    <MantineNavLink
-                                        key={item.path}
-                                        component={NavLink}
-                                        to={item.path}
-                                        end
-                                        label={item.label}
-                                        leftSection={<Icon size={20} />}
-                                        rightSection={
-                                            item.comingSoon ? (
-                                                <Badge size="xs" variant="light" color="gray" radius="sm">
-                                                    รอพัฒนา
-                                                </Badge>
-                                            ) : undefined
-                                        }
-                                        variant="subtle"
-                                        classNames={{
-                                            root: 'sidebar-nav-link',
-                                        }}
-                                        styles={(theme) => ({
-                                            root: {
-                                                borderRadius: theme.radius.lg,
-                                            },
-                                        })}
-                                    />
-                                )
-                            })}
+                        {marketingMenuItems.map((item) => {
+                            const Icon = item.icon
+                            return (
+                                <MantineNavLink
+                                    key={item.path}
+                                    component={NavLink}
+                                    to={item.path}
+                                    end
+                                    label={item.label}
+                                    leftSection={<Icon size={20} />}
+                                    rightSection={
+                                        item.comingSoon ? (
+                                            <Badge size="xs" variant="light" color="gray" radius="sm">
+                                                รอพัฒนา
+                                            </Badge>
+                                        ) : undefined
+                                    }
+                                    variant="subtle"
+                                    classNames={{
+                                        root: 'sidebar-nav-link',
+                                    }}
+                                    styles={(theme) => ({
+                                        root: {
+                                            borderRadius: theme.radius.lg,
+                                        },
+                                    })}
+                                />
+                            )
+                        })}
 
                         {/* Back to main */}
                         <Box mt="auto" pt="md" style={{ borderTop: '1px solid #eee' }}>

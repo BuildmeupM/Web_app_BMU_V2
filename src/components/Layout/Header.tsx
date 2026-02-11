@@ -13,7 +13,7 @@ import {
   Box,
   Divider,
 } from '@mantine/core'
-import { TbLogout, TbUser, TbApps, TbCoin } from 'react-icons/tb'
+import { TbLogout, TbUser, TbApps, TbCoin, TbClipboardData, TbPalette, TbMenu2 } from 'react-icons/tb'
 import { useAuthStore } from '../../store/authStore'
 import { useNavigate } from 'react-router-dom'
 import { authService } from '../../services/authService'
@@ -31,6 +31,24 @@ const internalSystemItems = [
     bgColor: 'linear-gradient(135deg, #ff6b35 0%, #ff8c42 100%)',
     openInNewTab: true,
     allowedRoles: ['admin', 'registration'] as string[],
+  },
+  {
+    icon: TbClipboardData,
+    label: 'งานทะเบียน',
+    path: '/registration-work',
+    color: '#1565c0',
+    bgColor: 'linear-gradient(135deg, #1565c0 0%, #42a5f5 100%)',
+    openInNewTab: true,
+    allowedRoles: ['admin', 'registration'] as string[],
+  },
+  {
+    icon: TbPalette,
+    label: 'งานออกแบบ/การตลาด',
+    path: '/marketing-work',
+    color: '#e91e63',
+    bgColor: 'linear-gradient(135deg, #e91e63 0%, #f06292 100%)',
+    openInNewTab: true,
+    allowedRoles: ['admin', 'marketing'] as string[],
   },
 ]
 

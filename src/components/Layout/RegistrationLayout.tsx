@@ -1,50 +1,72 @@
 /**
- * Internal System Layout
- * Layout แยกสำหรับระบบภายใน (ศูนย์รวมระบบภายใน)
- * มี sidebar และ header ของตัวเอง แยกจากระบบหลัก
+ * Registration Work Layout
+ * Layout แยกสำหรับงานทะเบียน
+ * มี sidebar และ header ของตัวเอง แยกจากระบบค่าทำบัญชี
  */
 
 import { Outlet, useLocation, NavLink, useNavigate } from 'react-router-dom'
-import { AppShell, Box, Stack, Text, NavLink as MantineNavLink, Group, Avatar, Menu, Button, ActionIcon, Tooltip, Badge } from '@mantine/core'
+import { AppShell, Box, Stack, Text, NavLink as MantineNavLink, Group, Avatar, Menu, ActionIcon, Tooltip, Badge } from '@mantine/core'
 import { Suspense, useState } from 'react'
-import { TbCoin, TbLogout, TbUser, TbArrowLeft, TbHome, TbChartBar, TbRobot, TbBellRinging, TbClipboardData } from 'react-icons/tb'
+import { TbClipboardData, TbLogout, TbUser, TbArrowLeft, TbHome, TbBuildingBank, TbReceiptTax, TbShieldCheck, TbUsers, TbSettings, TbTruckDelivery } from 'react-icons/tb'
 import { useAuthStore } from '../../store/authStore'
 import { authService } from '../../services/authService'
 import LoadingSpinner from '../Loading/LoadingSpinner'
 import ChangePasswordModal from './ChangePasswordModal'
 import NotificationsMenu from './NotificationsMenu'
 
-// Internal system menu items
-const internalMenuItems = [
+// Registration work menu items
+interface MenuItem {
+    path: string
+    label: string
+    icon: React.ComponentType<any>
+    comingSoon?: boolean
+    isDivider?: boolean
+}
+
+const registrationMenuItems: MenuItem[] = [
     {
-        path: '/accounting-fees-dashboard',
-        label: 'Dashboard ค่าทำบัญชี',
-        icon: TbChartBar,
-        allowedRoles: ['admin', 'registration'] as string[],
+        path: '/registration-work',
+        label: 'Dashboard งานทะเบียน',
+        icon: TbClipboardData,
     },
     {
-        path: '/accounting-fees',
-        label: 'ค่าทำบัญชี / ค่าบริการ HR',
-        icon: TbCoin,
-        allowedRoles: ['admin', 'registration'] as string[],
-    },
-    {
-        path: '/bot-export',
-        label: 'จัดงานส่งออกระบบบอท',
-        icon: TbRobot,
+        path: '/registration-work/dbd',
+        label: 'กรมพัฒนาธุรกิจการค้า (DBD)',
+        icon: TbBuildingBank,
         comingSoon: true,
-        allowedRoles: ['admin', 'registration'] as string[],
     },
     {
-        path: '/accounting-fee-notifications',
-        label: 'รับแจ้งเรื่องค่าทำบัญชี',
-        icon: TbBellRinging,
+        path: '/registration-work/rd',
+        label: 'กรมสรรพากร (RD)',
+        icon: TbReceiptTax,
         comingSoon: true,
-        allowedRoles: ['admin', 'registration'] as string[],
+    },
+    {
+        path: '/registration-work/sso',
+        label: 'ประกันสังคม (SSO)',
+        icon: TbShieldCheck,
+        comingSoon: true,
+    },
+    {
+        path: '/registration-work/hr',
+        label: 'งานฝ่ายบุคคล HR',
+        icon: TbUsers,
+        comingSoon: true,
+    },
+    {
+        path: '/registration-work/messenger-routes',
+        label: 'ตารางวิ่งแมส',
+        icon: TbTruckDelivery,
+        isDivider: true,
+    },
+    {
+        path: '/registration-work/settings',
+        label: 'ตั้งค่าระบบ',
+        icon: TbSettings,
     },
 ]
 
-export default function InternalLayout() {
+export default function RegistrationLayout() {
     const location = useLocation()
     const navigate = useNavigate()
     const { user, logout } = useAuthStore()
@@ -72,8 +94,8 @@ export default function InternalLayout() {
                 <AppShell.Header>
                     <Group justify="space-between" h="100%" px="md">
                         <Group gap="md">
-                            <Text size="xl" fw={700} c="orange">
-                                ศูนย์รวมระบบภายใน
+                            <Text size="xl" fw={700} c="blue">
+                                ศูนย์รวมระบบภายใน — งานทะเบียน
                             </Text>
                         </Group>
                         <Group gap="md">
@@ -81,7 +103,7 @@ export default function InternalLayout() {
                             <Tooltip label="กลับไปหน้าหลัก">
                                 <ActionIcon
                                     variant="light"
-                                    color="orange"
+                                    color="blue"
                                     size="lg"
                                     radius="xl"
                                     onClick={() => { window.close(); window.location.href = '/'; }}
@@ -96,7 +118,7 @@ export default function InternalLayout() {
                             <Menu shadow="md" width={200}>
                                 <Menu.Target>
                                     <Group style={{ cursor: 'pointer' }} gap="xs">
-                                        <Avatar color="orange" radius="xl">
+                                        <Avatar color="blue" radius="xl">
                                             {user?.name.charAt(0).toUpperCase()}
                                         </Avatar>
                                         <div>
@@ -127,26 +149,27 @@ export default function InternalLayout() {
                             mb="md"
                             p="md"
                             style={{
-                                background: 'linear-gradient(135deg, #ff6b35 0%, #ff8c42 100%)',
+                                background: 'linear-gradient(135deg, #1565c0 0%, #42a5f5 100%)',
                                 borderRadius: 12,
                             }}
                         >
                             <Text size="lg" fw={700} c="white">
-                                Internal System
+                                งานทะเบียน
                             </Text>
                             <Text size="xs" c="white" style={{ opacity: 0.8 }}>
-                                ระบบบริหารจัดการภายใน
+                                ระบบจัดการงานทะเบียน
                             </Text>
                         </Box>
 
                         {/* Menu Items */}
-                        {internalMenuItems
-                            .filter((item) => !('allowedRoles' in item) || (item as any).allowedRoles?.includes(user?.role || ''))
-                            .map((item) => {
-                                const Icon = item.icon
-                                return (
+                        {registrationMenuItems.map((item) => {
+                            const Icon = item.icon
+                            return (
+                                <Box key={item.path}>
+                                    {item.isDivider && (
+                                        <Box my="xs" style={{ borderTop: '1px solid #e0e0e0' }} />
+                                    )}
                                     <MantineNavLink
-                                        key={item.path}
                                         component={NavLink}
                                         to={item.path}
                                         end
@@ -169,8 +192,9 @@ export default function InternalLayout() {
                                             },
                                         })}
                                     />
-                                )
-                            })}
+                                </Box>
+                            )
+                        })}
 
                         {/* Back to main */}
                         <Box mt="auto" pt="md" style={{ borderTop: '1px solid #eee' }}>
