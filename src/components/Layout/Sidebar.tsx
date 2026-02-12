@@ -35,6 +35,7 @@ import {
   TbSettings,
   TbLayoutSidebarLeftCollapse,
   TbLayoutSidebarLeftExpand,
+  TbHistory,
 } from 'react-icons/tb'
 import { useAuthStore, UserRole } from '../../store/authStore'
 import { hasPermission } from '../../utils/rolePermissions'
@@ -55,6 +56,7 @@ const iconMap: Record<string, React.ComponentType<any>> = {
   '/users': TbUserCircle,
   '/accounting-marketplace': TbShoppingCart,
   '/holidays': TbCalendarTime,
+  '/login-activity': TbHistory,
 }
 
 interface MenuItem {
@@ -100,6 +102,7 @@ const menuGroups: MenuGroup[] = [
     icon: TbSettings,
     items: [
       { path: '/users', label: 'จัดการ User Accounts' },
+      { path: '/login-activity', label: 'ประวัติการเข้าสู่ระบบ' },
     ],
   },
 ]

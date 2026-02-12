@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import {
   Box,
   Card,
@@ -20,7 +19,9 @@ import {
   RingProgress,
   Table,
   ScrollArea,
+  ActionIcon,
 } from '@mantine/core'
+import { useDisclosure } from '@mantine/hooks'
 import {
   TbBuilding,
   TbHome,
@@ -32,12 +33,16 @@ import {
   TbCalendarEvent,
   TbAlertCircle,
   TbBriefcase,
+  TbSettings,
 } from 'react-icons/tb'
 import { useQuery } from 'react-query'
 import {
   attendanceDashboardService,
   type EmployeeAttendance,
 } from '../services/attendanceDashboardService'
+import { positionGroupService } from '../services/positionGroupService'
+import PositionGroupModal from '../components/PositionGroupModal'
+import { useAuthStore } from '../store/authStore'
 import api from '../services/api'
 
 // Helper: format name as ชื่อ(ชื่อเล่น)
@@ -192,11 +197,20 @@ interface Holiday {
 export default function OfficeAttendance() {
   const today = new Date().toISOString().split('T')[0]
   const currentYear = new Date().getFullYear()
+  const [groupModalOpened, { open: openGroupModal, close: closeGroupModal }] = useDisclosure(false)
+  const { user } = useAuthStore()
+  const isAdmin = user?.role === 'admin' || user?.role === 'hr'
 
   // Fetch dashboard data (react-query v3 syntax)
   const { data, isLoading, error } = useQuery(
     ['attendance-dashboard', today],
     () => attendanceDashboardService.getDashboard(today)
+  )
+
+  // Fetch position groups from API
+  const { data: positionGroupsData } = useQuery(
+    'position-groups',
+    positionGroupService.getAll
   )
 
   // Fetch holidays (react-query v3 syntax)
@@ -244,14 +258,17 @@ export default function OfficeAttendance() {
     ...(wfhPercent > 0 ? [{ value: wfhPercent, color: 'yellow', tooltip: `WFH ${summary.wfh} คน` }] : []),
   ]
 
-  // Custom department grouping
-  const departmentGroups: { name: string; positions: string[] }[] = [
-    { name: 'กลุ่มบัญชี', positions: ['บัญชี-หัวหน้าบัญชี', 'บัญชี', 'บัญชี-ทดลองงาน', 'คีย์ข้อมูล', 'บัญชี-ฝึกงาน'] },
-    { name: 'กลุ่มทะเบียน', positions: ['ทะเบียน'] },
-    { name: 'กลุ่มตรวจสอบภายใน / ปิดงบ', positions: ['ตรวจสอบภายใน'] },
-    { name: 'กลุ่มออกแบบ / การตลาด', positions: ['ออกแบบ', 'การตลาด-ฝึกงาน'] },
-    { name: 'กลุ่มนักพัฒนา / ข้อมูล / อุปกรณ์', positions: ['ไอที'] },
+  // Department grouping from API (fallback to default if not loaded)
+  const defaultGroups = [
+    { name: 'กลุ่มบัญชี', color: 'orange', positions: ['บัญชี-หัวหน้าบัญชี', 'บัญชี', 'บัญชี-ทดลองงาน', 'คีย์ข้อมูล', 'บัญชี-ฝึกงาน'] },
+    { name: 'กลุ่มทะเบียน', color: 'orange', positions: ['ทะเบียน'] },
+    { name: 'กลุ่มตรวจสอบภายใน / ปิดงบ', color: 'orange', positions: ['ตรวจสอบภายใน'] },
+    { name: 'กลุ่มออกแบบ / การตลาด', color: 'orange', positions: ['ออกแบบ', 'การตลาด-ฝึกงาน'] },
+    { name: 'กลุ่มนักพัฒนา / ข้อมูล / อุปกรณ์', color: 'orange', positions: ['ไอที'] },
   ]
+  const departmentGroups = (positionGroupsData && positionGroupsData.length > 0)
+    ? positionGroupsData.map(g => ({ name: g.name, color: g.color || 'orange', positions: g.positions }))
+    : defaultGroups
 
   // Map employees into department groups
   const groupedEmployees = departmentGroups.map((group) => {
@@ -434,12 +451,21 @@ export default function OfficeAttendance() {
 
         {/* ======== SECTION 2: EMPLOYEE STATUS GRID (sorted by position) ======== */}
         <Card shadow="sm" radius="lg" padding="md" withBorder>
-          <Group gap="xs" mb="md">
-            <ThemeIcon size={28} radius="md" color="teal" variant="light">
-              <TbUsers size={16} />
-            </ThemeIcon>
-            <Text fw={700} size="sm">สถานะพนักงานทั้งหมด</Text>
-            <Text size="xs" c="dimmed">({employees.length} คน)</Text>
+          <Group gap="xs" mb="md" justify="space-between">
+            <Group gap="xs">
+              <ThemeIcon size={28} radius="md" color="teal" variant="light">
+                <TbUsers size={16} />
+              </ThemeIcon>
+              <Text fw={700} size="sm">สถานะพนักงานทั้งหมด</Text>
+              <Text size="xs" c="dimmed">({employees.length} คน)</Text>
+            </Group>
+            {isAdmin && (
+              <Tooltip label="จัดกลุ่มตำแหน่ง" withArrow>
+                <ActionIcon variant="light" color="gray" size="md" onClick={openGroupModal}>
+                  <TbSettings size={18} />
+                </ActionIcon>
+              </Tooltip>
+            )}
           </Group>
 
           <Stack gap="lg">
@@ -456,9 +482,9 @@ export default function OfficeAttendance() {
                 : null
 
               return (
-                <Paper key={group.name} p="md" radius="md" style={{ border: '1px solid #000' }}>
+                <Paper key={group.name} p="md" radius="md" style={{ border: `1px solid var(--mantine-color-${group.color}-4)` }}>
                   <Group gap="xs" mb={8}>
-                    <Badge variant="filled" color="orange" size="sm" radius="sm">{group.name}</Badge>
+                    <Badge variant="filled" color={group.color} size="sm" radius="sm">{group.name}</Badge>
                     <Text size="xs" c="dimmed">({group.employees.length} คน)</Text>
                   </Group>
                   {subGroups ? (
@@ -510,6 +536,12 @@ export default function OfficeAttendance() {
             )}
           </Stack>
         </Card>
+
+        {/* Position Group Management Modal */}
+        <PositionGroupModal
+          opened={groupModalOpened}
+          onClose={closeGroupModal}
+        />
 
         {/* ======== SECTION 3: INFO PANELS ======== */}
         <Grid gutter="md">

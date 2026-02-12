@@ -9,6 +9,7 @@ import ProtectedRoute from './components/Auth/ProtectedRoute'
 import LoadingFallback from './components/Loading/LoadingFallback'
 import LoadingSpinner from './components/Loading/LoadingSpinner'
 import ErrorBoundary from './components/ErrorBoundary/ErrorBoundary'
+import { useHeartbeat } from './hooks/useHeartbeat'
 
 // Lazy load page components for code splitting
 const Login = lazy(() => import('./pages/Login'))
@@ -35,9 +36,13 @@ const RegistrationWork = lazy(() => import('./pages/RegistrationWork'))
 const RegistrationSettings = lazy(() => import('./pages/RegistrationSettings'))
 const MessengerRoutes = lazy(() => import('./pages/MessengerRoutes'))
 const MarketingWork = lazy(() => import('./pages/MarketingWork'))
+const LoginActivity = lazy(() => import('./pages/LoginActivity'))
 
 function App() {
   const { isAuthenticated, _hasHydrated, setHasHydrated } = useAuthStore()
+
+  // Heartbeat — ส่งสัญญาณออนไลน์ทุก 2 นาที
+  useHeartbeat()
 
   // ✅ BUG-168: Fallback hydration - ถ้า onRehydrateStorage ไม่ทำงานหรือทำงานช้า
   // ป้องกันปัญหาที่ component ไม่ render เมื่อ navigate ไปหน้าอื่นๆ
@@ -242,6 +247,16 @@ function App() {
                 <Suspense fallback={<LoadingFallback />}>
                   <HolidayManagement />
                 </Suspense>
+              }
+            />
+            <Route
+              path="login-activity"
+              element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <Suspense fallback={<LoadingFallback />}>
+                    <LoginActivity />
+                  </Suspense>
+                </ProtectedRoute>
               }
             />
           </Route>

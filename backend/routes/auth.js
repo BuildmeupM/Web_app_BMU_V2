@@ -164,6 +164,19 @@ router.post('/login', loginRateLimiter, async (req, res) => {
     // อัพเดท last_login_at (เก็บ temporary_password ไว้เพื่อให้ Admin ดูได้ตลอดเวลา)
     await pool.execute('UPDATE users SET last_login_at = NOW() WHERE id = ?', [user.id])
 
+    // สร้าง session record ใน user_sessions
+    const sessionId = generateUUID()
+    try {
+      await pool.execute(
+        `INSERT INTO user_sessions (id, user_id, username, login_at, last_active_at, ip_address, user_agent, session_status)
+         VALUES (?, ?, ?, NOW(), NOW(), ?, ?, 'active')`,
+        [sessionId, user.id, user.username, clientIp, userAgent]
+      )
+    } catch (sessionError) {
+      console.error('Error creating user session:', sessionError)
+      // ไม่ block login ถ้าสร้าง session ไม่สำเร็จ
+    }
+
     // สร้าง JWT token
     const token = jwt.sign(
       {
@@ -194,6 +207,7 @@ router.post('/login', loginRateLimiter, async (req, res) => {
       data: {
         user: userResponse,
         token,
+        sessionId,
       },
     })
   } catch (error) {
@@ -211,8 +225,34 @@ router.post('/login', loginRateLimiter, async (req, res) => {
  */
 router.post('/logout', authenticateToken, async (req, res) => {
   try {
-    // ในกรณีที่ใช้ token blacklist สามารถเพิ่ม logic ที่นี่ได้
-    // ตอนนี้ client-side จะลบ token เอง
+    const userId = req.user.id
+    const { sessionId } = req.body
+
+    // อัพเดท user_sessions — บันทึกเวลา logout
+    try {
+      if (sessionId) {
+        // Logout specific session
+        await pool.execute(
+          `UPDATE user_sessions 
+           SET logout_at = NOW(), session_status = 'logged_out'
+           WHERE id = ? AND user_id = ? AND session_status = 'active'`,
+          [sessionId, userId]
+        )
+      } else {
+        // Logout latest active session
+        await pool.execute(
+          `UPDATE user_sessions 
+           SET logout_at = NOW(), session_status = 'logged_out'
+           WHERE user_id = ? AND session_status = 'active'
+           ORDER BY login_at DESC
+           LIMIT 1`,
+          [userId]
+        )
+      }
+    } catch (sessionError) {
+      console.error('Error updating session on logout:', sessionError)
+      // ไม่ block logout ถ้า update session ไม่สำเร็จ
+    }
 
     res.json({
       success: true,

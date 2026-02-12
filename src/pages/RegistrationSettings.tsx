@@ -241,7 +241,7 @@ export default function RegistrationSettings() {
                                             <TextInput
                                                 placeholder="ชื่อประเภทงาน..."
                                                 value={newTypeName}
-                                                onChange={(e) => setNewTypeName(e.currentTarget.value)}
+                                                onChange={(e) => { const val = e.currentTarget.value; setNewTypeName(val) }}
                                                 onKeyDown={(e) => e.key === 'Enter' && handleAddType()}
                                                 style={{ flex: 1 }}
                                                 size="sm"
@@ -290,7 +290,7 @@ export default function RegistrationSettings() {
                                                                 <Group gap="xs" style={{ flex: 1 }} onClick={(e) => e.stopPropagation()}>
                                                                     <TextInput
                                                                         value={editTypeName}
-                                                                        onChange={(e) => setEditTypeName(e.currentTarget.value)}
+                                                                        onChange={(e) => { const val = e.currentTarget.value; setEditTypeName(val) }}
                                                                         onKeyDown={(e) => {
                                                                             if (e.key === 'Enter') handleUpdateType(type.id)
                                                                             if (e.key === 'Escape') setEditingTypeId(null)
@@ -351,7 +351,7 @@ export default function RegistrationSettings() {
                                                                         <Group gap="xs" style={{ flex: 1 }}>
                                                                             <TextInput
                                                                                 value={editSubName}
-                                                                                onChange={(e) => setEditSubName(e.currentTarget.value)}
+                                                                                onChange={(e) => { const val = e.currentTarget.value; setEditSubName(val) }}
                                                                                 onKeyDown={(e) => {
                                                                                     if (e.key === 'Enter') handleUpdateSub(sub.id)
                                                                                     if (e.key === 'Escape') setEditingSubId(null)
@@ -398,7 +398,7 @@ export default function RegistrationSettings() {
                                                                 <TextInput
                                                                     placeholder="เพิ่มรายการย่อย..."
                                                                     value={newSubName[type.id] || ''}
-                                                                    onChange={(e) => setNewSubName(prev => ({ ...prev, [type.id]: e.currentTarget.value }))}
+                                                                    onChange={(e) => { const val = e.currentTarget.value; setNewSubName(prev => ({ ...prev, [type.id]: val })) }}
                                                                     onKeyDown={(e) => e.key === 'Enter' && handleAddSub(type.id)}
                                                                     size="xs"
                                                                     style={{ flex: 1 }}

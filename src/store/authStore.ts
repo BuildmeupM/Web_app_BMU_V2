@@ -16,9 +16,10 @@ export interface User {
 interface AuthState {
   user: User | null
   token: string | null
+  sessionId: string | null
   isAuthenticated: boolean
   _hasHydrated: boolean // Flag เพื่อตรวจสอบว่า persist hydration เสร็จแล้วหรือยัง
-  login: (user: User, token: string) => void
+  login: (user: User, token: string, sessionId?: string) => void
   logout: () => void
   setHasHydrated: (state: boolean) => void
 }
@@ -28,13 +29,14 @@ export const useAuthStore = create<AuthState>()(
     (set) => ({
       user: null,
       token: null,
+      sessionId: null,
       isAuthenticated: false,
       _hasHydrated: false,
-      login: (user, token) => {
-        set({ user, token, isAuthenticated: true })
+      login: (user, token, sessionId) => {
+        set({ user, token, sessionId: sessionId || null, isAuthenticated: true })
       },
       logout: () => {
-        set({ user: null, token: null, isAuthenticated: false })
+        set({ user: null, token: null, sessionId: null, isAuthenticated: false })
       },
       setHasHydrated: (state) => {
         set({ _hasHydrated: state })
@@ -78,6 +80,7 @@ export const useAuthStore = create<AuthState>()(
       partialize: (state) => ({
         user: state.user,
         token: state.token,
+        sessionId: state.sessionId,
         isAuthenticated: state.isAuthenticated,
         // ไม่ persist _hasHydrated - จะถูก set เป็น true เมื่อ hydration เสร็จ
       }),

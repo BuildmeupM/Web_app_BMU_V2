@@ -4,6 +4,7 @@
  */
 
 import pool from '../config/database.js'
+import http from 'http'
 
 const MAX_FAILED_ATTEMPTS = 5 // จำนวนครั้งที่ผิดได้ก่อน lock
 const LOCKOUT_DURATION_MINUTES = 30 // ระยะเวลา lock (นาที)
@@ -27,16 +28,74 @@ export async function recordLoginAttempt({
   failureReason = null,
 }) {
   try {
-    await pool.execute(
+    // Insert record first (fast)
+    const [result] = await pool.execute(
       `INSERT INTO login_attempts 
        (id, user_id, username, ip_address, user_agent, success, failure_reason, attempted_at)
        VALUES (UUID(), ?, ?, ?, ?, ?, ?, NOW())`,
       [userId, username, ipAddress, userAgent, success, failureReason]
     )
+
+    // Async geolocation lookup — non-blocking, won't affect login speed
+    lookupGeolocation(ipAddress).catch((err) => {
+      console.error('[Geo] Unhandled error:', err.message)
+    })
   } catch (error) {
     console.error('Error recording login attempt:', error)
     // ไม่ throw error เพื่อไม่ให้กระทบ login flow
   }
+}
+
+/**
+ * ค้นหา geolocation จาก IP address แล้วอัปเดตลงใน record ล่าสุด
+ * ใช้ ip-api.com (ฟรี, ไม่ต้อง API key, 45 req/min)
+ */
+async function lookupGeolocation(ipAddress) {
+  if (!ipAddress) return
+
+  // ข้าม private / localhost IPs
+  const skipIps = ['127.0.0.1', '::1', 'localhost', '::ffff:127.0.0.1', 'unknown']
+  if (skipIps.includes(ipAddress) || ipAddress.startsWith('192.168.') || ipAddress.startsWith('10.')) {
+    console.log(`[Geo] Skipping private/local IP: ${ipAddress}`)
+    return
+  }
+
+  console.log(`[Geo] Looking up IP: ${ipAddress}`)
+
+  return new Promise((resolve) => {
+    const url = `http://ip-api.com/json/${ipAddress}?fields=status,lat,lon,city,country`
+
+    http.get(url, (res) => {
+      let rawData = ''
+      res.on('data', (chunk) => { rawData += chunk })
+      res.on('end', async () => {
+        try {
+          const data = JSON.parse(rawData)
+          console.log(`[Geo] API response for ${ipAddress}:`, data)
+
+          if (data.status === 'success') {
+            const [result] = await pool.execute(
+              `UPDATE login_attempts 
+               SET latitude = ?, longitude = ?, geo_city = ?, geo_country = ?
+               WHERE ip_address = ? AND latitude IS NULL
+               ORDER BY attempted_at DESC 
+               LIMIT 1`,
+              [data.lat, data.lon, data.city || null, data.country || null, ipAddress]
+            )
+            console.log(`[Geo] ✅ Updated ${result.affectedRows} row(s) for IP ${ipAddress}: ${data.city}, ${data.country}`)
+          } else {
+            console.log(`[Geo] ⚠ API returned non-success for ${ipAddress}:`, data)
+          }
+        } catch (err) {
+          console.error(`[Geo] Error parsing/saving for ${ipAddress}:`, err.message)
+        }
+        resolve()
+      })
+    }).on('error', (err) => {
+      console.error(`[Geo] HTTP error for ${ipAddress}:`, err.message)
+      resolve()
+    })
+  })
 }
 
 /**

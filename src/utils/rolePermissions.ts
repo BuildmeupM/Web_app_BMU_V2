@@ -100,6 +100,12 @@ export const routePermissions: RoutePermission[] = [
     label: 'จัดการ User Accounts',
     roles: ['admin'],
   },
+  // 16. ประวัติการเข้าสู่ระบบ - admin เท่านั้น
+  {
+    path: '/login-activity',
+    label: 'ประวัติการเข้าสู่ระบบ',
+    roles: ['admin'],
+  },
 ]
 
 export const hasPermission = (userRole: UserRole, path: string): boolean => {
