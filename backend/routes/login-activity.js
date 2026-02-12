@@ -86,7 +86,17 @@ router.get('/attempts', async (req, res) => {
     const page = parseInt(req.query.page) || 1
     const limit = parseInt(req.query.limit) || 20
     const offset = (page - 1) * limit
-    const { username, success, startDate, endDate } = req.query
+    const { username, success, startDate, endDate, sortBy, sortOrder } = req.query
+
+    // Sorting — whitelist columns to prevent SQL injection
+    const allowedSortColumns = {
+      attempted_at: 'la.attempted_at',
+      username: 'la.username',
+      success: 'la.success',
+      ip_address: 'la.ip_address',
+    }
+    const sortColumn = allowedSortColumns[sortBy] || 'la.attempted_at'
+    const sortDir = sortOrder === 'asc' ? 'ASC' : 'DESC'
 
     let whereClause = 'WHERE 1=1'
     const params = []
@@ -122,12 +132,11 @@ router.get('/attempts', async (req, res) => {
     const [attempts] = await pool.execute(
       `SELECT la.id, la.user_id, la.username, la.ip_address, la.user_agent,
               la.success, la.failure_reason, la.attempted_at,
-              la.latitude, la.longitude, la.geo_city, la.geo_country,
               u.name as user_name, u.nick_name
        FROM login_attempts la
        LEFT JOIN users u ON la.user_id = u.id
        ${whereClause}
-       ORDER BY la.attempted_at DESC
+       ORDER BY ${sortColumn} ${sortDir}
        LIMIT ? OFFSET ?`,
       [...params, String(limit), String(offset)]
     )
@@ -236,6 +245,138 @@ router.use('/heartbeat', (req, res, next) => {
 // จะย้ายไปอยู่ข้างล่าง
 
 /**
+ * GET /api/login-activity/session-summary?date=YYYY-MM-DD
+ * สรุปเวลาใช้งานรายวันของพนักงานแต่ละคน
+ * ถ้าไม่ส่ง date → ใช้วันนี้
+ */
+router.get('/session-summary', async (req, res) => {
+  try {
+    const date = req.query.date || new Date().toISOString().slice(0, 10)
+
+    const [rows] = await pool.execute(
+      `SELECT 
+         us.user_id,
+         us.username,
+         u.name as user_name,
+         u.nick_name,
+         COUNT(*) as session_count,
+         SUM(
+           TIMESTAMPDIFF(MINUTE, us.login_at, 
+             CASE 
+               WHEN us.logout_at IS NOT NULL THEN us.logout_at
+               WHEN us.session_status = 'active' THEN NOW()
+               ELSE us.last_active_at
+             END
+           )
+         ) as total_minutes,
+         MIN(us.login_at) as first_login,
+         MAX(COALESCE(us.last_active_at, us.login_at)) as last_activity,
+         MAX(CASE WHEN us.session_status = 'active' THEN 1 ELSE 0 END) as is_online
+       FROM user_sessions us
+       LEFT JOIN users u ON us.user_id = u.id
+       WHERE DATE(us.login_at) = ?
+       GROUP BY us.user_id, us.username, u.name, u.nick_name
+       ORDER BY total_minutes DESC`,
+      [date]
+    )
+
+    res.json({
+      success: true,
+      data: {
+        date,
+        summary: rows,
+        totalUsers: rows.length,
+      },
+    })
+  } catch (error) {
+    console.error('Error getting session summary:', error)
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+    })
+  }
+})
+
+/**
+ * GET /api/login-activity/session-history?date=YYYY-MM-DD
+ * ประวัติ login/logout ของพนักงานแต่ละคนในวันที่เลือก
+ * return array ของ users พร้อม sessions
+ */
+router.get('/session-history', async (req, res) => {
+  try {
+    const date = req.query.date || new Date().toISOString().slice(0, 10)
+
+    const [sessions] = await pool.execute(
+      `SELECT 
+         us.id as session_id,
+         us.user_id,
+         us.username,
+         u.name as user_name,
+         u.nick_name,
+         us.login_at,
+         us.logout_at,
+         us.last_active_at,
+         us.session_status,
+         us.ip_address,
+         TIMESTAMPDIFF(MINUTE, us.login_at,
+           CASE 
+             WHEN us.logout_at IS NOT NULL THEN us.logout_at
+             WHEN us.session_status = 'active' THEN NOW()
+             ELSE us.last_active_at
+           END
+         ) as duration_minutes
+       FROM user_sessions us
+       LEFT JOIN users u ON us.user_id = u.id
+       WHERE DATE(us.login_at) = ?
+       ORDER BY us.username, us.login_at ASC`,
+      [date]
+    )
+
+    // Group sessions by user
+    const usersMap = new Map()
+    for (const s of sessions) {
+      const key = s.user_id || s.username
+      if (!usersMap.has(key)) {
+        usersMap.set(key, {
+          user_id: s.user_id,
+          username: s.username,
+          user_name: s.user_name,
+          nick_name: s.nick_name,
+          sessions: [],
+        })
+      }
+      usersMap.get(key).sessions.push({
+        session_id: s.session_id,
+        login_at: s.login_at,
+        logout_at: s.logout_at,
+        last_active_at: s.last_active_at,
+        session_status: s.session_status,
+        ip_address: s.ip_address,
+        duration_minutes: s.duration_minutes,
+      })
+    }
+
+    const users = Array.from(usersMap.values())
+
+    res.json({
+      success: true,
+      data: {
+        date,
+        users,
+        totalUsers: users.length,
+        totalSessions: sessions.length,
+      },
+    })
+  } catch (error) {
+    console.error('Error getting session history:', error)
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+    })
+  }
+})
+
+/**
  * GET /api/login-activity/external-ips
  * ดึง login attempts ทั้งหมดที่มาจาก IP ภายนอก
  */
@@ -254,7 +395,6 @@ router.get('/external-ips', async (req, res) => {
     const [attempts] = await pool.execute(
       `SELECT la.id, la.user_id, la.username, la.ip_address, la.user_agent,
               la.success, la.failure_reason, la.attempted_at,
-              la.latitude, la.longitude, la.geo_city, la.geo_country,
               u.name as user_name, u.nick_name
        FROM login_attempts la
        LEFT JOIN users u ON la.user_id = u.id

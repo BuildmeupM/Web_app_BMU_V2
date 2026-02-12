@@ -1,73 +1,41 @@
 /**
- * Registration Work Layout
- * Layout แยกสำหรับงานทะเบียน
- * มี sidebar และ header ของตัวเอง แยกจากระบบค่าทำบัญชี
+ * Equipment Borrowing Layout
+ * Layout แยกสำหรับระบบยืมอุปกรณ์คอมพิวเตอร์
+ * มี sidebar และ header ของตัวเอง แยกจากระบบหลัก
  */
 
 import { Outlet, useLocation, NavLink, useNavigate } from 'react-router-dom'
 import { AppShell, Box, Stack, Text, NavLink as MantineNavLink, Group, Avatar, Menu, ActionIcon, Tooltip, Badge } from '@mantine/core'
 import { Suspense, useState } from 'react'
-import { TbClipboardData, TbLogout, TbUser, TbArrowLeft, TbHome, TbBuildingBank, TbReceiptTax, TbShieldCheck, TbUsers, TbSettings, TbTruckDelivery, TbAddressBook } from 'react-icons/tb'
+import { TbDeviceLaptop, TbLogout, TbUser, TbArrowLeft, TbHome, TbPackage, TbPackageOff, TbHistory, TbChartBar } from 'react-icons/tb'
 import { useAuthStore } from '../../store/authStore'
 import { authService } from '../../services/authService'
 import LoadingSpinner from '../Loading/LoadingSpinner'
 import ChangePasswordModal from './ChangePasswordModal'
 import NotificationsMenu from './NotificationsMenu'
 
-// Registration work menu items
-interface MenuItem {
-    path: string
-    label: string
-    icon: React.ComponentType<any>
-    comingSoon?: boolean
-    isDivider?: boolean
-}
-
-const registrationMenuItems: MenuItem[] = [
+// Equipment system menu items
+const equipmentMenuItems = [
     {
-        path: '/registration-work',
-        label: 'Dashboard งานทะเบียน',
-        icon: TbClipboardData,
+        path: '/equipment',
+        label: 'ภาพรวมยืม-คืนอุปกรณ์',
+        icon: TbChartBar,
     },
     {
-        path: '/registration-work/dbd',
-        label: 'กรมพัฒนาธุรกิจการค้า (DBD)',
-        icon: TbBuildingBank,
+        path: '/equipment/inventory',
+        label: 'คลังอุปกรณ์',
+        icon: TbPackage,
+        comingSoon: true,
     },
     {
-        path: '/registration-work/rd',
-        label: 'กรมสรรพากร (RD)',
-        icon: TbReceiptTax,
-    },
-    {
-        path: '/registration-work/sso',
-        label: 'ประกันสังคม (SSO)',
-        icon: TbShieldCheck,
-    },
-    {
-        path: '/registration-work/hr',
-        label: 'งานฝ่ายบุคคล HR',
-        icon: TbUsers,
-    },
-    {
-        path: '/registration-work/clients',
-        label: 'ลูกค้างานทะเบียน',
-        icon: TbAddressBook,
-    },
-    {
-        path: '/registration-work/messenger-routes',
-        label: 'ตารางวิ่งแมส',
-        icon: TbTruckDelivery,
-        isDivider: true,
-    },
-    {
-        path: '/registration-work/settings',
-        label: 'ตั้งค่าระบบ',
-        icon: TbSettings,
+        path: '/equipment/history',
+        label: 'ประวัติการยืม-คืน',
+        icon: TbHistory,
+        comingSoon: true,
     },
 ]
 
-export default function RegistrationLayout() {
+export default function EquipmentLayout() {
     const location = useLocation()
     const navigate = useNavigate()
     const { user, logout } = useAuthStore()
@@ -95,8 +63,8 @@ export default function RegistrationLayout() {
                 <AppShell.Header>
                     <Group justify="space-between" h="100%" px="md">
                         <Group gap="md">
-                            <Text size="xl" fw={700} c="blue">
-                                ศูนย์รวมระบบภายใน — งานทะเบียน
+                            <Text size="xl" fw={700} c="teal">
+                                ศูนย์รวมระบบภายใน — ยืมอุปกรณ์
                             </Text>
                         </Group>
                         <Group gap="md">
@@ -104,7 +72,7 @@ export default function RegistrationLayout() {
                             <Tooltip label="กลับไปหน้าหลัก">
                                 <ActionIcon
                                     variant="light"
-                                    color="blue"
+                                    color="teal"
                                     size="lg"
                                     radius="xl"
                                     onClick={() => { window.close(); window.location.href = '/'; }}
@@ -119,7 +87,7 @@ export default function RegistrationLayout() {
                             <Menu shadow="md" width={200}>
                                 <Menu.Target>
                                     <Group style={{ cursor: 'pointer' }} gap="xs">
-                                        <Avatar color="blue" radius="xl">
+                                        <Avatar color="teal" radius="xl">
                                             {user?.name.charAt(0).toUpperCase()}
                                         </Avatar>
                                         <div>
@@ -150,50 +118,51 @@ export default function RegistrationLayout() {
                             mb="md"
                             p="md"
                             style={{
-                                background: 'linear-gradient(135deg, #1565c0 0%, #42a5f5 100%)',
+                                background: 'linear-gradient(135deg, #00897b 0%, #26a69a 100%)',
                                 borderRadius: 12,
                             }}
                         >
-                            <Text size="lg" fw={700} c="white">
-                                งานทะเบียน
-                            </Text>
-                            <Text size="xs" c="white" style={{ opacity: 0.8 }}>
-                                ระบบจัดการงานทะเบียน
-                            </Text>
+                            <Group gap="xs">
+                                <TbDeviceLaptop size={24} color="white" />
+                                <div>
+                                    <Text size="lg" fw={700} c="white">
+                                        ยืมอุปกรณ์
+                                    </Text>
+                                    <Text size="xs" c="white" style={{ opacity: 0.8 }}>
+                                        ระบบยืม-คืนอุปกรณ์คอมพิวเตอร์
+                                    </Text>
+                                </div>
+                            </Group>
                         </Box>
 
                         {/* Menu Items */}
-                        {registrationMenuItems.map((item) => {
+                        {equipmentMenuItems.map((item) => {
                             const Icon = item.icon
                             return (
-                                <Box key={item.path}>
-                                    {item.isDivider && (
-                                        <Box my="xs" style={{ borderTop: '1px solid #e0e0e0' }} />
-                                    )}
-                                    <MantineNavLink
-                                        component={NavLink}
-                                        to={item.path}
-                                        end
-                                        label={item.label}
-                                        leftSection={<Icon size={20} />}
-                                        rightSection={
-                                            item.comingSoon ? (
-                                                <Badge size="xs" variant="light" color="gray" radius="sm">
-                                                    รอพัฒนา
-                                                </Badge>
-                                            ) : undefined
-                                        }
-                                        variant="subtle"
-                                        classNames={{
-                                            root: 'sidebar-nav-link',
-                                        }}
-                                        styles={(theme) => ({
-                                            root: {
-                                                borderRadius: theme.radius.lg,
-                                            },
-                                        })}
-                                    />
-                                </Box>
+                                <MantineNavLink
+                                    key={item.path}
+                                    component={NavLink}
+                                    to={item.path}
+                                    end
+                                    label={item.label}
+                                    leftSection={<Icon size={20} />}
+                                    rightSection={
+                                        item.comingSoon ? (
+                                            <Badge size="xs" variant="light" color="gray" radius="sm">
+                                                รอพัฒนา
+                                            </Badge>
+                                        ) : undefined
+                                    }
+                                    variant="subtle"
+                                    classNames={{
+                                        root: 'sidebar-nav-link',
+                                    }}
+                                    styles={(theme) => ({
+                                        root: {
+                                            borderRadius: theme.radius.lg,
+                                        },
+                                    })}
+                                />
                             )
                         })}
 

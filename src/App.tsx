@@ -5,6 +5,7 @@ import Layout from './components/Layout/Layout'
 import InternalLayout from './components/Layout/InternalLayout'
 import RegistrationLayout from './components/Layout/RegistrationLayout'
 import MarketingLayout from './components/Layout/MarketingLayout'
+import EquipmentLayout from './components/Layout/EquipmentLayout'
 import ProtectedRoute from './components/Auth/ProtectedRoute'
 import LoadingFallback from './components/Loading/LoadingFallback'
 import LoadingSpinner from './components/Loading/LoadingSpinner'
@@ -33,10 +34,16 @@ const AccountingFeesDashboard = lazy(() => import('./pages/AccountingFeesDashboa
 const BotExportManagement = lazy(() => import('./pages/BotExportManagement'))
 const AccountingFeeNotifications = lazy(() => import('./pages/AccountingFeeNotifications'))
 const RegistrationWork = lazy(() => import('./pages/RegistrationWork'))
+const RegistrationClients = lazy(() => import('./pages/RegistrationClients'))
 const RegistrationSettings = lazy(() => import('./pages/RegistrationSettings'))
+const DBDWork = lazy(() => import('./pages/DBDWork'))
+const RDWork = lazy(() => import('./pages/RDWork'))
+const SSOWork = lazy(() => import('./pages/SSOWork'))
+const HRWork = lazy(() => import('./pages/HRWork'))
 const MessengerRoutes = lazy(() => import('./pages/MessengerRoutes'))
 const MarketingWork = lazy(() => import('./pages/MarketingWork'))
 const LoginActivity = lazy(() => import('./pages/LoginActivity'))
+const EquipmentBorrowing = lazy(() => import('./pages/EquipmentBorrowing'))
 
 function App() {
   const { isAuthenticated, _hasHydrated, setHasHydrated } = useAuthStore()
@@ -345,6 +352,46 @@ function App() {
                 </Suspense>
               }
             />
+            <Route
+              path="clients"
+              element={
+                <Suspense fallback={<LoadingFallback />}>
+                  <RegistrationClients />
+                </Suspense>
+              }
+            />
+            <Route
+              path="dbd"
+              element={
+                <Suspense fallback={<LoadingFallback />}>
+                  <DBDWork />
+                </Suspense>
+              }
+            />
+            <Route
+              path="rd"
+              element={
+                <Suspense fallback={<LoadingFallback />}>
+                  <RDWork />
+                </Suspense>
+              }
+            />
+            <Route
+              path="sso"
+              element={
+                <Suspense fallback={<LoadingFallback />}>
+                  <SSOWork />
+                </Suspense>
+              }
+            />
+            <Route
+              path="hr"
+              element={
+                <Suspense fallback={<LoadingFallback />}>
+                  <HRWork />
+                </Suspense>
+              }
+            />
           </Route>
 
           {/* Marketing Work Layout — แยก layout งานออกแบบ/การตลาด */}
@@ -361,6 +408,25 @@ function App() {
               element={
                 <Suspense fallback={<LoadingFallback />}>
                   <MarketingWork />
+                </Suspense>
+              }
+            />
+          </Route>
+
+          {/* Equipment Borrowing Layout — แยก layout ยืมอุปกรณ์ */}
+          <Route
+            path="/equipment"
+            element={
+              <ProtectedRoute>
+                <EquipmentLayout />
+              </ProtectedRoute>
+            }
+          >
+            <Route
+              index
+              element={
+                <Suspense fallback={<LoadingFallback />}>
+                  <EquipmentBorrowing />
                 </Suspense>
               }
             />

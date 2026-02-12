@@ -33,6 +33,8 @@ import messengerRoutesRoutes from './routes/messenger-routes.js'
 import messengerLocationsRoutes from './routes/messenger-locations.js'
 import loginActivityRoutes, { heartbeatRouter } from './routes/login-activity.js'
 import positionGroupsRoutes from './routes/position-groups.js'
+import registrationClientsRoutes from './routes/registration-clients.js'
+import equipmentRoutes from './routes/equipment.js'
 import { apiRateLimiter } from './middleware/rateLimiter.js'
 import cacheMiddleware, { invalidateCache } from './middleware/cache.js'
 import performanceLogger from './middleware/performanceLogger.js'
@@ -279,6 +281,8 @@ app.use('/api/messenger-locations', messengerLocationsRoutes)
 app.use('/api/login-activity', loginActivityRoutes)
 app.use('/api/login-activity', heartbeatRouter)
 app.use('/api/position-groups', positionGroupsRoutes)
+app.use('/api/registration-clients', registrationClientsRoutes)
+app.use('/api/equipment', equipmentRoutes)
 
 // ✅ SPA Fallback: Serve React frontend in production
 // When deployed, serve the built React app and handle client-side routing

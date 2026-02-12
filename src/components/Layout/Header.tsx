@@ -13,7 +13,7 @@ import {
   Box,
   Divider,
 } from '@mantine/core'
-import { TbLogout, TbUser, TbApps, TbCoin, TbClipboardData, TbPalette, TbMenu2 } from 'react-icons/tb'
+import { TbLogout, TbUser, TbApps, TbCoin, TbClipboardData, TbPalette, TbMenu2, TbDeviceLaptop } from 'react-icons/tb'
 import { useAuthStore } from '../../store/authStore'
 import { useNavigate } from 'react-router-dom'
 import { authService } from '../../services/authService'
@@ -49,6 +49,15 @@ const internalSystemItems = [
     bgColor: 'linear-gradient(135deg, #e91e63 0%, #f06292 100%)',
     openInNewTab: true,
     allowedRoles: ['admin', 'marketing'] as string[],
+  },
+  {
+    icon: TbDeviceLaptop,
+    label: 'ยืมอุปกรณ์',
+    path: '/equipment',
+    color: '#00897b',
+    bgColor: 'linear-gradient(135deg, #00897b 0%, #26a69a 100%)',
+    openInNewTab: true,
+    allowedRoles: [] as string[], // ทุก role เข้าได้
   },
 ]
 
@@ -124,7 +133,7 @@ const Header = memo(function Header() {
 
               <SimpleGrid cols={3} spacing="xs">
                 {internalSystemItems
-                  .filter((item) => !item.allowedRoles || item.allowedRoles.includes(user?.role || ''))
+                  .filter((item) => !item.allowedRoles || item.allowedRoles.length === 0 || item.allowedRoles.includes(user?.role || ''))
                   .map((item) => (
                     <UnstyledButton
                       key={item.path}

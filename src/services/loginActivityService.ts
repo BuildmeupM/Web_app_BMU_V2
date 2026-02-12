@@ -11,10 +11,6 @@ export interface LoginAttempt {
     attempted_at: string
     user_name: string | null
     nick_name: string | null
-    latitude: number | null
-    longitude: number | null
-    geo_city: string | null
-    geo_country: string | null
 }
 
 export interface LoginStats {
@@ -56,6 +52,37 @@ export interface AttemptsResponse {
     }
 }
 
+export interface SessionSummary {
+    user_id: string
+    username: string
+    user_name: string | null
+    nick_name: string | null
+    session_count: number
+    total_minutes: number
+    first_login: string
+    last_activity: string
+    is_online: number
+}
+
+export interface SessionDetail {
+    session_id: string
+    login_at: string
+    logout_at: string | null
+    last_active_at: string | null
+    session_status: string
+    ip_address: string
+    duration_minutes: number
+}
+
+export interface SessionHistoryUser {
+    user_id: string
+    username: string
+    user_name: string | null
+    nick_name: string | null
+    sessions: SessionDetail[]
+}
+
+
 export const loginActivityService = {
     getStats: async (): Promise<LoginStats> => {
         const response = await api.get<{ success: boolean; data: LoginStats }>('/login-activity/stats')
@@ -69,6 +96,8 @@ export const loginActivityService = {
         success?: string
         startDate?: string
         endDate?: string
+        sortBy?: string
+        sortOrder?: string
     }): Promise<AttemptsResponse> => {
         const response = await api.get<{ success: boolean; data: AttemptsResponse }>(
             '/login-activity/attempts',
@@ -123,6 +152,22 @@ export const loginActivityService = {
             success: boolean
             data: { attempts: LoginAttempt[]; count: number }
         }>(`/login-activity/external-ips${params}`)
+        return response.data.data
+    },
+
+    getSessionSummary: async (date?: string): Promise<{ date: string; summary: SessionSummary[]; totalUsers: number }> => {
+        const response = await api.get<{
+            success: boolean
+            data: { date: string; summary: SessionSummary[]; totalUsers: number }
+        }>('/login-activity/session-summary', { params: date ? { date } : {} })
+        return response.data.data
+    },
+
+    getSessionHistory: async (date?: string): Promise<{ date: string; users: SessionHistoryUser[]; totalUsers: number; totalSessions: number }> => {
+        const response = await api.get<{
+            success: boolean
+            data: { date: string; users: SessionHistoryUser[]; totalUsers: number; totalSessions: number }
+        }>('/login-activity/session-history', { params: date ? { date } : {} })
         return response.data.data
     },
 }

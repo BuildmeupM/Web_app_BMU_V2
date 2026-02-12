@@ -36,6 +36,7 @@ import {
   TbLayoutSidebarLeftCollapse,
   TbLayoutSidebarLeftExpand,
   TbHistory,
+  TbDeviceLaptop,
 } from 'react-icons/tb'
 import { useAuthStore, UserRole } from '../../store/authStore'
 import { hasPermission } from '../../utils/rolePermissions'
@@ -57,6 +58,7 @@ const iconMap: Record<string, React.ComponentType<any>> = {
   '/accounting-marketplace': TbShoppingCart,
   '/holidays': TbCalendarTime,
   '/login-activity': TbHistory,
+  '/equipment': TbDeviceLaptop,
 }
 
 interface MenuItem {
@@ -81,6 +83,7 @@ const menuGroups: MenuGroup[] = [
       { path: '/holidays', label: 'จัดการวันหยุด' },
       { path: '/salary-advance', label: 'ขอเบิกเงินเดือน' },
       { path: '/attendance', label: 'ข้อมูลเข้าออฟฟิศ' },
+      { path: '/equipment', label: 'ยืมอุปกรณ์' },
     ],
   },
   {
