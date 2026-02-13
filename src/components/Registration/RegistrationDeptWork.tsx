@@ -24,7 +24,9 @@ import {
 } from '../../services/registrationClientService'
 import usersService, { type User } from '../../services/usersService'
 import { getWorkTypes, type WorkType, type Department } from '../../services/registrationWorkService'
+import { registrationTaskService, type RegistrationTask } from '../../services/registrationTaskService'
 import { notifications } from '@mantine/notifications'
+import TaskDetailDrawer from './TaskDetailDrawer'
 
 // ========== Types ==========
 export interface DeptTask {
@@ -454,9 +456,16 @@ export default function RegistrationDeptWork({ config }: { config: DeptConfig })
     const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
     const [page, setPage] = useState(1)
     const [perPage, setPerPage] = useState<string>('10')
+    const queryClient = useQueryClient()
+    const [statusModalOpened, { open: openStatusModal, close: closeStatusModal }] = useDisclosure(false)
+    const [selectedTask, setSelectedTask] = useState<RegistrationTask | null>(null)
 
-    // Mock tasks state
-    const [tasks, setTasks] = useState<DeptTask[]>([])
+    // Fetch tasks from API
+    const { data: taskData, isLoading: tasksLoading } = useQuery(
+        `registration-tasks-${department}`,
+        () => registrationTaskService.getByDepartment(department),
+    )
+    const tasks: DeptTask[] = (taskData?.tasks || []) as DeptTask[]
 
     // Fetch real clients
     const { data: clientData } = useQuery(
@@ -465,6 +474,12 @@ export default function RegistrationDeptWork({ config }: { config: DeptConfig })
     )
     const clients = clientData?.clients || []
     const clientGroups = clientData?.groups || []
+
+    // Find selected client for drawer
+    const selectedClient = useMemo(() => {
+        if (!selectedTask) return null
+        return clients.find(c => c.id === selectedTask.client_id) || null
+    }, [selectedTask, clients])
 
     // Fetch work types from settings (filtered by department)
     const { data: deptWorkTypes = [] } = useQuery(
@@ -515,41 +530,59 @@ export default function RegistrationDeptWork({ config }: { config: DeptConfig })
         openFormModal()
     }
 
+    // === Mutations ===
+    const createMutation = useMutation(
+        (data: Omit<DeptTask, 'id' | 'created_at'>) =>
+            registrationTaskService.create({ ...data, department }),
+        {
+            onSuccess: () => {
+                queryClient.invalidateQueries(`registration-tasks-${department}`)
+                notifications.show({ title: 'สำเร็จ', message: 'เพิ่มงานใหม่เรียบร้อย', color: 'green' })
+            },
+            onError: () => {
+                notifications.show({ title: 'ผิดพลาด', message: 'ไม่สามารถเพิ่มงานได้', color: 'red' })
+            },
+        }
+    )
+
+    const updateMutation = useMutation(
+        ({ id, data }: { id: string; data: Partial<Omit<DeptTask, 'id' | 'created_at'>> }) =>
+            registrationTaskService.update(id, data),
+        {
+            onSuccess: () => {
+                queryClient.invalidateQueries(`registration-tasks-${department}`)
+                notifications.show({ title: 'สำเร็จ', message: 'แก้ไขงานเรียบร้อย', color: 'green' })
+            },
+            onError: () => {
+                notifications.show({ title: 'ผิดพลาด', message: 'ไม่สามารถแก้ไขงานได้', color: 'red' })
+            },
+        }
+    )
+
+    const deleteMutation = useMutation(
+        (id: string) => registrationTaskService.delete(id),
+        {
+            onSuccess: () => {
+                queryClient.invalidateQueries(`registration-tasks-${department}`)
+                notifications.show({ title: 'ลบแล้ว', message: 'ลบงานเรียบร้อย', color: 'red' })
+            },
+            onError: () => {
+                notifications.show({ title: 'ผิดพลาด', message: 'ไม่สามารถลบงานได้', color: 'red' })
+            },
+        }
+    )
+
     const handleSave = (taskData: Omit<DeptTask, 'id' | 'created_at'>) => {
         if (editingTask) {
-            setTasks(prev => prev.map(t =>
-                t.id === editingTask.id
-                    ? { ...t, ...taskData }
-                    : t
-            ))
-            notifications.show({
-                title: 'สำเร็จ',
-                message: 'แก้ไขงานเรียบร้อย',
-                color: 'green',
-            })
+            updateMutation.mutate({ id: editingTask.id, data: taskData })
         } else {
-            const newTask: DeptTask = {
-                ...taskData,
-                id: Date.now().toString(),
-                created_at: new Date().toISOString(),
-            }
-            setTasks(prev => [newTask, ...prev])
-            notifications.show({
-                title: 'สำเร็จ',
-                message: 'เพิ่มงานใหม่เรียบร้อย',
-                color: 'green',
-            })
+            createMutation.mutate(taskData)
         }
     }
 
     const handleDelete = (id: string) => {
-        setTasks(prev => prev.filter(t => t.id !== id))
+        deleteMutation.mutate(id)
         setDeleteConfirmId(null)
-        notifications.show({
-            title: 'ลบแล้ว',
-            message: 'ลบงานเรียบร้อย',
-            color: 'red',
-        })
     }
 
     const getJobTypeLabel = (typeId: string) => {
@@ -834,7 +867,7 @@ export default function RegistrationDeptWork({ config }: { config: DeptConfig })
                                     {paginatedTasks.map((task, idx) => {
                                         const statusConf = STATUS_CONFIG[task.status] || STATUS_CONFIG.pending
                                         return (
-                                            <Table.Tr key={task.id}>
+                                            <Table.Tr key={task.id} style={{ cursor: 'pointer' }} onClick={() => { setSelectedTask(task as unknown as RegistrationTask); openStatusModal() }}>
                                                 <Table.Td>
                                                     <Text size="xs" c="dimmed">{(page - 1) * Number(perPage) + idx + 1}</Text>
                                                 </Table.Td>
@@ -866,12 +899,12 @@ export default function RegistrationDeptWork({ config }: { config: DeptConfig })
                                                 <Table.Td>
                                                     <Group gap={4} justify="center">
                                                         <Tooltip label="แก้ไข" withArrow>
-                                                            <ActionIcon variant="light" color="blue" size="sm" onClick={() => handleEdit(task)}>
+                                                            <ActionIcon variant="light" color="blue" size="sm" onClick={(e) => { e.stopPropagation(); handleEdit(task) }}>
                                                                 <TbEdit size={14} />
                                                             </ActionIcon>
                                                         </Tooltip>
                                                         <Tooltip label="ลบ" withArrow>
-                                                            <ActionIcon variant="light" color="red" size="sm" onClick={() => setDeleteConfirmId(task.id)}>
+                                                            <ActionIcon variant="light" color="red" size="sm" onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(task.id) }}>
                                                                 <TbTrash size={14} />
                                                             </ActionIcon>
                                                         </Tooltip>
@@ -925,6 +958,16 @@ export default function RegistrationDeptWork({ config }: { config: DeptConfig })
                 deptTitle={title}
             />
 
+            {/* Task Detail Drawer */}
+            <TaskDetailDrawer
+                opened={statusModalOpened}
+                onClose={closeStatusModal}
+                task={selectedTask}
+                client={selectedClient}
+                allTasks={(tasks as unknown as RegistrationTask[])}
+                workTypes={deptWorkTypes}
+            />
+
             {/* Delete Confirmation */}
             <Modal
                 opened={!!deleteConfirmId}
@@ -936,7 +979,7 @@ export default function RegistrationDeptWork({ config }: { config: DeptConfig })
                 <Stack gap="md">
                     <Text size="sm">คุณต้องการลบงานนี้หรือไม่?</Text>
                     <Alert color="orange" icon={<TbAlertCircle size={16} />}>
-                        <Text size="xs">ข้อมูลนี้เป็น mockup — ข้อมูลจะหายเมื่อรีเฟรชหน้า</Text>
+                        <Text size="xs">การลบนี้ไม่สามารถย้อนกลับได้</Text>
                     </Alert>
                     <Group justify="flex-end" gap="sm">
                         <Button variant="light" color="gray" onClick={() => setDeleteConfirmId(null)}>ยกเลิก</Button>
@@ -946,6 +989,6 @@ export default function RegistrationDeptWork({ config }: { config: DeptConfig })
                     </Group>
                 </Stack>
             </Modal>
-        </Container>
+        </Container >
     )
 }

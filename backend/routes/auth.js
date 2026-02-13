@@ -167,6 +167,14 @@ router.post('/login', loginRateLimiter, async (req, res) => {
     // สร้าง session record ใน user_sessions
     const sessionId = generateUUID()
     try {
+      // ── ป้องกัน Login ซ้อน: ปิด active sessions เดิมทั้งหมดของ user ──
+      await pool.execute(
+        `UPDATE user_sessions 
+         SET session_status = 'forced_logout', logout_at = NOW()
+         WHERE user_id = ? AND session_status = 'active'`,
+        [user.id]
+      )
+
       await pool.execute(
         `INSERT INTO user_sessions (id, user_id, username, login_at, last_active_at, ip_address, user_agent, session_status)
          VALUES (?, ?, ?, NOW(), NOW(), ?, ?, 'active')`,

@@ -122,8 +122,9 @@ export const loginActivityService = {
         return response.data.data
     },
 
-    sendHeartbeat: async (sessionId?: string | null): Promise<void> => {
-        await api.post('/login-activity/heartbeat', { sessionId })
+    sendHeartbeat: async (sessionId?: string | null): Promise<{ sessionStatus?: string }> => {
+        const response = await api.post<{ success: boolean; sessionStatus?: string }>('/login-activity/heartbeat', { sessionId })
+        return { sessionStatus: response.data.sessionStatus }
     },
 
     deleteAttempt: async (id: string): Promise<void> => {

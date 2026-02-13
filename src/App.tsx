@@ -11,6 +11,7 @@ import LoadingFallback from './components/Loading/LoadingFallback'
 import LoadingSpinner from './components/Loading/LoadingSpinner'
 import ErrorBoundary from './components/ErrorBoundary/ErrorBoundary'
 import { useHeartbeat } from './hooks/useHeartbeat'
+import { useIdleTimeout } from './hooks/useIdleTimeout'
 
 // Lazy load page components for code splitting
 const Login = lazy(() => import('./pages/Login'))
@@ -48,8 +49,11 @@ const EquipmentBorrowing = lazy(() => import('./pages/EquipmentBorrowing'))
 function App() {
   const { isAuthenticated, _hasHydrated, setHasHydrated } = useAuthStore()
 
-  // Heartbeat — ส่งสัญญาณออนไลน์ทุก 2 นาที
+  // Heartbeat — ส่งสัญญาณออนไลน์ทุก 2 นาที + ตรวจจับ login ซ้อน + นับ reopen
   useHeartbeat()
+
+  // Idle Timeout — auto-logout ถ้าไม่ใช้งาน 2 ชั่วโมง
+  useIdleTimeout()
 
   // ✅ BUG-168: Fallback hydration - ถ้า onRehydrateStorage ไม่ทำงานหรือทำงานช้า
   // ป้องกันปัญหาที่ component ไม่ render เมื่อ navigate ไปหน้าอื่นๆ
@@ -57,9 +61,9 @@ function App() {
   useEffect(() => {
     if (!_hasHydrated) {
       const timer = setTimeout(() => {
-        // ตรวจสอบว่า sessionStorage มีข้อมูลหรือไม่
+        // ตรวจสอบว่า localStorage มีข้อมูลหรือไม่
         // ถ้ามีก็ถือว่า hydration ควรเสร็จแล้ว แต่ callback อาจไม่ทำงาน
-        const stored = sessionStorage.getItem('auth-storage')
+        const stored = localStorage.getItem('auth-storage')
         if (stored) {
           try {
             const parsed = JSON.parse(stored)

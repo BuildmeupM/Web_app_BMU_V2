@@ -695,7 +695,7 @@ function formatDateTime(dateStr: string): string {
     return d.toLocaleDateString('th-TH', {
         day: 'numeric',
         month: 'short',
-        year: '2-digit',
+        year: 'numeric',
         hour: '2-digit',
         minute: '2-digit',
     })

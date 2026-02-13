@@ -18,9 +18,11 @@ interface AuthState {
   token: string | null
   sessionId: string | null
   isAuthenticated: boolean
+  reopenCount: number // นับจำนวนครั้งที่เปิดแท็บใหม่ (เกิน 3 → ต้อง login ใหม่)
   _hasHydrated: boolean // Flag เพื่อตรวจสอบว่า persist hydration เสร็จแล้วหรือยัง
   login: (user: User, token: string, sessionId?: string) => void
   logout: () => void
+  incrementReopenCount: () => void
   setHasHydrated: (state: boolean) => void
 }
 
@@ -31,12 +33,16 @@ export const useAuthStore = create<AuthState>()(
       token: null,
       sessionId: null,
       isAuthenticated: false,
+      reopenCount: 0,
       _hasHydrated: false,
       login: (user, token, sessionId) => {
-        set({ user, token, sessionId: sessionId || null, isAuthenticated: true })
+        set({ user, token, sessionId: sessionId || null, isAuthenticated: true, reopenCount: 0 })
       },
       logout: () => {
-        set({ user: null, token: null, sessionId: null, isAuthenticated: false })
+        set({ user: null, token: null, sessionId: null, isAuthenticated: false, reopenCount: 0 })
+      },
+      incrementReopenCount: () => {
+        set((state) => ({ reopenCount: state.reopenCount + 1 }))
       },
       setHasHydrated: (state) => {
         set({ _hasHydrated: state })
@@ -44,9 +50,8 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'auth-storage',
-      // ใช้ sessionStorage แทน localStorage ตาม Security Guidelines (ไม่เก็บ sensitive data ใน localStorage)
-      // Token จะหายเมื่อปิดแท็บ ลดความเสี่ยง XSS
-      storage: createJSONStorage(() => sessionStorage),
+      // ใช้ localStorage เพื่อจำ login เมื่อปิดแท็บ (ร่วมกับ reopenCount เพื่อบังคับ re-login หลังปิด-เปิดเกิน 3 ครั้ง)
+      storage: createJSONStorage(() => localStorage),
       // ✅ BUG-168: สำคัญ: รอ hydration เสร็จก่อนตรวจสอบ auth state
       // เพิ่ม error handling เพื่อป้องกันปัญหาที่ callback ไม่ทำงาน
       onRehydrateStorage: () => (state, error) => {
@@ -82,6 +87,7 @@ export const useAuthStore = create<AuthState>()(
         token: state.token,
         sessionId: state.sessionId,
         isAuthenticated: state.isAuthenticated,
+        reopenCount: state.reopenCount,
         // ไม่ persist _hasHydrated - จะถูก set เป็น true เมื่อ hydration เสร็จ
       }),
     }

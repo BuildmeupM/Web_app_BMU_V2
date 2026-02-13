@@ -174,9 +174,15 @@ router.get('/online-users', async (req, res) => {
               u.name as user_name, u.nick_name, u.role,
               TIMESTAMPDIFF(MINUTE, us.login_at, NOW()) as session_duration_minutes
        FROM user_sessions us
+       INNER JOIN (
+         SELECT user_id, MAX(login_at) as latest_login
+         FROM user_sessions
+         WHERE session_status = 'active'
+           AND last_active_at >= DATE_SUB(NOW(), INTERVAL 5 MINUTE)
+         GROUP BY user_id
+       ) latest ON us.user_id = latest.user_id AND us.login_at = latest.latest_login
        LEFT JOIN users u ON us.user_id = u.id
        WHERE us.session_status = 'active'
-         AND us.last_active_at >= DATE_SUB(NOW(), INTERVAL 5 MINUTE)
        ORDER BY us.last_active_at DESC`
     )
 
@@ -513,7 +519,22 @@ heartbeatRouter.post('/heartbeat', authenticateToken, async (req, res) => {
     const userId = req.user.id
     const { sessionId } = req.body
 
+    // ── ตรวจสอบว่า session ยังเป็น active อยู่ไหม (ป้องกัน login ซ้อน) ──
     if (sessionId) {
+      const [sessions] = await pool.execute(
+        `SELECT session_status FROM user_sessions WHERE id = ? AND user_id = ?`,
+        [sessionId, userId]
+      )
+
+      if (sessions.length > 0 && sessions[0].session_status === 'forced_logout') {
+        // Session ถูกปิดเพราะ login จากที่อื่น
+        return res.json({
+          success: true,
+          sessionStatus: 'forced_logout',
+          message: 'Session was terminated due to login from another location',
+        })
+      }
+
       // อัพเดท specific session
       await pool.execute(
         `UPDATE user_sessions 
@@ -541,7 +562,7 @@ heartbeatRouter.post('/heartbeat', authenticateToken, async (req, res) => {
          AND last_active_at < DATE_SUB(NOW(), INTERVAL 30 MINUTE)`
     )
 
-    res.json({ success: true })
+    res.json({ success: true, sessionStatus: 'active' })
   } catch (error) {
     console.error('Error processing heartbeat:', error)
     res.status(500).json({
