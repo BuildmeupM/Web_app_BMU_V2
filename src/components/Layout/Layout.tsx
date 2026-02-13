@@ -1,5 +1,6 @@
 import { Outlet, useLocation } from 'react-router-dom'
 import { AppShell, Box } from '@mantine/core'
+import { useDisclosure } from '@mantine/hooks'
 import { Suspense, useEffect, useState } from 'react'
 import Sidebar from './Sidebar'
 import Header from './Header'
@@ -8,6 +9,7 @@ import LoadingSpinner from '../Loading/LoadingSpinner'
 export default function Layout() {
   const location = useLocation()
   const [sidebarExpanded, setSidebarExpanded] = useState(true)
+  const [mobileOpened, { toggle: toggleMobile, close: closeMobile }] = useDisclosure()
 
   const toggleSidebar = () => setSidebarExpanded((prev) => !prev)
 
@@ -24,11 +26,17 @@ export default function Layout() {
     }
   }, [location])
 
+  // Auto-close mobile nav when navigating
+  useEffect(() => {
+    closeMobile()
+  }, [location.pathname]) // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <AppShell
       navbar={{
         width: sidebarExpanded ? 280 : 72,
         breakpoint: 'sm',
+        collapsed: { mobile: !mobileOpened },
       }}
       header={{ height: 70 }}
       padding="md"
@@ -36,7 +44,7 @@ export default function Layout() {
       transitionTimingFunction="ease"
     >
       <AppShell.Header>
-        <Header />
+        <Header mobileOpened={mobileOpened} onToggleMobile={toggleMobile} />
       </AppShell.Header>
       <AppShell.Navbar
         p={sidebarExpanded ? 'md' : 'xs'}
@@ -45,7 +53,12 @@ export default function Layout() {
           overflowX: 'hidden',
         }}
       >
-        <Sidebar expanded={sidebarExpanded} onToggle={toggleSidebar} />
+        <Sidebar
+          expanded={sidebarExpanded}
+          onToggle={toggleSidebar}
+          isMobile={mobileOpened}
+          onCloseMobile={closeMobile}
+        />
       </AppShell.Navbar>
       <AppShell.Main
         style={{

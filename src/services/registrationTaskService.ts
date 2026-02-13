@@ -34,6 +34,9 @@ export interface RegistrationTask {
     messenger_details: string | null
     messenger_notes: string | null
     messenger_status: 'pending' | 'scheduled' | 'completed'
+    // Payment fields
+    payment_status: 'paid_full' | 'deposit' | 'free' | 'unpaid'
+    deposit_amount: number | null
     created_at: string
 }
 
@@ -73,6 +76,9 @@ export interface RegistrationTaskUpdateData {
     messenger_details?: string | null
     messenger_notes?: string | null
     messenger_status?: string | null
+    // Payment fields
+    payment_status?: string | null
+    deposit_amount?: number | null
 }
 
 export interface TaskComment {
@@ -80,6 +86,7 @@ export interface TaskComment {
     task_id: string
     user_id: string
     user_name: string
+    user_color?: string
     message: string
     created_at: string
 }
@@ -98,6 +105,14 @@ export const registrationTaskService = {
     getByDepartment: async (department: Department): Promise<RegistrationTaskListResponse> => {
         const response = await api.get(`/registration-tasks?department=${department}&_t=${Date.now()}`)
         return response.data.data
+    },
+
+    /**
+     * ดึงงานทั้งหมดของลูกค้า (ข้ามหน่วยงาน)
+     */
+    getByClientId: async (clientId: string): Promise<RegistrationTask[]> => {
+        const response = await api.get(`/registration-tasks?client_id=${clientId}&_t=${Date.now()}`)
+        return response.data.data?.tasks || response.data.data || []
     },
 
     /**
@@ -139,5 +154,12 @@ export const registrationTaskService = {
     addComment: async (taskId: string, message: string): Promise<TaskComment> => {
         const response = await api.post(`/registration-tasks/${taskId}/comments`, { message })
         return response.data.data.comment
+    },
+
+    /**
+     * ลบความเห็น
+     */
+    deleteComment: async (taskId: string, commentId: string): Promise<void> => {
+        await api.delete(`/registration-tasks/${taskId}/comments/${commentId}`)
     },
 }

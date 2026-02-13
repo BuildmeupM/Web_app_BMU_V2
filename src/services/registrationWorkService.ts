@@ -3,22 +3,7 @@
  * API service สำหรับจัดการประเภทงานและรายการย่อย — งานทะเบียน
  */
 
-import axios from 'axios'
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
-
-function getToken(): string | null {
-    try {
-        const authStorage = sessionStorage.getItem('auth-storage')
-        if (authStorage) {
-            const parsed = JSON.parse(authStorage)
-            return parsed?.state?.token || null
-        }
-    } catch {
-        return null
-    }
-    return null
-}
+import api from './api'
 
 // Types
 export interface WorkSubType {
@@ -47,48 +32,34 @@ export type Department = 'dbd' | 'rd' | 'sso' | 'hr'
 // ============================================================
 
 export async function getWorkTypes(department?: Department): Promise<WorkType[]> {
-    const token = getToken()
     const params = new URLSearchParams()
     if (department) params.append('department', department)
     params.append('_t', Date.now().toString())
 
-    const response = await axios.get<{ success: boolean; data: { types: WorkType[] } }>(
-        `${API_URL}/api/registration-work/types?${params.toString()}`,
-        {
-            headers: {
-                Authorization: `Bearer ${token}`,
-                'Cache-Control': 'no-cache',
-            }
-        }
+    const response = await api.get<{ success: boolean; data: { types: WorkType[] } }>(
+        `/registration-work/types?${params.toString()}`
     )
     return response.data.data.types
 }
 
 export async function createWorkType(data: { department: Department; name: string }): Promise<WorkType> {
-    const token = getToken()
-    const response = await axios.post<{ success: boolean; data: { type: WorkType } }>(
-        `${API_URL}/api/registration-work/types`,
-        data,
-        { headers: { Authorization: `Bearer ${token}` } }
+    const response = await api.post<{ success: boolean; data: { type: WorkType } }>(
+        '/registration-work/types',
+        data
     )
     return response.data.data.type
 }
 
 export async function updateWorkType(id: string, data: Partial<{ name: string; sort_order: number; is_active: boolean }>): Promise<WorkType> {
-    const token = getToken()
-    const response = await axios.put<{ success: boolean; data: { type: WorkType } }>(
-        `${API_URL}/api/registration-work/types/${id}`,
-        data,
-        { headers: { Authorization: `Bearer ${token}` } }
+    const response = await api.put<{ success: boolean; data: { type: WorkType } }>(
+        `/registration-work/types/${id}`,
+        data
     )
     return response.data.data.type
 }
 
 export async function deleteWorkType(id: string): Promise<void> {
-    const token = getToken()
-    await axios.delete(`${API_URL}/api/registration-work/types/${id}`, {
-        headers: { Authorization: `Bearer ${token}` }
-    })
+    await api.delete(`/registration-work/types/${id}`)
 }
 
 // ============================================================
@@ -96,28 +67,21 @@ export async function deleteWorkType(id: string): Promise<void> {
 // ============================================================
 
 export async function createSubType(data: { work_type_id: string; name: string }): Promise<WorkSubType> {
-    const token = getToken()
-    const response = await axios.post<{ success: boolean; data: { sub_type: WorkSubType } }>(
-        `${API_URL}/api/registration-work/sub-types`,
-        data,
-        { headers: { Authorization: `Bearer ${token}` } }
+    const response = await api.post<{ success: boolean; data: { sub_type: WorkSubType } }>(
+        '/registration-work/sub-types',
+        data
     )
     return response.data.data.sub_type
 }
 
 export async function updateSubType(id: string, data: Partial<{ name: string; sort_order: number; is_active: boolean }>): Promise<WorkSubType> {
-    const token = getToken()
-    const response = await axios.put<{ success: boolean; data: { sub_type: WorkSubType } }>(
-        `${API_URL}/api/registration-work/sub-types/${id}`,
-        data,
-        { headers: { Authorization: `Bearer ${token}` } }
+    const response = await api.put<{ success: boolean; data: { sub_type: WorkSubType } }>(
+        `/registration-work/sub-types/${id}`,
+        data
     )
     return response.data.data.sub_type
 }
 
 export async function deleteSubType(id: string): Promise<void> {
-    const token = getToken()
-    await axios.delete(`${API_URL}/api/registration-work/sub-types/${id}`, {
-        headers: { Authorization: `Bearer ${token}` }
-    })
+    await api.delete(`/registration-work/sub-types/${id}`)
 }

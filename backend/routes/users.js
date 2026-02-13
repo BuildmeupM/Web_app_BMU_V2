@@ -663,4 +663,68 @@ router.post('/:id/reset-password', authenticateToken, authorize('admin'), async 
   }
 })
 
+/**
+ * PATCH /api/users/me/comment-color
+ * อัพเดทสีความเห็นของตัวเอง
+ * Access: All authenticated users
+ */
+router.patch('/me/comment-color', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id || req.user.userId
+    const { comment_color } = req.body
+
+    // Validate hex color
+    if (!comment_color || !/^#[0-9A-Fa-f]{6}$/.test(comment_color)) {
+      return res.status(400).json({
+        success: false,
+        message: 'กรุณาระบุสีในรูปแบบ hex เช่น #FF5733',
+      })
+    }
+
+    await pool.execute(
+      'UPDATE users SET comment_color = ? WHERE id = ?',
+      [comment_color, userId]
+    )
+
+    res.json({
+      success: true,
+      message: 'อัพเดทสีความเห็นสำเร็จ',
+      data: { comment_color },
+    })
+  } catch (error) {
+    console.error('Error updating comment color:', error)
+    res.status(500).json({
+      success: false,
+      message: 'ไม่สามารถอัพเดทสีได้',
+    })
+  }
+})
+
+/**
+ * GET /api/users/me/comment-color
+ * ดึงสีความเห็นของตัวเอง
+ * Access: All authenticated users
+ */
+router.get('/me/comment-color', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id || req.user.userId
+
+    const [rows] = await pool.execute(
+      'SELECT comment_color FROM users WHERE id = ?',
+      [userId]
+    )
+
+    res.json({
+      success: true,
+      data: { comment_color: rows[0]?.comment_color || '#2196F3' },
+    })
+  } catch (error) {
+    // Column might not exist yet
+    res.json({
+      success: true,
+      data: { comment_color: '#2196F3' },
+    })
+  }
+})
+
 export default router

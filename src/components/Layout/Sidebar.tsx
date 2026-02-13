@@ -289,19 +289,24 @@ function SidebarGroupCollapsed({
 interface SidebarProps {
   expanded: boolean
   onToggle: () => void
+  isMobile?: boolean
+  onCloseMobile?: () => void
 }
 
-export default function Sidebar({ expanded, onToggle }: SidebarProps) {
+export default function Sidebar({ expanded, onToggle, isMobile = false }: SidebarProps) {
   const { user } = useAuthStore()
   const location = useLocation()
   if (!user) return null
 
   const isDashboardActive = location.pathname === '/dashboard'
 
+  // On mobile drawer, always show expanded mode with labels
+  const showExpanded = isMobile || expanded
+
   // ================================
-  // Collapsed Mode (ไอคอนอย่างเดียว)
+  // Collapsed Mode (ไอคอนอย่างเดียว) — desktop only
   // ================================
-  if (!expanded) {
+  if (!showExpanded) {
     return (
       <Stack
         gap="xs"
@@ -424,31 +429,33 @@ export default function Sidebar({ expanded, onToggle }: SidebarProps) {
         ))}
       </Stack>
 
-      {/* Toggle button (ด้านล่าง) */}
-      <UnstyledButton
-        onClick={onToggle}
-        py={8}
-        px="md"
-        style={{
-          borderRadius: 12,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          color: '#999',
-          transition: 'all 0.2s ease',
-        }}
-        onMouseEnter={(e: React.MouseEvent<HTMLButtonElement>) => {
-          e.currentTarget.style.backgroundColor = 'rgba(255, 140, 66, 0.06)'
-          e.currentTarget.style.color = '#ff8c42'
-        }}
-        onMouseLeave={(e: React.MouseEvent<HTMLButtonElement>) => {
-          e.currentTarget.style.backgroundColor = 'transparent'
-          e.currentTarget.style.color = '#999'
-        }}
-      >
-        <TbLayoutSidebarLeftCollapse size={20} />
-        <Text size="sm" c="inherit">ย่อเมนู</Text>
-      </UnstyledButton>
+      {/* Toggle button (ด้านล่าง) — hide on mobile */}
+      {!isMobile && (
+        <UnstyledButton
+          onClick={onToggle}
+          py={8}
+          px="md"
+          style={{
+            borderRadius: 12,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            color: '#999',
+            transition: 'all 0.2s ease',
+          }}
+          onMouseEnter={(e: React.MouseEvent<HTMLButtonElement>) => {
+            e.currentTarget.style.backgroundColor = 'rgba(255, 140, 66, 0.06)'
+            e.currentTarget.style.color = '#ff8c42'
+          }}
+          onMouseLeave={(e: React.MouseEvent<HTMLButtonElement>) => {
+            e.currentTarget.style.backgroundColor = 'transparent'
+            e.currentTarget.style.color = '#999'
+          }}
+        >
+          <TbLayoutSidebarLeftCollapse size={20} />
+          <Text size="sm" c="inherit">ย่อเมนู</Text>
+        </UnstyledButton>
+      )}
     </Stack>
   )
 }

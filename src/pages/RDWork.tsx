@@ -11,8 +11,8 @@ const RD_CONFIG: DeptConfig = {
     title: 'กรมสรรพากร (RD)',
     subtitle: 'จัดการงานภาษี ยื่นแบบ และงานกรมสรรพากรทั้งหมด',
     icon: TbReceiptTax,
-    gradient: 'linear-gradient(135deg, #e65100 0%, #f57c00 50%, #ffb74d 100%)',
-    tableHeaderColor: '#e65100',
+    gradient: 'linear-gradient(135deg, #2e7d32 0%, #43a047 50%, #66bb6a 100%)',
+    tableHeaderColor: '#2e7d32',
 }
 
 export default function RDWork() {

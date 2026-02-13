@@ -66,7 +66,7 @@ export default function SalaryAdvanceRequestList({ pendingOnly = false, refreshT
                     page,
                     limit: 20,
                     search: search || undefined,
-                    employee_id: !isAdmin ? user?.employee_id || undefined : undefined,
+                    employee_id: user?.employee_id || undefined,
                 })
             }
             if (response.success) {

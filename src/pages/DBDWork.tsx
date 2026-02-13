@@ -11,8 +11,8 @@ const DBD_CONFIG: DeptConfig = {
     title: 'กรมพัฒนาธุรกิจการค้า (DBD)',
     subtitle: 'จัดการงานจดทะเบียน แก้ไขเปลี่ยนแปลง และงาน DBD ทั้งหมด',
     icon: TbBuildingBank,
-    gradient: 'linear-gradient(135deg, #1565c0 0%, #1976d2 50%, #42a5f5 100%)',
-    tableHeaderColor: '#f57c00',
+    gradient: 'linear-gradient(135deg, #6a1b9a 0%, #8e24aa 50%, #ab47bc 100%)',
+    tableHeaderColor: '#6a1b9a',
 }
 
 export default function DBDWork() {

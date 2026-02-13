@@ -16,7 +16,7 @@ const departmentCards = [
         icon: TbBuildingBank,
         title: 'กรมพัฒนาธุรกิจการค้า (DBD)',
         description: 'จดทะเบียนบริษัท ห้างหุ้นส่วน แก้ไขเปลี่ยนแปลงทะเบียน',
-        color: '#1565c0',
+        color: '#6a1b9a',
     },
     {
         key: 'rd',
@@ -24,7 +24,7 @@ const departmentCards = [
         icon: TbReceiptTax,
         title: 'กรมสรรพากร (RD)',
         description: 'จดทะเบียนภาษีมูลค่าเพิ่ม ภาษีธุรกิจเฉพาะ',
-        color: '#e65100',
+        color: '#2e7d32',
     },
     {
         key: 'sso',
@@ -32,7 +32,7 @@ const departmentCards = [
         icon: TbShieldCheck,
         title: 'สำนักงานประกันสังคม (SSO)',
         description: 'ขึ้นทะเบียนนายจ้าง ลูกจ้าง งานประกันสังคม',
-        color: '#2e7d32',
+        color: '#1565c0',
     },
     {
         key: 'hr',
@@ -40,7 +40,7 @@ const departmentCards = [
         icon: TbUsers,
         title: 'งานฝ่ายบุคคล HR',
         description: 'งานทะเบียนฝ่ายบุคคล สัญญาจ้าง เอกสาร HR',
-        color: '#7b1fa2',
+        color: '#c62828',
     },
 ]
 

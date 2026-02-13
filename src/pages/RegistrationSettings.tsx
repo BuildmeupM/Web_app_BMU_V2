@@ -1,18 +1,18 @@
 /**
  * Registration Settings Page (ตั้งค่าระบบงานทะเบียน)
- * หน้าจัดการประเภทงานและรายการย่อยแต่ละหน่วยงาน
+ * Master-Detail Layout: ด้านซ้ายเป็นรายการหน่วยงาน, ด้านขวาแสดงประเภทงาน
  * เข้าถึงได้เฉพาะ role: admin, registration
  */
 
 import { useState, useEffect, useCallback } from 'react'
 import {
     Container, Stack, Group, Text, TextInput, Button, ActionIcon, Card, Badge,
-    Tabs, Box, Loader, Accordion, Tooltip, Divider, ThemeIcon, Title
+    Box, Loader, Accordion, Tooltip, Divider, ThemeIcon, Title, Paper, Grid, ScrollArea
 } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import {
     TbPlus, TbTrash, TbEdit, TbCheck, TbX, TbBuildingBank, TbReceiptTax,
-    TbShieldCheck, TbUsers, TbSettings, TbListDetails
+    TbShieldCheck, TbUsers, TbSettings, TbListDetails, TbChevronRight
 } from 'react-icons/tb'
 import {
     WorkType, Department,
@@ -20,15 +20,15 @@ import {
     createSubType, updateSubType, deleteSubType
 } from '../services/registrationWorkService'
 
-const departmentConfig: { key: Department; label: string; fullLabel: string; icon: React.ComponentType<any>; color: string }[] = [
-    { key: 'dbd', label: 'DBD', fullLabel: 'กรมพัฒนาธุรกิจการค้า', icon: TbBuildingBank, color: '#1565c0' },
-    { key: 'rd', label: 'RD', fullLabel: 'กรมสรรพากร', icon: TbReceiptTax, color: '#e65100' },
-    { key: 'sso', label: 'SSO', fullLabel: 'สำนักงานประกันสังคม', icon: TbShieldCheck, color: '#2e7d32' },
-    { key: 'hr', label: 'HR', fullLabel: 'งานฝ่ายบุคคล', icon: TbUsers, color: '#7b1fa2' },
+const departmentConfig: { key: Department; label: string; fullLabel: string; icon: React.ComponentType<any>; color: string; gradient: string }[] = [
+    { key: 'dbd', label: 'DBD', fullLabel: 'กรมพัฒนาธุรกิจการค้า', icon: TbBuildingBank, color: '#6a1b9a', gradient: 'linear-gradient(135deg, #6a1b9a 0%, #ab47bc 100%)' },
+    { key: 'rd', label: 'RD', fullLabel: 'กรมสรรพากร', icon: TbReceiptTax, color: '#2e7d32', gradient: 'linear-gradient(135deg, #2e7d32 0%, #66bb6a 100%)' },
+    { key: 'sso', label: 'SSO', fullLabel: 'สำนักงานประกันสังคม', icon: TbShieldCheck, color: '#1565c0', gradient: 'linear-gradient(135deg, #1565c0 0%, #42a5f5 100%)' },
+    { key: 'hr', label: 'HR', fullLabel: 'งานฝ่ายบุคคล', icon: TbUsers, color: '#c62828', gradient: 'linear-gradient(135deg, #c62828 0%, #ef5350 100%)' },
 ]
 
 export default function RegistrationSettings() {
-    const [activeTab, setActiveTab] = useState<string>('dbd')
+    const [activeDept, setActiveDept] = useState<Department>('dbd')
     const [workTypes, setWorkTypes] = useState<WorkType[]>([])
     const [loading, setLoading] = useState(false)
     const [newTypeName, setNewTypeName] = useState('')
@@ -40,10 +40,12 @@ export default function RegistrationSettings() {
     const [editingSubId, setEditingSubId] = useState<string | null>(null)
     const [editSubName, setEditSubName] = useState('')
 
+    const currentDept = departmentConfig.find(d => d.key === activeDept)!
+
     const fetchTypes = useCallback(async () => {
         setLoading(true)
         try {
-            const types = await getWorkTypes(activeTab as Department)
+            const types = await getWorkTypes(activeDept)
             setWorkTypes(types)
         } catch (error: any) {
             console.error('Fetch work types error:', error)
@@ -55,21 +57,28 @@ export default function RegistrationSettings() {
         } finally {
             setLoading(false)
         }
-    }, [activeTab])
+    }, [activeDept])
 
     useEffect(() => {
         fetchTypes()
     }, [fetchTypes])
 
+    // Reset form states when switching department
+    useEffect(() => {
+        setNewTypeName('')
+        setEditingTypeId(null)
+        setEditingSubId(null)
+        setNewSubName({})
+    }, [activeDept])
+
     // ============================================================
     // Work Type Handlers
     // ============================================================
-
     const handleAddType = async () => {
         if (!newTypeName.trim()) return
         setAddingType(true)
         try {
-            await createWorkType({ department: activeTab as Department, name: newTypeName.trim() })
+            await createWorkType({ department: activeDept, name: newTypeName.trim() })
             setNewTypeName('')
             notifications.show({ title: 'สำเร็จ', message: 'เพิ่มประเภทงานแล้ว', color: 'green' })
             fetchTypes()
@@ -118,7 +127,6 @@ export default function RegistrationSettings() {
     // ============================================================
     // Sub Type Handlers
     // ============================================================
-
     const handleAddSub = async (workTypeId: string) => {
         const name = newSubName[workTypeId]?.trim()
         if (!name) return
@@ -170,11 +178,12 @@ export default function RegistrationSettings() {
         }
     }
 
-    const currentDept = departmentConfig.find(d => d.key === activeTab)
+    const totalSubs = workTypes.reduce((sum, t) => sum + t.sub_types.length, 0)
+    const DeptIcon = currentDept.icon
 
     return (
         <Container size="xl" py="md">
-            <Stack gap="md">
+            <Stack gap="lg">
                 {/* Header Banner */}
                 <Card
                     withBorder
@@ -210,31 +219,142 @@ export default function RegistrationSettings() {
                     </Group>
                 </Card>
 
-                {/* Department Tabs */}
-                <Card withBorder radius="lg" p="md">
-                    <Tabs value={activeTab} onChange={(v) => setActiveTab(v || 'dbd')}>
-                        <Tabs.List grow mb="lg">
-                            {departmentConfig.map(dept => {
-                                const Icon = dept.icon
-                                return (
-                                    <Tabs.Tab
-                                        key={dept.key}
-                                        value={dept.key}
-                                        leftSection={<Icon size={18} />}
-                                        style={{ fontWeight: activeTab === dept.key ? 700 : 400 }}
-                                    >
-                                        {dept.fullLabel} ({dept.label})
-                                    </Tabs.Tab>
-                                )
-                            })}
-                        </Tabs.List>
+                {/* Section Title */}
+                <Group gap="sm">
+                    <ThemeIcon size={32} radius="md" variant="light" color="gray">
+                        <TbListDetails size={20} />
+                    </ThemeIcon>
+                    <div>
+                        <Text size="lg" fw={700}>ข้อมูลประเภทงานของหน่วยงาน</Text>
+                        <Text size="xs" c="dimmed">เลือกหน่วยงานด้านซ้ายเพื่อดูและจัดการประเภทงาน</Text>
+                    </div>
+                </Group>
 
-                        {departmentConfig.map(dept => (
-                            <Tabs.Panel key={dept.key} value={dept.key}>
+                {/* Master-Detail Layout */}
+                <Grid gutter="md">
+                    {/* ======================== LEFT PANEL - Department List ======================== */}
+                    <Grid.Col span={{ base: 12, sm: 4, md: 3 }}>
+                        <Card withBorder radius="lg" p="sm" style={{ position: 'sticky', top: 90 }}>
+                            <Text size="xs" fw={700} c="dimmed" tt="uppercase" mb="sm" px="xs">
+                                หน่วยงาน
+                            </Text>
+                            <Stack gap={6}>
+                                {departmentConfig.map(dept => {
+                                    const Icon = dept.icon
+                                    const isActive = activeDept === dept.key
+                                    return (
+                                        <Paper
+                                            key={dept.key}
+                                            radius="md"
+                                            p="sm"
+                                            onClick={() => setActiveDept(dept.key)}
+                                            style={{
+                                                cursor: 'pointer',
+                                                backgroundColor: isActive ? dept.color + '12' : 'transparent',
+                                                borderLeft: `3px solid ${isActive ? dept.color : 'transparent'}`,
+                                                transition: 'all 0.2s ease',
+                                            }}
+                                            onMouseEnter={(e: React.MouseEvent<HTMLDivElement>) => {
+                                                if (!isActive) {
+                                                    e.currentTarget.style.backgroundColor = '#f8f9fa'
+                                                }
+                                            }}
+                                            onMouseLeave={(e: React.MouseEvent<HTMLDivElement>) => {
+                                                if (!isActive) {
+                                                    e.currentTarget.style.backgroundColor = 'transparent'
+                                                }
+                                            }}
+                                        >
+                                            <Group justify="space-between" wrap="nowrap">
+                                                <Group gap="sm" wrap="nowrap">
+                                                    <ThemeIcon
+                                                        size={36}
+                                                        radius="md"
+                                                        variant={isActive ? 'filled' : 'light'}
+                                                        color={dept.color}
+                                                        style={isActive ? { background: dept.gradient } : {}}
+                                                    >
+                                                        <Icon size={20} color={isActive ? 'white' : dept.color} />
+                                                    </ThemeIcon>
+                                                    <div>
+                                                        <Text size="sm" fw={isActive ? 700 : 500} c={isActive ? dept.color : 'dark'}>
+                                                            {dept.fullLabel}
+                                                        </Text>
+                                                        <Badge size="xs" variant="light" color={dept.color}>
+                                                            {dept.label}
+                                                        </Badge>
+                                                    </div>
+                                                </Group>
+                                                {isActive && (
+                                                    <TbChevronRight size={16} color={dept.color} />
+                                                )}
+                                            </Group>
+                                        </Paper>
+                                    )
+                                })}
+                            </Stack>
+                        </Card>
+                    </Grid.Col>
+
+                    {/* ======================== RIGHT PANEL - Work Types Detail ======================== */}
+                    <Grid.Col span={{ base: 12, sm: 8, md: 9 }}>
+                        <Card withBorder radius="lg" p={0} style={{ overflow: 'hidden' }}>
+                            {/* Department Header */}
+                            <Box
+                                p="md"
+                                style={{
+                                    background: currentDept.gradient,
+                                }}
+                            >
+                                <Group justify="space-between">
+                                    <Group gap="md">
+                                        <Box
+                                            style={{
+                                                width: 44,
+                                                height: 44,
+                                                borderRadius: 12,
+                                                backgroundColor: 'rgba(255,255,255,0.25)',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                            }}
+                                        >
+                                            <DeptIcon size={24} color="white" />
+                                        </Box>
+                                        <div>
+                                            <Group gap="xs">
+                                                <Text size="lg" fw={700} c="white">
+                                                    {currentDept.fullLabel}
+                                                </Text>
+                                                <Badge
+                                                    size="sm"
+                                                    variant="white"
+                                                    style={{ backgroundColor: 'rgba(255,255,255,0.25)', color: 'white' }}
+                                                >
+                                                    {currentDept.label}
+                                                </Badge>
+                                            </Group>
+                                            <Text size="xs" c="rgba(255,255,255,0.8)">
+                                                {workTypes.length} ประเภทงาน • {totalSubs} รายการย่อย
+                                            </Text>
+                                        </div>
+                                    </Group>
+                                </Group>
+                            </Box>
+
+                            {/* Content */}
+                            <Box p="md">
                                 <Stack gap="md">
                                     {/* Add new type */}
-                                    <Card withBorder radius="md" p="sm" style={{ borderColor: dept.color + '40', backgroundColor: dept.color + '08' }}>
-                                        <Text size="sm" fw={600} mb="xs" c={dept.color}>
+                                    <Paper
+                                        p="sm"
+                                        radius="md"
+                                        style={{
+                                            border: `1px solid ${currentDept.color}30`,
+                                            backgroundColor: currentDept.color + '06',
+                                        }}
+                                    >
+                                        <Text size="sm" fw={600} mb="xs" c={currentDept.color}>
                                             เพิ่มประเภทงานใหม่
                                         </Text>
                                         <Group gap="sm">
@@ -251,13 +371,13 @@ export default function RegistrationSettings() {
                                                 leftSection={<TbPlus size={16} />}
                                                 onClick={handleAddType}
                                                 loading={addingType}
-                                                color={dept.color}
+                                                color={currentDept.color}
                                                 disabled={!newTypeName.trim()}
                                             >
                                                 เพิ่มประเภทงาน
                                             </Button>
                                         </Group>
-                                    </Card>
+                                    </Paper>
 
                                     {/* Loading */}
                                     {loading && (
@@ -271,7 +391,7 @@ export default function RegistrationSettings() {
                                         <Box ta="center" py="xl">
                                             <TbListDetails size={48} color="#ccc" />
                                             <Text c="dimmed" size="sm" mt="sm">
-                                                ยังไม่มีประเภทงานสำหรับ {dept.fullLabel}
+                                                ยังไม่มีประเภทงานสำหรับ{currentDept.fullLabel}
                                             </Text>
                                             <Text c="dimmed" size="xs">
                                                 เพิ่มประเภทงานแรกด้านบน
@@ -308,11 +428,11 @@ export default function RegistrationSettings() {
                                                                 </Group>
                                                             ) : (
                                                                 <Group gap="sm">
-                                                                    <ThemeIcon size={28} radius="md" variant="light" color={dept.color}>
+                                                                    <ThemeIcon size={28} radius="md" variant="light" color={currentDept.color}>
                                                                         <TbListDetails size={16} />
                                                                     </ThemeIcon>
                                                                     <Text fw={600} size="sm">{type.name}</Text>
-                                                                    <Badge size="xs" variant="light" color={currentDept?.color}>
+                                                                    <Badge size="xs" variant="light" color={currentDept.color}>
                                                                         {type.sub_types.length} รายการย่อย
                                                                     </Badge>
                                                                 </Group>
@@ -421,10 +541,10 @@ export default function RegistrationSettings() {
                                         </Accordion>
                                     )}
                                 </Stack>
-                            </Tabs.Panel>
-                        ))}
-                    </Tabs>
-                </Card>
+                            </Box>
+                        </Card>
+                    </Grid.Col>
+                </Grid>
             </Stack>
         </Container>
     )

@@ -585,20 +585,13 @@ export default function RegistrationDeptWork({ config }: { config: DeptConfig })
         setDeleteConfirmId(null)
     }
 
-    const getJobTypeLabel = (typeId: string) => {
-        for (const wt of (deptWorkTypes || [])) {
-            if (wt.id === typeId) return wt.name
-        }
-        return typeId
+    const getJobTypeLabel = (task: any) => {
+        return task.job_type_name || task.job_type || '-'
     }
 
-    const getSubTypeLabel = (subId: string) => {
-        if (!subId) return '-'
-        for (const wt of (deptWorkTypes || [])) {
-            const sub = (wt.sub_types || []).find(st => st.id === subId)
-            if (sub) return sub.name
-        }
-        return subId
+    const getSubTypeLabel = (task: any) => {
+        if (!task.job_type_sub) return '-'
+        return task.job_type_sub_name || task.job_type_sub
     }
 
     const formatDate = (dateStr: string) => {
@@ -878,11 +871,11 @@ export default function RegistrationDeptWork({ config }: { config: DeptConfig })
                                                     <Text size="sm" fw={500}>{task.client_name}</Text>
                                                 </Table.Td>
                                                 <Table.Td>
-                                                    <Text size="sm">{getJobTypeLabel(task.job_type)}</Text>
+                                                    <Text size="sm">{getJobTypeLabel(task)}</Text>
                                                 </Table.Td>
                                                 <Table.Td>
                                                     <Text size="sm" c={task.job_type_sub ? undefined : 'dimmed'}>
-                                                        {getSubTypeLabel(task.job_type_sub)}
+                                                        {getSubTypeLabel(task)}
                                                     </Text>
                                                 </Table.Td>
                                                 <Table.Td>
@@ -966,6 +959,7 @@ export default function RegistrationDeptWork({ config }: { config: DeptConfig })
                 client={selectedClient}
                 allTasks={(tasks as unknown as RegistrationTask[])}
                 workTypes={deptWorkTypes}
+                onSelectTask={(t) => setSelectedTask(t)}
             />
 
             {/* Delete Confirmation */}

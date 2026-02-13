@@ -14,6 +14,7 @@ const router = express.Router()
 // Check if step columns exist and cache the result
 let hasStepColumns = null // null = not checked, true/false = result
 let hasMessengerColumns = null
+let hasPaymentColumns = null
 
 async function checkStepColumns() {
     if (hasStepColumns !== null) return hasStepColumns
@@ -37,32 +38,54 @@ async function checkMessengerColumns() {
     return hasMessengerColumns
 }
 
+async function checkPaymentColumns() {
+    if (hasPaymentColumns !== null) return hasPaymentColumns
+    try {
+        await pool.execute(`SELECT payment_status FROM registration_tasks LIMIT 1`)
+        hasPaymentColumns = true
+    } catch {
+        hasPaymentColumns = false
+    }
+    return hasPaymentColumns
+}
+
 // Build SELECT columns based on available columns
-function getTaskColumns(withSteps, withMessenger) {
+function getTaskColumns(withSteps, withMessenger, withPayment) {
     const base = `
-        id, department,
-        DATE_FORMAT(received_date, '%Y-%m-%d') as received_date,
-        client_id, client_name, job_type, job_type_sub,
-        responsible_id, responsible_name, status, notes,
-        DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') as created_at`
+        t.id, t.department,
+        DATE_FORMAT(t.received_date, '%Y-%m-%d') as received_date,
+        t.client_id, t.client_name, t.job_type, t.job_type_sub,
+        wt.name as job_type_name,
+        wst.name as job_type_sub_name,
+        t.responsible_id, t.responsible_name, t.status, t.notes,
+        DATE_FORMAT(t.created_at, '%Y-%m-%d %H:%i:%s') as created_at`
 
     let cols = base
 
     if (withSteps) {
         cols += `,
-        step_1, step_2, step_3, step_4, step_5,
-        DATE_FORMAT(completion_date, '%Y-%m-%d') as completion_date,
-        invoice_url`
+        t.step_1, t.step_2, t.step_3, t.step_4, t.step_5,
+        DATE_FORMAT(t.completion_date, '%Y-%m-%d') as completion_date,
+        t.invoice_url`
     }
 
     if (withMessenger) {
         cols += `,
-        needs_messenger, messenger_destination, messenger_details,
-        messenger_notes, messenger_status`
+        t.needs_messenger, t.messenger_destination, t.messenger_details,
+        t.messenger_notes, t.messenger_status`
+    }
+
+    if (withPayment) {
+        cols += `,
+        t.payment_status, t.deposit_amount`
     }
 
     return cols
 }
+
+const TASK_FROM = `FROM registration_tasks t
+    LEFT JOIN registration_work_types wt ON wt.id = t.job_type
+    LEFT JOIN registration_work_sub_types wst ON wst.id = t.job_type_sub`
 
 // ============================================================
 // GET /api/registration-tasks?department=dbd
@@ -72,29 +95,37 @@ router.get('/', authenticateToken, authorize('admin', 'registration'), async (re
     try {
         const withSteps = await checkStepColumns()
         const withMessenger = await checkMessengerColumns()
-        const TASK_COLUMNS = getTaskColumns(withSteps, withMessenger)
+        const withPayment = await checkPaymentColumns()
+        const TASK_COLUMNS = getTaskColumns(withSteps, withMessenger, withPayment)
         const { department, status, search } = req.query
 
-        let query = `SELECT ${TASK_COLUMNS} FROM registration_tasks WHERE deleted_at IS NULL`
+        let query = `SELECT ${TASK_COLUMNS} ${TASK_FROM} WHERE t.deleted_at IS NULL`
         const params = []
 
         if (department) {
-            query += ` AND department = ?`
+            query += ` AND t.department = ?`
             params.push(department)
         }
 
+        // Filter by client_id (for cross-department client history)
+        const { client_id } = req.query
+        if (client_id) {
+            query += ` AND t.client_id = ?`
+            params.push(client_id)
+        }
+
         if (status) {
-            query += ` AND status = ?`
+            query += ` AND t.status = ?`
             params.push(status)
         }
 
         if (search) {
-            query += ` AND (client_name LIKE ? OR responsible_name LIKE ? OR notes LIKE ?)`
+            query += ` AND (t.client_name LIKE ? OR t.responsible_name LIKE ? OR t.notes LIKE ?)`
             const searchPattern = `%${search}%`
             params.push(searchPattern, searchPattern, searchPattern)
         }
 
-        query += ` ORDER BY received_date DESC, created_at DESC`
+        query += ` ORDER BY t.received_date DESC, t.created_at DESC`
 
         const [tasks] = await pool.execute(query, params)
 
@@ -113,6 +144,12 @@ router.get('/', authenticateToken, authorize('admin', 'registration'), async (re
                 needs_messenger: 0, messenger_destination: null,
                 messenger_details: null, messenger_notes: null,
                 messenger_status: 'pending',
+            }))
+        }
+        if (!withPayment) {
+            enrichedTasks = enrichedTasks.map(t => ({
+                ...t,
+                payment_status: 'unpaid', deposit_amount: null,
             }))
         }
 
@@ -173,10 +210,11 @@ router.post('/', authenticateToken, authorize('admin', 'registration'), async (r
 
         const withSteps = await checkStepColumns()
         const withMessenger = await checkMessengerColumns()
-        const TASK_COLUMNS = getTaskColumns(withSteps, withMessenger)
+        const withPayment = await checkPaymentColumns()
+        const TASK_COLUMNS = getTaskColumns(withSteps, withMessenger, withPayment)
 
         const [created] = await pool.execute(
-            `SELECT ${TASK_COLUMNS} FROM registration_tasks WHERE id = ?`,
+            `SELECT ${TASK_COLUMNS} ${TASK_FROM} WHERE t.id = ?`,
             [id]
         )
 
@@ -194,6 +232,12 @@ router.post('/', authenticateToken, authorize('admin', 'registration'), async (r
                 needs_messenger: 0, messenger_destination: null,
                 messenger_details: null, messenger_notes: null,
                 messenger_status: 'pending',
+            }
+        }
+        if (!withPayment) {
+            result = {
+                ...result,
+                payment_status: 'unpaid', deposit_amount: null,
             }
         }
 
@@ -223,6 +267,7 @@ router.put('/:id', authenticateToken, authorize('admin', 'registration'), async 
             completion_date, invoice_url,
             needs_messenger, messenger_destination, messenger_details,
             messenger_notes, messenger_status,
+            payment_status, deposit_amount,
         } = req.body
 
         // Check exists
@@ -237,6 +282,7 @@ router.put('/:id', authenticateToken, authorize('admin', 'registration'), async 
 
         const withSteps = await checkStepColumns()
         const withMessenger = await checkMessengerColumns()
+        const withPayment = await checkPaymentColumns()
 
         // Build dynamic UPDATE
         const fields = []
@@ -272,6 +318,12 @@ router.put('/:id', authenticateToken, authorize('admin', 'registration'), async 
             if (messenger_status !== undefined) { fields.push('messenger_status = ?'); values.push(messenger_status || 'pending') }
         }
 
+        // Only include payment fields if columns exist
+        if (withPayment) {
+            if (payment_status !== undefined) { fields.push('payment_status = ?'); values.push(payment_status || 'unpaid') }
+            if (deposit_amount !== undefined) { fields.push('deposit_amount = ?'); values.push(deposit_amount !== null && deposit_amount !== '' ? deposit_amount : null) }
+        }
+
         if (fields.length > 0) {
             values.push(id)
             await pool.execute(
@@ -280,9 +332,9 @@ router.put('/:id', authenticateToken, authorize('admin', 'registration'), async 
             )
         }
 
-        const TASK_COLUMNS = getTaskColumns(withSteps, withMessenger)
+        const TASK_COLUMNS = getTaskColumns(withSteps, withMessenger, withPayment)
         const [updated] = await pool.execute(
-            `SELECT ${TASK_COLUMNS} FROM registration_tasks WHERE id = ?`,
+            `SELECT ${TASK_COLUMNS} ${TASK_FROM} WHERE t.id = ?`,
             [id]
         )
 
@@ -300,6 +352,12 @@ router.put('/:id', authenticateToken, authorize('admin', 'registration'), async 
                 needs_messenger: 0, messenger_destination: null,
                 messenger_details: null, messenger_notes: null,
                 messenger_status: 'pending',
+            }
+        }
+        if (!withPayment) {
+            result = {
+                ...result,
+                payment_status: 'unpaid', deposit_amount: null,
             }
         }
 
@@ -355,7 +413,7 @@ router.get('/:id/comments', authenticateToken, authorize('admin', 'registration'
         try {
             const [comments] = await pool.execute(
                 `SELECT 
-                    id, task_id, user_id, user_name, message,
+                    id, task_id, user_id, user_name, user_color, message,
                     DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') as created_at
                  FROM registration_task_comments
                  WHERE task_id = ?
@@ -409,19 +467,30 @@ router.post('/:id/comments', authenticateToken, authorize('admin', 'registration
 
         const commentId = generateUUID()
 
-        // Get user info
+        // Get user info + comment_color
         const userId = user.id || user.userId
         const userName = user.name || user.username || 'ระบบ'
 
+        let userColor = '#2196F3'
+        try {
+            const [userRows] = await pool.execute(
+                'SELECT comment_color FROM users WHERE id = ?',
+                [userId]
+            )
+            if (userRows.length > 0 && userRows[0].comment_color) {
+                userColor = userRows[0].comment_color
+            }
+        } catch (_) { /* column might not exist yet */ }
+
         await pool.execute(
-            `INSERT INTO registration_task_comments (id, task_id, user_id, user_name, message)
-             VALUES (?, ?, ?, ?, ?)`,
-            [commentId, taskId, userId, userName, message.trim()]
+            `INSERT INTO registration_task_comments (id, task_id, user_id, user_name, user_color, message)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            [commentId, taskId, userId, userName, userColor, message.trim()]
         )
 
         const [created] = await pool.execute(
             `SELECT 
-                id, task_id, user_id, user_name, message,
+                id, task_id, user_id, user_name, user_color, message,
                 DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') as created_at
              FROM registration_task_comments WHERE id = ?`,
             [commentId]
@@ -434,6 +503,32 @@ router.post('/:id/comments', authenticateToken, authorize('admin', 'registration
         })
     } catch (error) {
         console.error('Create task comment error:', error)
+        res.status(500).json({ success: false, message: 'Internal server error' })
+    }
+})
+
+// ============================================================
+// ลบความเห็น
+// ============================================================
+router.delete('/:id/comments/:commentId', authenticateToken, authorize('admin', 'registration'), async (req, res) => {
+    try {
+        const { commentId } = req.params
+
+        const [result] = await pool.execute(
+            `DELETE FROM registration_task_comments WHERE id = ?`,
+            [commentId]
+        )
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ success: false, message: 'ไม่พบความเห็นนี้' })
+        }
+
+        res.json({
+            success: true,
+            message: 'ลบความเห็นสำเร็จ',
+        })
+    } catch (error) {
+        console.error('Delete task comment error:', error)
         res.status(500).json({ success: false, message: 'Internal server error' })
     }
 })

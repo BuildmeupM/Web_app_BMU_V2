@@ -11,8 +11,8 @@ const SSO_CONFIG: DeptConfig = {
     title: 'ประกันสังคม (SSO)',
     subtitle: 'จัดการงานประกันสังคม ขึ้นทะเบียน แจ้งเข้า-ออก และงาน สปส. ทั้งหมด',
     icon: TbShieldCheck,
-    gradient: 'linear-gradient(135deg, #2e7d32 0%, #43a047 50%, #66bb6a 100%)',
-    tableHeaderColor: '#2e7d32',
+    gradient: 'linear-gradient(135deg, #1565c0 0%, #1976d2 50%, #42a5f5 100%)',
+    tableHeaderColor: '#1565c0',
 }
 
 export default function SSOWork() {

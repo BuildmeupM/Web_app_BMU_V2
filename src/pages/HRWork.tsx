@@ -11,8 +11,8 @@ const HR_CONFIG: DeptConfig = {
     title: 'งานฝ่ายบุคคล HR',
     subtitle: 'จัดการงานฝ่ายบุคคล แรงงาน และงาน HR ทั้งหมด',
     icon: TbUsers,
-    gradient: 'linear-gradient(135deg, #6a1b9a 0%, #8e24aa 50%, #ab47bc 100%)',
-    tableHeaderColor: '#6a1b9a',
+    gradient: 'linear-gradient(135deg, #c62828 0%, #e53935 50%, #ef5350 100%)',
+    tableHeaderColor: '#c62828',
 }
 
 export default function HRWork() {

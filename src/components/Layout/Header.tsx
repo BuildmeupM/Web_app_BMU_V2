@@ -2,7 +2,6 @@ import { memo } from 'react'
 import {
   Group,
   Text,
-  Button,
   Menu,
   Avatar,
   ActionIcon,
@@ -12,8 +11,9 @@ import {
   UnstyledButton,
   Box,
   Divider,
+  Burger,
 } from '@mantine/core'
-import { TbLogout, TbUser, TbApps, TbCoin, TbClipboardData, TbPalette, TbMenu2, TbDeviceLaptop } from 'react-icons/tb'
+import { TbLogout, TbUser, TbApps, TbCoin, TbClipboardData, TbPalette, TbDeviceLaptop } from 'react-icons/tb'
 import { useAuthStore } from '../../store/authStore'
 import { useNavigate } from 'react-router-dom'
 import { authService } from '../../services/authService'
@@ -61,7 +61,12 @@ const internalSystemItems = [
   },
 ]
 
-const Header = memo(function Header() {
+interface HeaderProps {
+  mobileOpened?: boolean
+  onToggleMobile?: () => void
+}
+
+const Header = memo(function Header({ mobileOpened, onToggleMobile }: HeaderProps) {
   const { user, logout } = useAuthStore()
   const navigate = useNavigate()
   const [changePasswordOpened, setChangePasswordOpened] = useState(false)
@@ -84,9 +89,21 @@ const Header = memo(function Header() {
   return (
     <>
       <Group justify="space-between" h="100%" px="md">
-        <Text size="xl" fw={700} c="orange">
-          BMU Work Management System
-        </Text>
+        <Group gap="sm">
+          {/* Hamburger toggle — visible only on mobile */}
+          <Burger
+            opened={mobileOpened}
+            onClick={onToggleMobile}
+            hiddenFrom="sm"
+            size="sm"
+            color="orange"
+            aria-label="Toggle navigation"
+          />
+
+          <Text size="xl" fw={700} c="orange">
+            BMU Work Management System
+          </Text>
+        </Group>
         <Group gap="md">
           <NotificationsMenu />
 
@@ -200,14 +217,14 @@ const Header = memo(function Header() {
                 <Avatar color="orange" radius="xl">
                   {user?.name.charAt(0).toUpperCase()}
                 </Avatar>
-                <div>
+                <Box visibleFrom="xs">
                   <Text size="sm" fw={500}>
                     {user?.name}
                   </Text>
                   <Text size="xs" c="dimmed">
                     {user?.employee_id || user?.role}
                   </Text>
-                </div>
+                </Box>
               </Group>
             </Menu.Target>
             <Menu.Dropdown>

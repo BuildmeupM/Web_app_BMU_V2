@@ -13,6 +13,7 @@ export interface User {
   name: string
   status: 'active' | 'inactive'
   temporary_password?: string | null // รหัสผ่านชั่วคราวสำหรับ Admin ดู
+  comment_color?: string | null
   last_login_at: string | null
   created_at: string
   updated_at: string
@@ -152,6 +153,25 @@ const usersService = {
       user: response.data.data,
       temporaryPassword: response.data.temporary_password || '',
     }
+  },
+
+  /**
+   * Get my comment color
+   */
+  async getMyCommentColor(): Promise<string> {
+    try {
+      const response = await api.get<{ success: boolean; data: { comment_color: string } }>('/users/me/comment-color')
+      return response.data.data.comment_color || '#2196F3'
+    } catch {
+      return '#2196F3'
+    }
+  },
+
+  /**
+   * Update my comment color
+   */
+  async updateMyCommentColor(color: string): Promise<void> {
+    await api.patch('/users/me/comment-color', { comment_color: color })
   },
 }
 
