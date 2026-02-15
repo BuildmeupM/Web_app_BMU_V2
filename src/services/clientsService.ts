@@ -167,6 +167,22 @@ const clientsService = {
   },
 
   /**
+   * Get client list for dropdown (lightweight — only build + company_name)
+   * Supports search and limit for on-type search
+   */
+  async getDropdownList(params?: {
+    company_status?: string
+    search?: string
+    limit?: number
+  }): Promise<{ build: string; company_name: string }[]> {
+    const response = await api.get<{ success: boolean; data: { build: string; company_name: string }[] }>(
+      '/clients/dropdown',
+      { params }
+    )
+    return response.data.data
+  },
+
+  /**
    * Get client by build code (includes related data from 4 tables)
    */
   async getByBuild(build: string): Promise<Client> {
@@ -204,6 +220,11 @@ const clientsService = {
     total: number
     byCompanyStatus: Array<{ company_status: string; count: number }>
     byTaxRegistrationStatus: Array<{ tax_registration_status: string; count: number }>
+    incompleteData: {
+      basicInfo: { count: number; clients: Array<{ build: string; company_name: string }> }
+      taxInfo: { count: number; clients: Array<{ build: string; company_name: string }> }
+      address: { count: number; clients: Array<{ build: string; company_name: string }> }
+    }
   }> {
     const response = await api.get<{
       success: boolean
@@ -211,6 +232,11 @@ const clientsService = {
         total: number
         byCompanyStatus: Array<{ company_status: string; count: number }>
         byTaxRegistrationStatus: Array<{ tax_registration_status: string; count: number }>
+        incompleteData: {
+          basicInfo: { count: number; clients: Array<{ build: string; company_name: string }> }
+          taxInfo: { count: number; clients: Array<{ build: string; company_name: string }> }
+          address: { count: number; clients: Array<{ build: string; company_name: string }> }
+        }
       }
     }>('/clients/statistics')
     return response.data.data

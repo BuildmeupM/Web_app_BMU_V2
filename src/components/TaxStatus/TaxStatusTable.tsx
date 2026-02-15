@@ -180,7 +180,7 @@ const getStatusColor = (status: string | null): string => {
     case 'sent_to_customer':
       return '#81d4fa'
     case 'draft_completed':
-      return '#ffcdd2'
+      return '#ffb74d' // Light Orange (ตรงกับ TaxInspectionForm)
     case 'passed':
       return '#4caf50'
     case 'pending_review':
@@ -198,7 +198,7 @@ const getStatusColor = (status: string | null): string => {
     case 'additional_review':
       return '#81d4fa'
     case 'not_submitted':
-      return '#808080'
+      return '#000000' // Black (ตรงกับ TaxInspectionForm)
     case 'not_started':
       return '#808080'
     default:

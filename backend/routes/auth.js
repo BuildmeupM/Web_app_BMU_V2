@@ -170,7 +170,7 @@ router.post('/login', loginRateLimiter, async (req, res) => {
       // ── ป้องกัน Login ซ้อน: ปิด active sessions เดิมทั้งหมดของ user ──
       await pool.execute(
         `UPDATE user_sessions 
-         SET session_status = 'forced_logout', logout_at = NOW()
+         SET session_status = 'logged_out', logout_at = NOW()
          WHERE user_id = ? AND session_status = 'active'`,
         [user.id]
       )

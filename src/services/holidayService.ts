@@ -8,10 +8,10 @@ import axios from 'axios'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
 
-// Helper to get token from sessionStorage (same as authStore)
+// Helper to get token from localStorage (matching authStore persist config)
 function getToken(): string | null {
     try {
-        const authStorage = sessionStorage.getItem('auth-storage')
+        const authStorage = localStorage.getItem('auth-storage')
         if (authStorage) {
             const parsed = JSON.parse(authStorage)
             return parsed?.state?.token || null

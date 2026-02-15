@@ -37,6 +37,10 @@ export interface RegistrationTask {
     // Payment fields
     payment_status: 'paid_full' | 'deposit' | 'free' | 'unpaid'
     deposit_amount: number | null
+    // Team status fields
+    team_status: string | null
+    team_status_name: string | null
+    team_status_color: string | null
     created_at: string
 }
 
@@ -79,6 +83,8 @@ export interface RegistrationTaskUpdateData {
     // Payment fields
     payment_status?: string | null
     deposit_amount?: number | null
+    // Team status
+    team_status?: string | null
 }
 
 export interface TaskComment {
@@ -162,4 +168,79 @@ export const registrationTaskService = {
     deleteComment: async (taskId: string, commentId: string): Promise<void> => {
         await api.delete(`/registration-tasks/${taskId}/comments/${commentId}`)
     },
+
+    // ============== Dashboard ==============
+
+    /**
+     * ดึงงานตาม payment status
+     */
+    getByPaymentStatus: async (paymentStatus: string): Promise<RegistrationTask[]> => {
+        const response = await api.get(`/registration-tasks?payment_status=${paymentStatus}&_t=${Date.now()}`)
+        return response.data.data?.tasks || []
+    },
+
+    /**
+     * ดึงข้อมูลสรุปสำหรับ Dashboard
+     */
+    getDashboardSummary: async (): Promise<DashboardSummary> => {
+        const response = await api.get(`/registration-tasks/dashboard-summary?_t=${Date.now()}`)
+        return response.data.data
+    },
 }
+
+// ================== Dashboard Types ==================
+
+export interface DeptStatusCount {
+    pending: number
+    in_progress: number
+    completed: number
+    total: number
+}
+
+export interface WorkloadItem {
+    name: string
+    total: number
+    completed: number
+    in_progress: number
+    pending: number
+    departments?: Record<string, { total: number; completed: number; in_progress: number; pending: number }>
+}
+
+export interface PaymentItem {
+    status: string
+    count: number
+}
+
+export interface RecentTask {
+    id: string
+    client_name: string
+    job_type: string
+    department: string
+    status: string
+    received_date: string
+}
+
+export interface DashboardSummary {
+    totals: {
+        all: number
+        pending: number
+        in_progress: number
+        completed: number
+        clients: number
+    }
+    byDepartment: Record<string, DeptStatusCount>
+    payment: PaymentItem[]
+    workload: WorkloadItem[]
+    recentTasks: RecentTask[]
+    messengerSummary: MessengerSummary
+}
+
+export interface MessengerSummary {
+    total_routes: number
+    completed_routes: number
+    active_routes: number
+    planned_routes: number
+    total_distance: number
+    pending_tasks: number
+}
+

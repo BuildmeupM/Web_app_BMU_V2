@@ -705,6 +705,188 @@ export default function ClientManagement() {
               </SimpleGrid>
             </Card>
 
+            {/* Incomplete Data Summary */}
+            {statisticsData?.incompleteData && (
+              statisticsData.incompleteData.basicInfo.count > 0 ||
+              statisticsData.incompleteData.taxInfo.count > 0 ||
+              statisticsData.incompleteData.address.count > 0
+            ) && (
+                <Card
+                  withBorder
+                  radius="xl"
+                  p="lg"
+                  style={{
+                    background: 'linear-gradient(135deg, #fff8f0 0%, #fff3e6 100%)',
+                    borderLeft: '4px solid #ff9800',
+                  }}
+                >
+                  <Group gap="sm" mb="md">
+                    <TbAlertCircle size={24} color="#ff9800" />
+                    <Text fw={700} size="lg" c="#e65100">
+                      บริษัทที่ยังกรอกข้อมูลไม่ครบ
+                    </Text>
+                  </Group>
+
+                  <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
+                    {/* Basic Info */}
+                    {statisticsData.incompleteData.basicInfo.count > 0 && (
+                      <Paper
+                        withBorder
+                        radius="lg"
+                        p="md"
+                        style={{
+                          borderTop: '3px solid #ff6b35',
+                          background: '#fff',
+                        }}
+                      >
+                        <Group gap="sm" mb="sm">
+                          <TbBuilding size={20} color="#ff6b35" />
+                          <Text fw={700} size="sm">ข้อมูลพื้นฐาน</Text>
+                          <Badge size="sm" color="orange" variant="filled" ml="auto">
+                            {statisticsData.incompleteData.basicInfo.count}
+                          </Badge>
+                        </Group>
+                        <Text size="xs" c="dimmed" mb="sm">
+                          วันจัดตั้ง, ประเภทธุรกิจ, ขนาดบริษัท
+                        </Text>
+                        <Divider mb="xs" />
+                        <Stack gap={4} style={{ maxHeight: 200, overflowY: 'auto' }}>
+                          {statisticsData.incompleteData.basicInfo.clients.map((c) => (
+                            <Paper
+                              key={c.build}
+                              p="xs"
+                              radius="sm"
+                              style={{
+                                cursor: 'pointer',
+                                transition: 'all 0.15s ease',
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = '#fff3e6'
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = 'transparent'
+                              }}
+                              onClick={() => setSelectedClient({ build: c.build } as Client)}
+                            >
+                              <Group gap="xs" wrap="nowrap">
+                                <Badge size="xs" variant="outline" color="orange" style={{ flexShrink: 0 }}>
+                                  {c.build}
+                                </Badge>
+                                <Text size="xs" lineClamp={1}>{c.company_name}</Text>
+                              </Group>
+                            </Paper>
+                          ))}
+                        </Stack>
+                      </Paper>
+                    )}
+
+                    {/* Tax Info */}
+                    {statisticsData.incompleteData.taxInfo.count > 0 && (
+                      <Paper
+                        withBorder
+                        radius="lg"
+                        p="md"
+                        style={{
+                          borderTop: '3px solid #e91e63',
+                          background: '#fff',
+                        }}
+                      >
+                        <Group gap="sm" mb="sm">
+                          <TbFileInvoice size={20} color="#e91e63" />
+                          <Text fw={700} size="sm">ข้อมูลภาษี</Text>
+                          <Badge size="sm" color="pink" variant="filled" ml="auto">
+                            {statisticsData.incompleteData.taxInfo.count}
+                          </Badge>
+                        </Group>
+                        <Text size="xs" c="dimmed" mb="sm">
+                          สถานะจดทะเบียนภาษี
+                        </Text>
+                        <Divider mb="xs" />
+                        <Stack gap={4} style={{ maxHeight: 200, overflowY: 'auto' }}>
+                          {statisticsData.incompleteData.taxInfo.clients.map((c) => (
+                            <Paper
+                              key={c.build}
+                              p="xs"
+                              radius="sm"
+                              style={{
+                                cursor: 'pointer',
+                                transition: 'all 0.15s ease',
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = '#fce4ec'
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = 'transparent'
+                              }}
+                              onClick={() => setSelectedClient({ build: c.build } as Client)}
+                            >
+                              <Group gap="xs" wrap="nowrap">
+                                <Badge size="xs" variant="outline" color="pink" style={{ flexShrink: 0 }}>
+                                  {c.build}
+                                </Badge>
+                                <Text size="xs" lineClamp={1}>{c.company_name}</Text>
+                              </Group>
+                            </Paper>
+                          ))}
+                        </Stack>
+                      </Paper>
+                    )}
+
+                    {/* Address */}
+                    {statisticsData.incompleteData.address.count > 0 && (
+                      <Paper
+                        withBorder
+                        radius="lg"
+                        p="md"
+                        style={{
+                          borderTop: '3px solid #7c3aed',
+                          background: '#fff',
+                        }}
+                      >
+                        <Group gap="sm" mb="sm">
+                          <TbBuilding size={20} color="#7c3aed" />
+                          <Text fw={700} size="sm">ที่อยู่บริษัท</Text>
+                          <Badge size="sm" color="grape" variant="filled" ml="auto">
+                            {statisticsData.incompleteData.address.count}
+                          </Badge>
+                        </Group>
+                        <Text size="xs" c="dimmed" mb="sm">
+                          จังหวัด, อำเภอ, ตำบล, รหัสไปรษณีย์
+                        </Text>
+                        <Divider mb="xs" />
+                        <Stack gap={4} style={{ maxHeight: 200, overflowY: 'auto' }}>
+                          {statisticsData.incompleteData.address.clients.map((c) => (
+                            <Paper
+                              key={c.build}
+                              p="xs"
+                              radius="sm"
+                              style={{
+                                cursor: 'pointer',
+                                transition: 'all 0.15s ease',
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = '#f3e8ff'
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = 'transparent'
+                              }}
+                              onClick={() => setSelectedClient({ build: c.build } as Client)}
+                            >
+                              <Group gap="xs" wrap="nowrap">
+                                <Badge size="xs" variant="outline" color="grape" style={{ flexShrink: 0 }}>
+                                  {c.build}
+                                </Badge>
+                                <Text size="xs" lineClamp={1}>{c.company_name}</Text>
+                              </Group>
+                            </Paper>
+                          ))}
+                        </Stack>
+                      </Paper>
+                    )}
+                  </SimpleGrid>
+                </Card>
+              )}
+
             {/* Search and Filters */}
             <Card withBorder radius="lg" p="md">
               <Group gap="md">

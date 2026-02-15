@@ -52,6 +52,12 @@ export const routePermissions: RoutePermission[] = [
     label: 'ข้อมูลลูกค้า',
     roles: ['admin', 'audit', 'registration'],
   },
+  // 7.1 Dashboard ลูกค้า - admin เท่านั้น
+  {
+    path: '/client-dashboard',
+    label: 'Dashboard ลูกค้า',
+    roles: ['admin'],
+  },
   // 8. จัดงานรายเดือน - admin, audit
   {
     path: '/work-assignment',
@@ -105,6 +111,18 @@ export const routePermissions: RoutePermission[] = [
     path: '/login-activity',
     label: 'ประวัติการเข้าสู่ระบบ',
     roles: ['admin'],
+  },
+  // 17. รายงานข้อผิดพลาด - admin, audit, data_entry_and_service, service
+  {
+    path: '/error-reports',
+    label: 'รายงานข้อผิดพลาด',
+    roles: ['admin', 'audit', 'data_entry_and_service', 'service'],
+  },
+  // 18. Dashboard งานบัญชี - admin, audit, data_entry_and_service, service
+  {
+    path: '/accounting-dashboard',
+    label: 'Dashboard งานบัญชี',
+    roles: ['admin', 'audit', 'data_entry_and_service', 'service'],
   },
 ]
 

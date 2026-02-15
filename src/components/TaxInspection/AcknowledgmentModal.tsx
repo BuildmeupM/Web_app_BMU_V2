@@ -8,7 +8,8 @@ import { useState, useEffect } from 'react'
 import { Modal, Text, TextInput, Button, Stack, Box, Grid, Group } from '@mantine/core'
 import {
   isAcknowledgmentKeyword,
-  ACKNOWLEDGMENT_SECTIONS,
+  getFilteredSections,
+  type AcknowledgmentFilter,
   type RecordWithAcknowledgmentFields,
 } from '../../utils/taxAcknowledgmentUtils'
 
@@ -23,6 +24,8 @@ interface AcknowledgmentModalProps {
   sectionsWithData: string[]
   /** ข้อมูล record เพื่อแสดงเนื้อหาการตอบกลับ/ความเห็น (ถ้ามี) */
   record?: RecordWithAcknowledgmentFields | null
+  /** filter เพื่อเลือกแสดงเฉพาะ section ที่เกี่ยวข้อง (default: 'all') */
+  filter?: AcknowledgmentFilter
   onConfirm: () => void
 }
 
@@ -31,12 +34,13 @@ export default function AcknowledgmentModal({
   onClose,
   sectionsWithData,
   record,
+  filter = 'all',
   onConfirm,
 }: AcknowledgmentModalProps) {
   const [inputValue, setInputValue] = useState('')
 
   const canConfirm = isAcknowledgmentKeyword(inputValue)
-  const sectionsWithContent = record ? ACKNOWLEDGMENT_SECTIONS : []
+  const sectionsWithContent = record ? getFilteredSections(filter) : []
 
   useEffect(() => {
     if (!opened) setInputValue('')

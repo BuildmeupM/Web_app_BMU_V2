@@ -8,6 +8,20 @@ export interface RegistrationClient {
     group_name: string
     line_api: string | null
     notes: string | null
+    // Address fields
+    full_address: string | null
+    address_number: string | null
+    village: string | null
+    building: string | null
+    room_number: string | null
+    floor_number: string | null
+    soi: string | null
+    moo: string | null
+    road: string | null
+    subdistrict: string | null
+    district: string | null
+    province: string | null
+    postal_code: string | null
     is_active: boolean
     created_at?: string
     updated_at?: string
@@ -20,6 +34,20 @@ export interface RegistrationClientCreateData {
     group_name: string
     line_api?: string
     notes?: string
+    // Address fields
+    full_address?: string
+    address_number?: string
+    village?: string
+    building?: string
+    room_number?: string
+    floor_number?: string
+    soi?: string
+    moo?: string
+    road?: string
+    subdistrict?: string
+    district?: string
+    province?: string
+    postal_code?: string
 }
 
 export interface RegistrationClientListResponse {
@@ -65,5 +93,16 @@ export const registrationClientService = {
      */
     delete: async (id: string): Promise<void> => {
         await api.delete(`/registration-clients/${id}`)
+    },
+
+    /**
+     * ค้นหาลูกค้าจากระบบหลัก (clients table) — lightweight dropdown
+     * ใช้ GET /api/clients/dropdown?search=xxx&limit=20
+     * คืนค่าเฉพาะ build + company_name เพื่อประสิทธิภาพ
+     */
+    searchMainClients: async (search: string): Promise<{ build: string; company_name: string }[]> => {
+        if (!search || search.trim().length < 2) return []
+        const response = await api.get(`/clients/dropdown?search=${encodeURIComponent(search.trim())}&limit=20`)
+        return response.data.data || []
     },
 }

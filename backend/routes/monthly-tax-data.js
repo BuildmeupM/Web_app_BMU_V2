@@ -15,33 +15,41 @@ import { emitMonthlyTaxDataUpdate } from '../services/socketService.js'
 const router = express.Router()
 
 /**
- * Helper function: Format date for API response as 'YYYY-MM-DD HH:mm:ss' (แสดงตามที่เก็บในฐานข้อมูล)
- * ⚠️ สำคัญ: ส่งข้อมูลตามที่เก็บในฐานข้อมูลเลยโดยไม่แปลง timezone หรือบวก offset
+ * Helper function: Format date for API response as 'YYYY-MM-DD HH:mm:ss' (เวลา Bangkok UTC+7)
+ * ✅ สำคัญ: ใช้ UTC methods + offset +7 เพื่อให้ทำงานถูกต้องทั้ง local (Bangkok) และ cloud (UTC)
  * @param {string|Date|null} dateValue - Date value from database
  * @param {string} fieldName - Optional field name for debugging
- * @returns {string|null} String in format 'YYYY-MM-DD HH:mm:ss' or null
+ * @returns {string|null} String in format 'YYYY-MM-DD HH:mm:ss' (Bangkok time) or null
  */
+const BANGKOK_OFFSET_MS = 7 * 60 * 60 * 1000 // UTC+7 in milliseconds
+
 function formatDateForResponse(dateValue, fieldName = '') {
   if (!dateValue) return null
 
-  // ถ้าเป็น Date object ให้แปลงเป็น 'YYYY-MM-DD HH:mm:ss' โดยใช้ local methods
-  // ⚠️ สำคัญ: MySQL ส่งข้อมูลมาเป็น Date object ที่เป็น local time ตามที่เก็บในฐานข้อมูล
-  // (เพราะ connection ไม่ได้ตั้งค่า timezone เป็น UTC แล้ว)
+  /**
+   * Helper: แปลง Date object → 'YYYY-MM-DD HH:mm:ss' ในเวลา Bangkok (UTC+7)
+   * ✅ ใช้ getUTC* methods + offset เพื่อไม่ขึ้นกับ OS timezone
+   */
+  function dateToString(d) {
+    // Shift epoch by +7 hours แล้วใช้ UTC methods → ได้เวลา Bangkok เสมอ
+    const shifted = new Date(d.getTime() + BANGKOK_OFFSET_MS)
+    const year = shifted.getUTCFullYear()
+    const month = String(shifted.getUTCMonth() + 1).padStart(2, '0')
+    const day = String(shifted.getUTCDate()).padStart(2, '0')
+    const hours = String(shifted.getUTCHours()).padStart(2, '0')
+    const minutes = String(shifted.getUTCMinutes()).padStart(2, '0')
+    const seconds = String(shifted.getUTCSeconds()).padStart(2, '0')
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
+  }
+
+  // ถ้าเป็น Date object ให้แปลงเป็น Bangkok time string
   if (dateValue instanceof Date) {
-    // ใช้ local methods เพื่อแสดงตามที่เก็บในฐานข้อมูล (ไม่แปลง timezone)
-    const year = dateValue.getFullYear()
-    const month = String(dateValue.getMonth() + 1).padStart(2, '0')
-    const day = String(dateValue.getDate()).padStart(2, '0')
-    const hours = String(dateValue.getHours()).padStart(2, '0')
-    const minutes = String(dateValue.getMinutes()).padStart(2, '0')
-    const seconds = String(dateValue.getSeconds()).padStart(2, '0')
-    const result = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
-    // 🔍 Debug: Log การแปลง Date object (เฉพาะใน development)
+    const result = dateToString(dateValue)
     if (process.env.NODE_ENV === 'development' && fieldName) {
-      console.log(`[formatDateForResponse] ${fieldName}: Date object -> string (local):`, {
+      console.log(`[formatDateForResponse] ${fieldName}: Date object -> string (Bangkok):`, {
         original: dateValue.toISOString(),
         result: result,
-        type: 'Date object (using local methods)'
+        type: 'Date object (using UTC+7 offset)'
       })
     }
     return result
@@ -51,10 +59,8 @@ function formatDateForResponse(dateValue, fieldName = '') {
   if (typeof dateValue === 'string') {
     const s = dateValue.trim()
 
-    // ถ้าเป็น ISO format (มี 'T' หรือ 'Z') ให้แปลงเป็น 'YYYY-MM-DD HH:mm:ss' โดยใช้ local methods
-    // ⚠️ สำคัญ: ใช้ local methods เพื่อแสดงตามที่เก็บในฐานข้อมูล (ไม่แปลง timezone)
+    // ถ้าเป็น ISO format (มี 'T' หรือ 'Z') ให้แปลงเป็น Bangkok time string
     if (s.includes('T')) {
-      // Parse ISO string
       const dateObj = new Date(s)
       if (isNaN(dateObj.getTime())) {
         if (process.env.NODE_ENV === 'development' && fieldName) {
@@ -62,30 +68,20 @@ function formatDateForResponse(dateValue, fieldName = '') {
         }
         return null
       }
-      // ใช้ local methods เพื่อแสดงตามที่เก็บในฐานข้อมูล (ไม่แปลง timezone)
-      const year = dateObj.getFullYear()
-      const month = String(dateObj.getMonth() + 1).padStart(2, '0')
-      const day = String(dateObj.getDate()).padStart(2, '0')
-      const hours = String(dateObj.getHours()).padStart(2, '0')
-      const minutes = String(dateObj.getMinutes()).padStart(2, '0')
-      const seconds = String(dateObj.getSeconds()).padStart(2, '0')
-      const result = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
-      // 🔍 Debug: Log การแปลง ISO string (เฉพาะใน development)
+      const result = dateToString(dateObj)
       if (process.env.NODE_ENV === 'development' && fieldName) {
-        console.log(`[formatDateForResponse] ${fieldName}: ISO string -> string (local):`, {
+        console.log(`[formatDateForResponse] ${fieldName}: ISO string -> string (Bangkok):`, {
           original: s,
           result: result,
-          type: 'ISO string (using local methods)'
+          type: 'ISO string (using UTC+7 offset)'
         })
       }
       return result
     }
 
-    // ถ้าเป็น format 'YYYY-MM-DD HH:mm:ss' อยู่แล้ว ให้คืนค่าเดิม
+    // ถ้าเป็น format 'YYYY-MM-DD HH:mm:ss' อยู่แล้ว ให้คืนค่าเดิม (ตัด milliseconds ออก)
     if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(\.\d+)?$/.test(s)) {
-      // ตัด milliseconds ออกถ้ามี
       const result = s.split('.')[0]
-      // 🔍 Debug: Log การคืนค่าเดิม (เฉพาะใน development)
       if (process.env.NODE_ENV === 'development' && fieldName) {
         console.log(`[formatDateForResponse] ${fieldName}: String (already correct format):`, {
           original: s,
@@ -2173,9 +2169,17 @@ router.put('/:id', authenticateToken, async (req, res) => {
                 sourcePage,
               })
             } else {
-              // สำหรับหน้ายื่นภาษี (taxFiling): Clear pp30_sent_to_customer_date เพราะสถานะ "ร่างแบบเสร็จแล้ว" มาก่อน "ส่งลูกค้าแล้ว"
-              if (pp30_sent_to_customer_date === null || pp30_sent_to_customer_date === undefined) {
-                computedPp30SentToCustomerDate = null
+              // ✅ FIX: สำหรับหน้ายื่นภาษี (taxFiling): preserve ค่าเดิมจากฐานข้อมูลเมื่อสถานะเป็น "ร่างแบบเสร็จแล้ว"
+              // ไม่ควร clear pp30_sent_to_customer_date เพราะอาจมีการส่งลูกค้าไปแล้วก่อนหน้า
+              // ใช้ pattern เดียวกับ taxStatus: ถ้า frontend ไม่ส่ง field มา (undefined) ให้ใช้ค่าเดิมจากฐานข้อมูล
+              if (pp30_sent_for_review_date === undefined) {
+                computedPp30SentForReviewDate = undefined // จะใช้ค่าเดิมจากฐานข้อมูลในส่วน actualParams
+              }
+              if (pp30_review_returned_date === undefined) {
+                computedPp30ReviewReturnedDate = undefined // จะใช้ค่าเดิมจากฐานข้อมูลในส่วน actualParams
+              }
+              if (pp30_sent_to_customer_date === undefined) {
+                computedPp30SentToCustomerDate = undefined // จะใช้ค่าเดิมจากฐานข้อมูลในส่วน actualParams
               }
             }
             console.log('✅ [Backend] Set vat_draft_completed_date for "draft_completed" (taxFiling/taxStatus):', {

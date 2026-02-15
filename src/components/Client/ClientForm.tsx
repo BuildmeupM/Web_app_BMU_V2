@@ -21,8 +21,9 @@ import {
 import { DateInput, DateValue } from '@mantine/dates'
 import { useForm } from '@mantine/form'
 import { notifications } from '@mantine/notifications'
-import { TbAlertCircle } from 'react-icons/tb'
+import { TbAlertCircle, TbWand } from 'react-icons/tb'
 import { Client } from '../../services/clientsService'
+import { parseThaiAddress } from '../../utils/addressParser'
 
 interface ClientFormProps {
   opened: boolean
@@ -448,13 +449,55 @@ export default function ClientForm({
                 <Stack gap="md">
                   <Textarea
                     label="ที่อยู่รวม"
-                    placeholder="กรอกที่อยู่รวมทั้งหมด"
+                    placeholder="กรอกที่อยู่รวมทั้งหมด เช่น เลขที่ 633 ซอย อ่อนนุช30 หมู่ ถนน แขวง/ตำบล อ่อนนุช อำเภอ/เขต สวนหลวง จังหวัด กรุงเทพมหานคร รหัสไปรษณีย์ 20180"
                     minRows={3}
                     {...form.getInputProps('full_address')}
                   />
-                  <Text size="sm" c="dimmed" ta="center">
-                    หรือกรอกรายละเอียดแยกฟิลด์ด้านล่าง
-                  </Text>
+                  <Group justify="center" gap="sm">
+                    <Button
+                      variant="light"
+                      color="orange"
+                      size="sm"
+                      leftSection={<TbWand size={16} />}
+                      onClick={() => {
+                        const fullAddr = form.values.full_address?.trim()
+                        if (!fullAddr) {
+                          notifications.show({
+                            title: 'ไม่มีที่อยู่รวม',
+                            message: 'กรุณากรอกที่อยู่รวมก่อนกดแยกอัตโนมัติ',
+                            color: 'yellow',
+                          })
+                          return
+                        }
+                        const parsed = parseThaiAddress(fullAddr)
+                        form.setValues({
+                          ...form.values,
+                          village: parsed.village || form.values.village,
+                          building: parsed.building || form.values.building,
+                          room_number: parsed.room_number || form.values.room_number,
+                          floor_number: parsed.floor_number || form.values.floor_number,
+                          address_number: parsed.address_number || form.values.address_number,
+                          soi: parsed.soi || form.values.soi,
+                          moo: parsed.moo || form.values.moo,
+                          road: parsed.road || form.values.road,
+                          subdistrict: parsed.subdistrict || form.values.subdistrict,
+                          district: parsed.district || form.values.district,
+                          province: parsed.province || form.values.province,
+                          postal_code: parsed.postal_code || form.values.postal_code,
+                        })
+                        notifications.show({
+                          title: 'แยกที่อยู่สำเร็จ',
+                          message: 'ระบบแยกที่อยู่รวมเป็นฟิลด์ย่อยเรียบร้อยแล้ว กรุณาตรวจสอบความถูกต้อง',
+                          color: 'green',
+                        })
+                      }}
+                    >
+                      แยกที่อยู่อัตโนมัติ
+                    </Button>
+                    <Text size="xs" c="dimmed">
+                      หรือกรอกรายละเอียดแยกฟิลด์ด้านล่าง
+                    </Text>
+                  </Group>
                   <Grid>
                     <Grid.Col span={{ base: 12, sm: 6 }}>
                       <TextInput label="หมู่บ้าน" placeholder="กรอกหมู่บ้าน" {...form.getInputProps('village')} />
@@ -497,53 +540,51 @@ export default function ClientForm({
               </Accordion.Panel>
             </Accordion.Item>
 
-            {/* ========== 4. ค่าทำบัญชี / ค่าบริการ HR (เฉพาะเพิ่มใหม่) ========== */}
-            {mode === 'create' && (
-              <Accordion.Item value="fees">
-                <Accordion.Control>ค่าทำบัญชี / ค่าบริการ HR</Accordion.Control>
-                <Accordion.Panel>
-                  <Stack gap="md">
-                    <Grid>
-                      <Grid.Col span={{ base: 12, sm: 4 }}>
-                        <TextInput
-                          label="Peak Code"
-                          placeholder="กรอก Peak Code"
-                          withAsterisk
-                          {...form.getInputProps('peak_code')}
-                        />
-                      </Grid.Col>
-                      <Grid.Col span={{ base: 12, sm: 4 }}>
-                        <DateInput
-                          label="วันเริ่มทำบัญชี"
-                          placeholder="เลือกวันที่"
-                          valueFormat="DD/MM/YYYY"
-                          withAsterisk
-                          {...form.getInputProps('accounting_start_date')}
-                        />
-                      </Grid.Col>
-                      <Grid.Col span={{ base: 12, sm: 4 }}>
-                        <DateInput
-                          label="วันสิ้นสุดทำบัญชี"
-                          placeholder="เลือกวันที่"
-                          valueFormat="DD/MM/YYYY"
-                          {...form.getInputProps('accounting_end_date')}
-                        />
-                      </Grid.Col>
-                      <Grid.Col span={12}>
-                        <TextInput
-                          label="เหตุผลสิ้นสุด"
-                          placeholder="กรอกเหตุผล (ถ้ามี)"
-                          {...form.getInputProps('accounting_end_reason')}
-                        />
-                      </Grid.Col>
-                    </Grid>
-                    <Text size="xs" c="dimmed" ta="center" fs="italic">
-                      * ค่าทำบัญชีรายเดือนและ Line Chat/Billing สามารถเพิ่มได้ในหน้ารายละเอียดลูกค้า
-                    </Text>
-                  </Stack>
-                </Accordion.Panel>
-              </Accordion.Item>
-            )}
+            {/* ========== 4. ค่าทำบัญชี / ค่าบริการ HR ========== */}
+            <Accordion.Item value="fees">
+              <Accordion.Control>ค่าทำบัญชี / ค่าบริการ HR</Accordion.Control>
+              <Accordion.Panel>
+                <Stack gap="md">
+                  <Grid>
+                    <Grid.Col span={{ base: 12, sm: 4 }}>
+                      <TextInput
+                        label="Peak Code"
+                        placeholder="กรอก Peak Code"
+                        withAsterisk
+                        {...form.getInputProps('peak_code')}
+                      />
+                    </Grid.Col>
+                    <Grid.Col span={{ base: 12, sm: 4 }}>
+                      <DateInput
+                        label="วันเริ่มทำบัญชี"
+                        placeholder="เลือกวันที่"
+                        valueFormat="DD/MM/YYYY"
+                        withAsterisk
+                        {...form.getInputProps('accounting_start_date')}
+                      />
+                    </Grid.Col>
+                    <Grid.Col span={{ base: 12, sm: 4 }}>
+                      <DateInput
+                        label="วันสิ้นสุดทำบัญชี"
+                        placeholder="เลือกวันที่"
+                        valueFormat="DD/MM/YYYY"
+                        {...form.getInputProps('accounting_end_date')}
+                      />
+                    </Grid.Col>
+                    <Grid.Col span={12}>
+                      <TextInput
+                        label="เหตุผลสิ้นสุด"
+                        placeholder="กรอกเหตุผล (ถ้ามี)"
+                        {...form.getInputProps('accounting_end_reason')}
+                      />
+                    </Grid.Col>
+                  </Grid>
+                  <Text size="xs" c="dimmed" ta="center" fs="italic">
+                    * ค่าทำบัญชีรายเดือนและ Line Chat/Billing สามารถเพิ่มได้ในหน้ารายละเอียดลูกค้า
+                  </Text>
+                </Stack>
+              </Accordion.Panel>
+            </Accordion.Item>
 
             {/* ========== 5. ข้อมูล BOI ========== */}
             <Accordion.Item value="boi">

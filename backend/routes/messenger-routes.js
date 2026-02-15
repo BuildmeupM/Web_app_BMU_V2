@@ -119,10 +119,15 @@ router.post('/', authenticateToken, authorize('admin', 'registration'), async (r
             totalDistance = stops.reduce((sum, s) => sum + (parseFloat(s.distance_km) || 0), 0)
         }
 
+        // Save linked_task_ids for later status sync
+        const { linked_task_ids } = req.body
+        const linkedIdsJson = (linked_task_ids && Array.isArray(linked_task_ids) && linked_task_ids.length > 0)
+            ? JSON.stringify(linked_task_ids) : null
+
         await connection.execute(
-            `INSERT INTO messenger_routes (id, route_date, start_location, start_lat, start_lng, total_distance, notes, created_by)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-            [routeId, route_date, start_location || 'สำนักงาน', start_lat || null, start_lng || null, totalDistance, notes || null, req.user?.id || null]
+            `INSERT INTO messenger_routes (id, route_date, start_location, start_lat, start_lng, total_distance, notes, linked_task_ids, created_by)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [routeId, route_date, start_location || 'สำนักงาน', start_lat || null, start_lng || null, totalDistance, notes || null, linkedIdsJson, req.user?.id || null]
         )
 
         // Insert stops
@@ -167,6 +172,15 @@ router.post('/', authenticateToken, authorize('admin', 'registration'), async (r
                     ]
                 )
             }
+        }
+
+        // Update linked registration_tasks → messenger_status = 'scheduled'
+        if (linked_task_ids && Array.isArray(linked_task_ids) && linked_task_ids.length > 0) {
+            const placeholders = linked_task_ids.map(() => '?').join(',')
+            await connection.execute(
+                `UPDATE registration_tasks SET messenger_status = 'scheduled' WHERE id IN (${placeholders})`,
+                linked_task_ids
+            )
         }
 
         await connection.commit()
@@ -221,6 +235,25 @@ router.put('/:id', authenticateToken, authorize('admin', 'registration'), async 
             params
         )
 
+        // Sync linked tasks' messenger_status when route status changes
+        if (status !== undefined) {
+            const [routeRows] = await pool.execute('SELECT linked_task_ids FROM messenger_routes WHERE id = ?', [id])
+            if (routeRows.length > 0 && routeRows[0].linked_task_ids) {
+                let taskIds = routeRows[0].linked_task_ids
+                if (typeof taskIds === 'string') taskIds = JSON.parse(taskIds)
+                if (Array.isArray(taskIds) && taskIds.length > 0) {
+                    const placeholders = taskIds.map(() => '?').join(',')
+                    let taskStatus = 'pending'
+                    if (status === 'completed') taskStatus = 'completed'
+                    else if (status === 'in_progress' || status === 'planned') taskStatus = 'scheduled'
+                    await pool.execute(
+                        `UPDATE registration_tasks SET messenger_status = ? WHERE id IN (${placeholders})`,
+                        [taskStatus, ...taskIds]
+                    )
+                }
+            }
+        }
+
         const [updated] = await pool.execute('SELECT * FROM messenger_routes WHERE id = ?', [id])
         res.json({ success: true, data: { route: updated[0] } })
     } catch (error) {
@@ -229,10 +262,26 @@ router.put('/:id', authenticateToken, authorize('admin', 'registration'), async 
     }
 })
 
-// DELETE /api/messenger-routes/:id — soft delete
+// DELETE /api/messenger-routes/:id — soft delete + reset linked tasks
 router.delete('/:id', authenticateToken, authorize('admin', 'registration'), async (req, res) => {
     try {
         const { id } = req.params
+
+        // Reset linked tasks' messenger_status back to 'pending'
+        const [routeRows] = await pool.execute('SELECT linked_task_ids FROM messenger_routes WHERE id = ? AND deleted_at IS NULL', [id])
+        if (routeRows.length > 0 && routeRows[0].linked_task_ids) {
+            let taskIds = routeRows[0].linked_task_ids
+            if (typeof taskIds === 'string') taskIds = JSON.parse(taskIds)
+            if (Array.isArray(taskIds) && taskIds.length > 0) {
+                const placeholders = taskIds.map(() => '?').join(',')
+                await pool.execute(
+                    `UPDATE registration_tasks SET messenger_status = 'pending' WHERE id IN (${placeholders})`,
+                    taskIds
+                )
+            }
+        }
+
+        // Soft delete the route
         await pool.execute(
             'UPDATE messenger_routes SET deleted_at = NOW() WHERE id = ? AND deleted_at IS NULL',
             [id]

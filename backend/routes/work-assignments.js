@@ -2008,4 +2008,383 @@ router.post(
   }
 )
 
+/**
+ * POST /api/work-assignments/:id/change-responsible
+ * เปลี่ยนผู้รับผิดชอบงาน (พร้อมเก็บประวัติ)
+ * อัปเดตทั้ง work_assignments และ monthly_tax_data ใน transaction เดียว
+ * Access: Admin only
+ * 
+ * Request Body:
+ * {
+ *   role_type: 'accounting' | 'tax_inspection' | 'wht_filer' | 'vat_filer' | 'document_entry',
+ *   new_employee_id: string,
+ *   change_reason?: string
+ * }
+ */
+router.post('/:id/change-responsible', authenticateToken, authorize('admin'), async (req, res) => {
+  const connection = await pool.getConnection()
+
+  try {
+    const { id } = req.params
+    const { role_type, new_employee_id, change_reason } = req.body
+
+    // Validation
+    const validRoleTypes = ['accounting', 'tax_inspection', 'wht_filer', 'vat_filer', 'document_entry']
+    if (!role_type || !validRoleTypes.includes(role_type)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid role_type. Must be one of: ${validRoleTypes.join(', ')}`,
+      })
+    }
+
+    if (!new_employee_id || (typeof new_employee_id === 'string' && new_employee_id.trim() === '')) {
+      return res.status(400).json({
+        success: false,
+        message: 'new_employee_id is required',
+      })
+    }
+
+    // 1. Check if the work assignment exists
+    const [assignmentRows] = await connection.execute(
+      `SELECT wa.*, c.company_name
+       FROM work_assignments wa
+       LEFT JOIN clients c ON wa.build = c.build
+       WHERE wa.id = ? AND wa.deleted_at IS NULL`,
+      [id]
+    )
+
+    if (assignmentRows.length === 0) {
+      connection.release()
+      return res.status(404).json({
+        success: false,
+        message: 'Work assignment not found',
+      })
+    }
+
+    const assignment = assignmentRows[0]
+
+    // 2. Validate new_employee_id exists in employees table
+    const [empRows] = await connection.execute(
+      'SELECT employee_id, full_name, nick_name FROM employees WHERE employee_id = ?',
+      [new_employee_id.trim()]
+    )
+
+    if (empRows.length === 0) {
+      connection.release()
+      return res.status(400).json({
+        success: false,
+        message: `ไม่พบพนักงาน employee_id: ${new_employee_id}`,
+      })
+    }
+
+    const newEmployee = empRows[0]
+
+    // 3. Map role_type to field names
+    // ⚠️ Field names differ between work_assignments and monthly_tax_data
+    const fieldMapping = {
+      accounting: {
+        wa_main: 'accounting_responsible',
+        wa_current: 'current_accounting_responsible',
+        mtd_main: 'accounting_responsible',
+        mtd_current: 'current_accounting_responsible',
+      },
+      tax_inspection: {
+        wa_main: 'tax_inspection_responsible',
+        wa_current: 'current_tax_inspection_responsible',
+        mtd_main: 'tax_inspection_responsible',
+        mtd_current: 'current_tax_inspection_responsible',
+      },
+      wht_filer: {
+        wa_main: 'wht_filer_responsible',
+        wa_current: 'current_wht_filer_responsible',
+        mtd_main: 'wht_filer_employee_id',
+        mtd_current: 'wht_filer_current_employee_id',
+      },
+      vat_filer: {
+        wa_main: 'vat_filer_responsible',
+        wa_current: 'current_vat_filer_responsible',
+        mtd_main: 'vat_filer_employee_id',
+        mtd_current: 'vat_filer_current_employee_id',
+      },
+      document_entry: {
+        wa_main: 'document_entry_responsible',
+        wa_current: 'current_document_entry_responsible',
+        mtd_main: 'document_entry_responsible',
+        mtd_current: 'current_document_entry_responsible',
+      },
+    }
+
+    const fields = fieldMapping[role_type]
+    const previousEmployeeId = assignment[fields.wa_main] || null
+
+    // 4. Check if new employee is the same as current
+    if (previousEmployeeId === new_employee_id.trim()) {
+      connection.release()
+      return res.status(400).json({
+        success: false,
+        message: 'ผู้รับผิดชอบใหม่เป็นคนเดียวกับผู้รับผิดชอบปัจจุบัน',
+      })
+    }
+
+    // 5. Begin transaction
+    await connection.beginTransaction()
+
+    // 6. Insert change history record
+    const historyId = generateUUID()
+    await connection.execute(
+      `INSERT INTO responsibility_change_history (
+        id, work_assignment_id, build, assignment_year, assignment_month,
+        role_type, previous_employee_id, new_employee_id,
+        changed_by, change_reason, changed_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+      [
+        historyId,
+        id,
+        assignment.build,
+        assignment.assignment_year,
+        assignment.assignment_month,
+        role_type,
+        previousEmployeeId,
+        new_employee_id.trim(),
+        req.user.id,
+        change_reason || null,
+      ]
+    )
+
+    // 7. Update work_assignments: set main field and current field
+    // original_* is NOT changed (preserves the original assignment)
+    await connection.execute(
+      `UPDATE work_assignments 
+       SET ${fields.wa_main} = ?, ${fields.wa_current} = ?, updated_at = NOW()
+       WHERE id = ?`,
+      [new_employee_id.trim(), new_employee_id.trim(), id]
+    )
+
+    // 8. Update monthly_tax_data: sync the same change
+    await connection.execute(
+      `UPDATE monthly_tax_data 
+       SET ${fields.mtd_main} = ?, ${fields.mtd_current} = ?, updated_at = NOW()
+       WHERE build = ? AND tax_year = ? AND tax_month = ? AND deleted_at IS NULL`,
+      [
+        new_employee_id.trim(),
+        new_employee_id.trim(),
+        assignment.build,
+        assignment.assignment_year,
+        assignment.assignment_month,
+      ]
+    )
+
+    // 9. Commit transaction
+    await connection.commit()
+
+    // 10. Invalidate cache
+    invalidateCache('GET:/api/work-assignments')
+
+    // 11. Get previous employee name for response
+    let previousEmployeeName = null
+    if (previousEmployeeId) {
+      const [prevEmpRows] = await pool.execute(
+        'SELECT full_name, nick_name FROM employees WHERE employee_id = ?',
+        [previousEmployeeId]
+      )
+      if (prevEmpRows.length > 0) {
+        const prevEmp = prevEmpRows[0]
+        const firstName = prevEmp.full_name ? prevEmp.full_name.split(' ')[0] : ''
+        previousEmployeeName = prevEmp.nick_name ? `${firstName}(${prevEmp.nick_name})` : firstName
+      }
+    }
+
+    const newFirstName = newEmployee.full_name ? newEmployee.full_name.split(' ')[0] : ''
+    const newEmployeeName = newEmployee.nick_name ? `${newFirstName}(${newEmployee.nick_name})` : newFirstName
+
+    const roleLabels = {
+      accounting: 'ผู้รับผิดชอบทำบัญชี',
+      tax_inspection: 'ผู้ตรวจภาษี',
+      wht_filer: 'ผู้ยื่น WHT',
+      vat_filer: 'ผู้ยื่น VAT',
+      document_entry: 'ผู้รับผิดชอบคีย์เอกสาร',
+    }
+
+    console.log(`[ResponsibilityChange] Build: ${assignment.build}, Role: ${role_type}, ${previousEmployeeId || 'none'} → ${new_employee_id.trim()}, By: ${req.user.id}`)
+
+    res.json({
+      success: true,
+      message: `เปลี่ยน${roleLabels[role_type]}สำเร็จ`,
+      data: {
+        history_id: historyId,
+        build: assignment.build,
+        company_name: assignment.company_name,
+        role_type,
+        role_label: roleLabels[role_type],
+        previous_employee_id: previousEmployeeId,
+        previous_employee_name: previousEmployeeName || '-',
+        new_employee_id: new_employee_id.trim(),
+        new_employee_name: newEmployeeName,
+        change_reason: change_reason || null,
+      },
+    })
+  } catch (error) {
+    await connection.rollback()
+    console.error('Change responsible error:', error)
+    res.status(500).json({
+      success: false,
+      message: 'เกิดข้อผิดพลาดในการเปลี่ยนผู้รับผิดชอบ',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+    })
+  } finally {
+    connection.release()
+  }
+})
+
+/**
+ * GET /api/work-assignments/:id/change-history
+ * ดึงประวัติการเปลี่ยนผู้รับผิดชอบของ work assignment
+ * Access: All authenticated users
+ */
+router.get('/:id/change-history', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params
+
+    // Check if work assignment exists
+    const [assignmentRows] = await pool.execute(
+      'SELECT id, build, assignment_year, assignment_month FROM work_assignments WHERE id = ? AND deleted_at IS NULL',
+      [id]
+    )
+
+    if (assignmentRows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Work assignment not found',
+      })
+    }
+
+    // Get change history with employee names
+    const [history] = await pool.execute(
+      `SELECT 
+        rch.id,
+        rch.role_type,
+        rch.previous_employee_id,
+        CASE WHEN prev_emp.nick_name IS NOT NULL 
+          THEN CONCAT(SUBSTRING_INDEX(prev_emp.full_name, ' ', 1), '(', prev_emp.nick_name, ')') 
+          ELSE SUBSTRING_INDEX(prev_emp.full_name, ' ', 1) 
+        END as previous_employee_name,
+        rch.new_employee_id,
+        CASE WHEN new_emp.nick_name IS NOT NULL 
+          THEN CONCAT(SUBSTRING_INDEX(new_emp.full_name, ' ', 1), '(', new_emp.nick_name, ')') 
+          ELSE SUBSTRING_INDEX(new_emp.full_name, ' ', 1) 
+        END as new_employee_name,
+        rch.changed_by,
+        u.name as changed_by_name,
+        rch.change_reason,
+        rch.changed_at
+      FROM responsibility_change_history rch
+      LEFT JOIN employees prev_emp ON rch.previous_employee_id = prev_emp.employee_id
+      LEFT JOIN employees new_emp ON rch.new_employee_id = new_emp.employee_id
+      LEFT JOIN users u ON rch.changed_by = u.id
+      WHERE rch.work_assignment_id = ?
+      ORDER BY rch.changed_at DESC`,
+      [id]
+    )
+
+    // Format dates
+    const formattedHistory = history.map((item) => ({
+      ...item,
+      changed_at: formatDateForResponse(item.changed_at),
+    }))
+
+    res.json({
+      success: true,
+      data: formattedHistory,
+    })
+  } catch (error) {
+    console.error('Get change history error:', error)
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+    })
+  }
+})
+
+/**
+ * DELETE /api/work-assignments/:id
+ * ลบการจัดงาน (soft delete)
+ * Soft-delete work_assignments, monthly_tax_data, document_entry_work ที่เกี่ยวข้อง
+ * Access: Admin only
+ */
+router.delete('/:id', authenticateToken, authorize('admin'), async (req, res) => {
+  const connection = await pool.getConnection()
+  try {
+    const { id } = req.params
+
+    // 1. Check if work assignment exists
+    const [assignmentRows] = await connection.execute(
+      'SELECT id, build, assignment_year, assignment_month FROM work_assignments WHERE id = ? AND deleted_at IS NULL',
+      [id]
+    )
+
+    if (assignmentRows.length === 0) {
+      connection.release()
+      return res.status(404).json({
+        success: false,
+        message: 'ไม่พบการจัดงานนี้ หรือถูกลบไปแล้ว',
+      })
+    }
+
+    const assignment = assignmentRows[0]
+
+    await connection.beginTransaction()
+
+    // 2. Soft delete work_assignments
+    await connection.execute(
+      'UPDATE work_assignments SET deleted_at = NOW(), is_active = FALSE WHERE id = ?',
+      [id]
+    )
+
+    // 3. Soft delete related monthly_tax_data
+    await connection.execute(
+      `UPDATE monthly_tax_data 
+       SET deleted_at = NOW() 
+       WHERE build = ? AND tax_year = ? AND tax_month = ? AND deleted_at IS NULL`,
+      [assignment.build, assignment.assignment_year, assignment.assignment_month]
+    )
+
+    // 4. Soft delete related document_entry_work
+    await connection.execute(
+      `UPDATE document_entry_work 
+       SET deleted_at = NOW() 
+       WHERE build = ? AND work_year = ? AND work_month = ? AND deleted_at IS NULL`,
+      [assignment.build, assignment.assignment_year, assignment.assignment_month]
+    )
+
+    await connection.commit()
+
+    // Invalidate caches
+    invalidateCache('GET:/api/work-assignments')
+    invalidateCache('GET:/api/monthly-tax-data')
+    invalidateCache('GET:/api/document-entry-work')
+
+    res.json({
+      success: true,
+      message: `ลบการจัดงาน ${assignment.build} เดือน ${assignment.assignment_month}/${assignment.assignment_year} สำเร็จ`,
+      data: {
+        id: assignment.id,
+        build: assignment.build,
+        assignment_year: assignment.assignment_year,
+        assignment_month: assignment.assignment_month,
+      },
+    })
+  } catch (error) {
+    await connection.rollback()
+    console.error('Delete work assignment error:', error)
+    res.status(500).json({
+      success: false,
+      message: 'เกิดข้อผิดพลาดในการลบการจัดงาน',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+    })
+  } finally {
+    connection.release()
+  }
+})
+
 export default router

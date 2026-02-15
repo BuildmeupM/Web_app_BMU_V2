@@ -26,7 +26,7 @@ import {
 } from '../../services/registrationTaskService'
 import { getLocations } from '../../services/messengerRouteService'
 import type { RegistrationClient } from '../../services/registrationClientService'
-import type { WorkType } from '../../services/registrationWorkService'
+import { type WorkType, type TeamStatus, getTeamStatuses } from '../../services/registrationWorkService'
 import { notifications } from '@mantine/notifications'
 import usersService from '../../services/usersService'
 
@@ -79,6 +79,8 @@ export default function TaskDetailDrawer({
     // Payment state
     const [paymentStatus, setPaymentStatus] = useState<string>('unpaid')
     const [depositAmount, setDepositAmount] = useState<number | string>('')
+    // Team status state
+    const [teamStatus, setTeamStatus] = useState<string | null>(null)
 
     // Comment color state
     const [myCommentColor, setMyCommentColor] = useState('#2196F3')
@@ -109,6 +111,8 @@ export default function TaskDetailDrawer({
         // Sync payment
         setPaymentStatus(task.payment_status || 'unpaid')
         setDepositAmount(task.deposit_amount ?? '')
+        // Sync team status
+        setTeamStatus(task.team_status || null)
         setInitialized(task.id)
     }
 
@@ -117,6 +121,13 @@ export default function TaskDetailDrawer({
         `task-comments-${task?.id}`,
         () => task ? registrationTaskService.getComments(task.id) : Promise.resolve([]),
         { enabled: !!task && opened },
+    )
+
+    // Team statuses query
+    const { data: teamStatusOptions = [] } = useQuery<TeamStatus[]>(
+        'team-statuses',
+        () => getTeamStatuses(),
+        { staleTime: 5 * 60 * 1000 },
     )
 
     // Messenger locations — same data as messenger routes page
@@ -181,7 +192,11 @@ export default function TaskDetailDrawer({
     )
 
     // Computed
-    const progress = useMemo(() => Object.values(steps).filter(Boolean).length * 20, [steps])
+    const progress = useMemo(() => {
+        // step_5 done = 100% regardless of step_4
+        if (steps.step_5) return 100
+        return Object.values(steps).filter(Boolean).length * 20
+    }, [steps])
     const agingDays = useMemo(() => {
         if (!task) return 0
         return Math.floor((Date.now() - new Date(task.received_date).getTime()) / 86400000)
@@ -202,7 +217,7 @@ export default function TaskDetailDrawer({
     const DEPT_CONFIG: Record<string, { label: string; color: string }> = {
         dbd: { label: 'DBD', color: 'violet' },
         rd: { label: 'RD', color: 'green' },
-        sso: { label: 'SSO', color: 'blue' },
+        sso: { label: 'SSO', color: 'indigo' },
         hr: { label: 'HR', color: 'red' },
     }
 
@@ -232,10 +247,17 @@ export default function TaskDetailDrawer({
                 STEPS.forEach((s, i) => {
                     if (i >= stepIndex) updated[s.key] = false
                 })
+                // If unchecking step_3 or earlier, clear needsMessenger
+                if (stepIndex <= 2) {
+                    setNeedsMessenger(false)
+                }
                 return updated
             } else {
-                // Checking: only allow if all previous steps are completed
+                // Checking: allow step_5 (index 4) even if step_4 (index 3) is not done
+                // But steps 1,2,3 must be done
                 for (let i = 0; i < stepIndex; i++) {
+                    // Allow skipping step_4 (index 3) when checking step_5 (index 4)
+                    if (i === 3 && stepIndex === 4) continue
                     if (!prev[STEPS[i].key]) {
                         notifications.show({
                             title: 'ไม่สามารถข้ามขั้นตอน',
@@ -245,17 +267,27 @@ export default function TaskDetailDrawer({
                         return prev
                     }
                 }
-                return { ...prev, [stepKey]: true }
+                const updated = { ...prev, [stepKey]: true }
+                // Auto-set needsMessenger when step_3 is completed
+                if (stepKey === 'step_3') {
+                    setNeedsMessenger(true)
+                }
+                // If checking step_5 without step_4, no messenger needed
+                if (stepKey === 'step_5' && !prev.step_4) {
+                    setNeedsMessenger(false)
+                    setMessengerStatus('not_needed')
+                }
+                return updated
             }
         })
     }
 
     const handleSave = () => {
         if (!task) return
-        const completedSteps = Object.values(steps).filter(Boolean).length
         let status: string = task.status
-        if (completedSteps === 5) status = 'completed'
-        else if (completedSteps > 0) status = 'in_progress'
+        // step_5 done = completed regardless of step_4
+        if (steps.step_5) status = 'completed'
+        else if (Object.values(steps).some(Boolean)) status = 'in_progress'
         else status = 'pending'
 
         updateMutation.mutate({
@@ -272,6 +304,8 @@ export default function TaskDetailDrawer({
             // Payment fields
             payment_status: paymentStatus || 'unpaid',
             deposit_amount: depositAmount !== '' ? Number(depositAmount) : null,
+            // Team status
+            team_status: teamStatus || null,
         })
     }
 
@@ -404,6 +438,11 @@ export default function TaskDetailDrawer({
                                             value={client?.notes}
                                         />
                                         <InfoRow
+                                            icon={<TbMapPin size={14} />}
+                                            label="ที่อยู่"
+                                            value={client?.full_address}
+                                        />
+                                        <InfoRow
                                             icon={<TbCalendar size={14} />}
                                             label="วันที่เพิ่ม"
                                             value={client?.created_at ? formatThaiDate(client.created_at) : undefined}
@@ -464,54 +503,91 @@ export default function TaskDetailDrawer({
                                         </Badge>
                                     </Group>
 
-                                    {clientTasks.length > 0 ? (
-                                        <Stack gap={6}>
-                                            {clientTasks.map(ct => {
-                                                const sc = STATUS_CONFIG[ct.status] || STATUS_CONFIG.pending
-                                                const jobLabel = (ct as any).job_type_name || ct.job_type || '-'
-                                                const subLabel = (ct as any).job_type_sub_name
-                                                return (
-                                                    <Paper
-                                                        key={ct.id}
-                                                        withBorder p="xs" radius="sm"
-                                                        style={{
-                                                            borderLeft: `3px solid var(--mantine-color-${sc.color}-5)`,
-                                                            cursor: 'pointer',
-                                                            transition: 'background 0.15s',
-                                                        }}
-                                                        onClick={() => {
-                                                            if (onSelectTask) {
-                                                                onSelectTask(ct)
-                                                            }
-                                                        }}
-                                                        className="hover-highlight"
-                                                    >
-                                                        <Group justify="space-between" wrap="nowrap">
-                                                            <div style={{ flex: 1, minWidth: 0 }}>
-                                                                <Text size="xs" fw={500} truncate>
-                                                                    {jobLabel}{subLabel ? ` — ${subLabel}` : ''}
-                                                                </Text>
-                                                                <Group gap={4} wrap="nowrap">
-                                                                    <Text size="xs" c="dimmed">📅 {formatThaiDate(ct.received_date)}</Text>
-                                                                    {ct.responsible_name && (
-                                                                        <Text size="xs" c="dimmed">• 👤 {ct.responsible_name}</Text>
-                                                                    )}
-                                                                </Group>
-                                                            </div>
-                                                            <Stack gap={2} align="flex-end">
-                                                                <Badge size="xs" variant="filled" color={DEPT_CONFIG[(ct as any).department]?.color || 'gray'} radius="sm">
-                                                                    {DEPT_CONFIG[(ct as any).department]?.label || (ct as any).department || '-'}
-                                                                </Badge>
-                                                                <Badge size="xs" variant="light" color={sc.color}>
-                                                                    {sc.label}
-                                                                </Badge>
-                                                            </Stack>
-                                                        </Group>
-                                                    </Paper>
-                                                )
-                                            })}
-                                        </Stack>
-                                    ) : (
+                                    {clientTasks.length > 0 ? (() => {
+                                        const incompleteTasks = clientTasks.filter(ct => ct.status !== 'completed')
+                                        const completedTasks = clientTasks.filter(ct => ct.status === 'completed')
+
+                                        const renderTaskItem = (ct: RegistrationTask) => {
+                                            const sc = STATUS_CONFIG[ct.status] || STATUS_CONFIG.pending
+                                            const jobLabel = (ct as any).job_type_name || ct.job_type || '-'
+                                            const subLabel = (ct as any).job_type_sub_name
+                                            return (
+                                                <Paper
+                                                    key={ct.id}
+                                                    withBorder p="xs" radius="sm"
+                                                    style={{
+                                                        borderLeft: `3px solid var(--mantine-color-${sc.color}-5)`,
+                                                        cursor: 'pointer',
+                                                        transition: 'background 0.15s',
+                                                    }}
+                                                    onClick={() => {
+                                                        if (onSelectTask) {
+                                                            onSelectTask(ct)
+                                                        }
+                                                    }}
+                                                    className="hover-highlight"
+                                                >
+                                                    <Group justify="space-between" wrap="nowrap">
+                                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                                            <Text size="xs" fw={500} truncate>
+                                                                {jobLabel}{subLabel ? ` — ${subLabel}` : ''}
+                                                            </Text>
+                                                            <Group gap={4} wrap="nowrap">
+                                                                <Text size="xs" c="dimmed">📅 {formatThaiDate(ct.received_date)}</Text>
+                                                                {ct.responsible_name && (
+                                                                    <Text size="xs" c="dimmed">• 👤 {ct.responsible_name}</Text>
+                                                                )}
+                                                            </Group>
+                                                        </div>
+                                                        <Stack gap={2} align="flex-end">
+                                                            <Badge size="xs" variant="filled" color={DEPT_CONFIG[(ct as any).department]?.color || 'gray'} radius="sm">
+                                                                {DEPT_CONFIG[(ct as any).department]?.label || (ct as any).department || '-'}
+                                                            </Badge>
+                                                            <Badge size="xs" variant="light" color={sc.color}>
+                                                                {sc.label}
+                                                            </Badge>
+                                                        </Stack>
+                                                    </Group>
+                                                </Paper>
+                                            )
+                                        }
+
+                                        return (
+                                            <Stack gap="md">
+                                                {/* Incomplete tasks */}
+                                                <Box>
+                                                    <Group gap={6} mb={6}>
+                                                        <Text size="xs" fw={600} c="orange">⏳ ยังไม่สำเร็จ</Text>
+                                                        <Badge size="xs" variant="light" color="orange">{incompleteTasks.length}</Badge>
+                                                    </Group>
+                                                    {incompleteTasks.length > 0 ? (
+                                                        <Stack gap={6}>
+                                                            {incompleteTasks.map(renderTaskItem)}
+                                                        </Stack>
+                                                    ) : (
+                                                        <Text size="xs" c="dimmed" ta="center" py={4}>ไม่มีงานค้าง</Text>
+                                                    )}
+                                                </Box>
+
+                                                <Divider variant="dashed" />
+
+                                                {/* Completed tasks */}
+                                                <Box>
+                                                    <Group gap={6} mb={6}>
+                                                        <Text size="xs" fw={600} c="green">✅ สำเร็จแล้ว</Text>
+                                                        <Badge size="xs" variant="light" color="green">{completedTasks.length}</Badge>
+                                                    </Group>
+                                                    {completedTasks.length > 0 ? (
+                                                        <Stack gap={6}>
+                                                            {completedTasks.map(renderTaskItem)}
+                                                        </Stack>
+                                                    ) : (
+                                                        <Text size="xs" c="dimmed" ta="center" py={4}>ยังไม่มีงานที่สำเร็จ</Text>
+                                                    )}
+                                                </Box>
+                                            </Stack>
+                                        )
+                                    })() : (
                                         <Text size="xs" c="dimmed" ta="center" py="sm">
                                             ไม่มีงานอื่นของลูกค้านี้
                                         </Text>
@@ -812,6 +888,50 @@ export default function TaskDetailDrawer({
                                             เพิ่มความเห็น
                                         </Button>
                                     </Group>
+                                </Box>
+
+                                <Divider />
+
+                                {/* Team Status Section */}
+                                <Box px="md" py="md">
+                                    <Group gap="xs" mb="sm">
+                                        <TbBriefcase size={18} color="var(--mantine-color-cyan-6)" />
+                                        <Text size="sm" fw={700} c="cyan">สถานะการทำงานในทีม</Text>
+                                        {teamStatus && (() => {
+                                            const found = teamStatusOptions.find(ts => ts.id === teamStatus)
+                                            return found ? (
+                                                <Badge size="xs" variant="light" style={{
+                                                    backgroundColor: found.color + '20',
+                                                    color: found.color,
+                                                    borderColor: found.color + '40',
+                                                }}>
+                                                    {found.name}
+                                                </Badge>
+                                            ) : null
+                                        })()}
+                                    </Group>
+                                    <Select
+                                        placeholder="เลือกสถานะทีม..."
+                                        value={teamStatus}
+                                        onChange={(v) => setTeamStatus(v)}
+                                        data={teamStatusOptions.filter(ts => ts.is_active).map(ts => ({
+                                            value: ts.id,
+                                            label: ts.name,
+                                        }))}
+                                        clearable
+                                        searchable
+                                        nothingFoundMessage="ไม่มีสถานะ — เพิ่มได้ที่หน้าตั้งค่า"
+                                        size="sm"
+                                        renderOption={({ option }) => {
+                                            const ts = teamStatusOptions.find(t => t.id === option.value)
+                                            return (
+                                                <Group gap="sm">
+                                                    <ColorSwatch color={ts?.color || '#ccc'} size={16} />
+                                                    <Text size="sm">{option.label}</Text>
+                                                </Group>
+                                            )
+                                        }}
+                                    />
                                 </Box>
 
                                 <Divider />

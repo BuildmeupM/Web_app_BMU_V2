@@ -37,6 +37,9 @@ import {
   TbLayoutSidebarLeftExpand,
   TbHistory,
   TbDeviceLaptop,
+  TbChartPie,
+  TbAlertTriangle,
+  TbChartBar,
 } from 'react-icons/tb'
 import { useAuthStore, UserRole } from '../../store/authStore'
 import { hasPermission } from '../../utils/rolePermissions'
@@ -54,11 +57,14 @@ const iconMap: Record<string, React.ComponentType<any>> = {
   '/tax-filing': TbFileInvoice,
   '/work-assignment': TbClipboardList,
   '/clients': TbBuilding,
+  '/client-dashboard': TbChartPie,
   '/users': TbUserCircle,
   '/accounting-marketplace': TbShoppingCart,
   '/holidays': TbCalendarTime,
   '/login-activity': TbHistory,
   '/equipment': TbDeviceLaptop,
+  '/error-reports': TbAlertTriangle,
+  '/accounting-dashboard': TbChartBar,
 }
 
 interface MenuItem {
@@ -75,6 +81,14 @@ interface MenuGroup {
 // กลุ่มเมนูตามหัวข้อ
 const menuGroups: MenuGroup[] = [
   {
+    title: 'ประกาศบริษัท',
+    icon: TbDashboard,
+    items: [
+      { path: '/dashboard', label: 'ประกาศบริษัท' },
+      { path: '/client-dashboard', label: 'Dashboard ลูกค้า' },
+    ],
+  },
+  {
     title: 'ข้อมูลส่วนตัวของพนักงาน',
     icon: TbUser,
     items: [
@@ -90,6 +104,7 @@ const menuGroups: MenuGroup[] = [
     title: 'งานบัญชี',
     icon: TbBriefcase,
     items: [
+      { path: '/accounting-dashboard', label: 'Dashboard งานบัญชี' },
       { path: '/clients', label: 'ข้อมูลลูกค้า' },
       { path: '/work-assignment', label: 'จัดงานรายเดือน' },
       { path: '/document-sorting', label: 'คัดแยกเอกสาร' },
@@ -98,6 +113,7 @@ const menuGroups: MenuGroup[] = [
       { path: '/tax-status', label: 'สถานะยื่นภาษี' },
       { path: '/tax-filing', label: 'ยื่นภาษี' },
       { path: '/accounting-marketplace', label: 'ตลาดกลางผู้ทำบัญชี' },
+      { path: '/error-reports', label: 'รายงานข้อผิดพลาด' },
     ],
   },
   {
@@ -320,24 +336,6 @@ export default function Sidebar({ expanded, onToggle, isMobile = false }: Sideba
             B
           </Text>
 
-          {/* Dashboard icon */}
-          {hasPermission(user.role, '/dashboard') && (
-            <Tooltip label="แดชบอร์ด" position="right" withArrow>
-              <ActionIcon
-                component={NavLink}
-                to="/dashboard"
-                variant="filled"
-                size="lg"
-                radius="xl"
-                style={{
-                  backgroundColor: isDashboardActive ? '#ff8c42' : 'rgba(255, 140, 66, 0.1)',
-                  color: isDashboardActive ? 'white' : '#e65100',
-                }}
-              >
-                <TbDashboard size={20} />
-              </ActionIcon>
-            </Tooltip>
-          )}
 
           <Divider w="100%" my={4} color="gray.2" />
 
@@ -387,36 +385,6 @@ export default function Sidebar({ expanded, onToggle, isMobile = false }: Sideba
           BMU System
         </Text>
 
-        {/* Dashboard — pill button */}
-        {hasPermission(user.role, '/dashboard') && (
-          <MantineNavLink
-            component={NavLink}
-            to="/dashboard"
-            end
-            label="แดชบอร์ด"
-            leftSection={<TbDashboard size={20} />}
-            active={isDashboardActive}
-            variant="filled"
-            styles={() => ({
-              root: {
-                borderRadius: 20,
-                backgroundColor: isDashboardActive
-                  ? '#ff8c42'
-                  : 'rgba(255, 140, 66, 0.1)',
-                color: isDashboardActive ? 'white' : '#e65100',
-                fontWeight: 600,
-                '&:hover': {
-                  backgroundColor: isDashboardActive
-                    ? '#ff7b2e'
-                    : 'rgba(255, 140, 66, 0.18)',
-                },
-              },
-              label: {
-                color: isDashboardActive ? 'white' : '#e65100',
-              },
-            })}
-          />
-        )}
 
         {/* Groups — Pill Header style */}
         {menuGroups.map((group, index) => (

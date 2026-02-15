@@ -1719,9 +1719,12 @@ export default function TaxInspectionForm({
       // pp30_review_returned_date ควรมีผลเฉพาะหน้าตรวจภาษี (taxInspection) เท่านั้น
       if (sourcePage === 'taxStatus') {
         pp30ReviewReturnedDate = undefined // ไม่ส่งไป backend = คงค่าเดิม
-      } else {
-        // สำหรับหน้าอื่นๆ (taxFiling): ใช้ logic เดิม
-        if (pp30StatusChanged) {
+      } else if (sourcePage === 'taxFiling') {
+        // ✅ FIX: สำหรับหน้ายื่นภาษี (taxFiling): ไม่ส่ง pp30_review_returned_date เมื่อสถานะเป็น "ร่างแบบเสร็จแล้ว"
+        // เพราะหน้ายื่นภาษีจะใช้ vat_draft_completed_date แทน (เหมือนกับ PND side ที่ exclude draft_completed ไว้แล้ว)
+        if (currentPp30Status === 'draft_completed') {
+          pp30ReviewReturnedDate = undefined // ไม่ส่งไป backend = คงค่าเดิม
+        } else if (pp30StatusChanged) {
           // Auto-set timestamp if status changed from pending to another status
           pp30ReviewReturnedDate = formatTimestampUTCForAPI()
         } else if (formValues.pp30_return_date) {
@@ -1736,15 +1739,15 @@ export default function TaxInspectionForm({
             pp30ReviewReturnedDate = formatTimestampUTCForAPI(dateValue, isISOUTC)
           }
         } else if (taxData?.pp30_review_returned_date) {
-          // ถ้ามีวันที่ส่งตรวจคืนในฐานข้อมูลแล้ว และสถานะไม่ใช่ "รอตรวจ" หรือ "รอตรวจอีกครั้ง"
+          // ถ้ามีวันที่ส่งตรวจคืนในฐานข้อมูลแล้ว และสถานะไม่ใช่ "รอตรวจ", "รอตรวจอีกครั้ง", หรือ "ร่างแบบเสร็จแล้ว"
           // ให้อัพเดทเป็น timestamp ปัจจุบันเมื่อกดบันทึกซ้ำ
-          if (currentPp30Status !== 'pending_review' && currentPp30Status !== 'pending_recheck' && currentPp30Status !== '') {
+          if (currentPp30Status !== 'draft_completed' && currentPp30Status !== 'pending_review' && currentPp30Status !== 'pending_recheck' && currentPp30Status !== '') {
             // อัพเดทเป็น timestamp ปัจจุบันเมื่อกดบันทึกซ้ำ
             pp30ReviewReturnedDate = formatTimestampUTCForAPI()
           }
-          // ถ้าสถานะยังเป็น "รอตรวจ" หรือ "รอตรวจอีกครั้ง" ให้เป็น undefined (ไม่ส่งไป backend = คงค่าเดิม)
-        } else if (currentPp30Status !== 'pending_review' && currentPp30Status !== 'pending_recheck' && currentPp30Status !== '') {
-          // ถ้าไม่มีข้อมูลอยู่แล้ว และสถานะไม่ใช่ "รอตรวจ" หรือ "รอตรวจอีกครั้ง"
+          // ถ้าสถานะยังเป็น "รอตรวจ", "รอตรวจอีกครั้ง", หรือ "ร่างแบบเสร็จแล้ว" ให้เป็น undefined (ไม่ส่งไป backend = คงค่าเดิม)
+        } else if (currentPp30Status !== 'draft_completed' && currentPp30Status !== 'pending_review' && currentPp30Status !== 'pending_recheck' && currentPp30Status !== '') {
+          // ถ้าไม่มีข้อมูลอยู่แล้ว และสถานะไม่ใช่ "รอตรวจ", "รอตรวจอีกครั้ง", หรือ "ร่างแบบเสร็จแล้ว"
           // ให้ set timestamp ปัจจุบัน
           pp30ReviewReturnedDate = formatTimestampUTCForAPI()
         }

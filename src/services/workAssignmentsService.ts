@@ -176,6 +176,87 @@ const workAssignmentsService = {
     )
     return response.data.data || []
   },
+
+  /**
+   * เปลี่ยนผู้รับผิดชอบงาน
+   */
+  async changeResponsible(
+    id: string,
+    data: ResponsibilityChangeRequest
+  ): Promise<ResponsibilityChangeResponse> {
+    const response = await api.post<{ success: boolean; message: string; data: ResponsibilityChangeResponse }>(
+      `/work-assignments/${id}/change-responsible`,
+      data
+    )
+    return response.data.data
+  },
+
+  /**
+   * ดึงประวัติการเปลี่ยนผู้รับผิดชอบ
+   */
+  async getChangeHistory(id: string): Promise<ResponsibilityChangeHistory[]> {
+    const response = await api.get<{ success: boolean; data: ResponsibilityChangeHistory[] }>(
+      `/work-assignments/${id}/change-history`
+    )
+    return response.data.data || []
+  },
+
+  /**
+   * ลบการจัดงาน (soft delete)
+   */
+  async deleteAssignment(id: string): Promise<{ message: string }> {
+    const response = await api.delete<{ success: boolean; message: string }>(
+      `/work-assignments/${id}`
+    )
+    return response.data
+  },
+}
+
+/**
+ * ประเภทตำแหน่งที่สามารถเปลี่ยนได้
+ */
+export type RoleType = 'accounting' | 'tax_inspection' | 'wht_filer' | 'vat_filer' | 'document_entry'
+
+/**
+ * Request สำหรับเปลี่ยนผู้รับผิดชอบ
+ */
+export interface ResponsibilityChangeRequest {
+  role_type: RoleType
+  new_employee_id: string
+  change_reason?: string
+}
+
+/**
+ * Response สำหรับเปลี่ยนผู้รับผิดชอบ
+ */
+export interface ResponsibilityChangeResponse {
+  history_id: string
+  build: string
+  company_name: string
+  role_type: RoleType
+  role_label: string
+  previous_employee_id: string | null
+  previous_employee_name: string
+  new_employee_id: string
+  new_employee_name: string
+  change_reason: string | null
+}
+
+/**
+ * ประวัติการเปลี่ยนผู้รับผิดชอบ
+ */
+export interface ResponsibilityChangeHistory {
+  id: string
+  role_type: RoleType
+  previous_employee_id: string | null
+  previous_employee_name: string | null
+  new_employee_id: string
+  new_employee_name: string
+  changed_by: string
+  changed_by_name: string
+  change_reason: string | null
+  changed_at: string
 }
 
 export default workAssignmentsService
+

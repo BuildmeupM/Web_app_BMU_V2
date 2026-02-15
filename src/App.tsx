@@ -16,6 +16,7 @@ import { useIdleTimeout } from './hooks/useIdleTimeout'
 // Lazy load page components for code splitting
 const Login = lazy(() => import('./pages/Login'))
 const Dashboard = lazy(() => import('./pages/Dashboard'))
+const CompanyFeed = lazy(() => import('./pages/CompanyFeed'))
 const EmployeeManagement = lazy(() => import('./pages/EmployeeManagement'))
 const LeaveManagement = lazy(() => import('./pages/LeaveManagement'))
 const SalaryAdvance = lazy(() => import('./pages/SalaryAdvance'))
@@ -27,6 +28,7 @@ const TaxStatus = lazy(() => import('./pages/TaxStatus'))
 const TaxFiling = lazy(() => import('./pages/TaxFiling'))
 const WorkAssignment = lazy(() => import('./pages/WorkAssignment'))
 const ClientManagement = lazy(() => import('./pages/ClientManagement'))
+const ClientDashboard = lazy(() => import('./pages/ClientDashboard'))
 const UserManagement = lazy(() => import('./pages/UserManagement'))
 const AccountingMarketplace = lazy(() => import('./pages/AccountingMarketplace'))
 const HolidayManagement = lazy(() => import('./pages/HolidayManagement'))
@@ -45,6 +47,8 @@ const MessengerRoutes = lazy(() => import('./pages/MessengerRoutes'))
 const MarketingWork = lazy(() => import('./pages/MarketingWork'))
 const LoginActivity = lazy(() => import('./pages/LoginActivity'))
 const EquipmentBorrowing = lazy(() => import('./pages/EquipmentBorrowing'))
+const ErrorReport = lazy(() => import('./pages/ErrorReport'))
+const AccountingDashboard = lazy(() => import('./pages/AccountingDashboard'))
 
 function App() {
   const { isAuthenticated, _hasHydrated, setHasHydrated } = useAuthStore()
@@ -149,6 +153,14 @@ function App() {
               }
             />
             <Route
+              path="company-feed"
+              element={
+                <Suspense fallback={<LoadingFallback />}>
+                  <CompanyFeed />
+                </Suspense>
+              }
+            />
+            <Route
               path="employees"
               element={
                 <Suspense fallback={<LoadingFallback />}>
@@ -221,6 +233,22 @@ function App() {
               }
             />
             <Route
+              path="error-reports"
+              element={
+                <Suspense fallback={<LoadingFallback />}>
+                  <ErrorReport />
+                </Suspense>
+              }
+            />
+            <Route
+              path="accounting-dashboard"
+              element={
+                <Suspense fallback={<LoadingFallback />}>
+                  <AccountingDashboard />
+                </Suspense>
+              }
+            />
+            <Route
               path="work-assignment"
               element={
                 <Suspense fallback={<LoadingFallback />}>
@@ -233,6 +261,14 @@ function App() {
               element={
                 <Suspense fallback={<LoadingFallback />}>
                   <ClientManagement />
+                </Suspense>
+              }
+            />
+            <Route
+              path="client-dashboard"
+              element={
+                <Suspense fallback={<LoadingFallback />}>
+                  <ClientDashboard />
                 </Suspense>
               }
             />

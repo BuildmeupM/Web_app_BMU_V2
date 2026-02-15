@@ -85,3 +85,43 @@ export async function updateSubType(id: string, data: Partial<{ name: string; so
 export async function deleteSubType(id: string): Promise<void> {
     await api.delete(`/registration-work/sub-types/${id}`)
 }
+
+// ============================================================
+// Team Statuses API (สถานะการทำงานในทีม)
+// ============================================================
+
+export interface TeamStatus {
+    id: string
+    name: string
+    color: string
+    sort_order: number
+    is_active: boolean
+    created_at?: string
+}
+
+export async function getTeamStatuses(): Promise<TeamStatus[]> {
+    const response = await api.get<{ success: boolean; data: { statuses: TeamStatus[] } }>(
+        `/registration-work/team-statuses?_t=${Date.now()}`
+    )
+    return response.data.data.statuses
+}
+
+export async function createTeamStatus(data: { name: string; color?: string }): Promise<TeamStatus> {
+    const response = await api.post<{ success: boolean; data: { status: TeamStatus } }>(
+        '/registration-work/team-statuses',
+        data
+    )
+    return response.data.data.status
+}
+
+export async function updateTeamStatus(id: string, data: Partial<{ name: string; color: string; sort_order: number; is_active: boolean }>): Promise<TeamStatus> {
+    const response = await api.put<{ success: boolean; data: { status: TeamStatus } }>(
+        `/registration-work/team-statuses/${id}`,
+        data
+    )
+    return response.data.data.status
+}
+
+export async function deleteTeamStatus(id: string): Promise<void> {
+    await api.delete(`/registration-work/team-statuses/${id}`)
+}

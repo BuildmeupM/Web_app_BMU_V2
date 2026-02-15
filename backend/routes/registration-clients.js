@@ -20,7 +20,10 @@ router.get('/', authenticateToken, authorize('admin', 'registration'), async (re
 
         let query = `
             SELECT id, company_name, legal_entity_number, phone, group_name,
-                   line_api, notes, is_active,
+                   line_api, notes,
+                   full_address, address_number, village, building, room_number,
+                   floor_number, soi, moo, road, subdistrict, district, province, postal_code,
+                   is_active,
                    DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') as created_at,
                    DATE_FORMAT(updated_at, '%Y-%m-%d %H:%i:%s') as updated_at
             FROM registration_clients
@@ -82,7 +85,10 @@ router.get('/:id', authenticateToken, authorize('admin', 'registration'), async 
         const { id } = req.params
         const [rows] = await pool.execute(
             `SELECT id, company_name, legal_entity_number, phone, group_name,
-                    line_api, notes, is_active,
+                    line_api, notes,
+                    full_address, address_number, village, building, room_number,
+                    floor_number, soi, moo, road, subdistrict, district, province, postal_code,
+                    is_active,
                     DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') as created_at,
                     DATE_FORMAT(updated_at, '%Y-%m-%d %H:%i:%s') as updated_at
              FROM registration_clients
@@ -107,7 +113,11 @@ router.get('/:id', authenticateToken, authorize('admin', 'registration'), async 
  */
 router.post('/', authenticateToken, authorize('admin', 'registration'), async (req, res) => {
     try {
-        const { company_name, legal_entity_number, phone, group_name, line_api, notes } = req.body
+        const {
+            company_name, legal_entity_number, phone, group_name, line_api, notes,
+            full_address, address_number, village, building, room_number,
+            floor_number, soi, moo, road, subdistrict, district, province, postal_code
+        } = req.body
 
         // Validation
         if (!company_name || !company_name.trim()) {
@@ -120,14 +130,27 @@ router.post('/', authenticateToken, authorize('admin', 'registration'), async (r
         const id = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`
 
         await pool.execute(
-            `INSERT INTO registration_clients (id, company_name, legal_entity_number, phone, group_name, line_api, notes)
-             VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [id, company_name.trim(), legal_entity_number || null, phone || null, group_name.trim(), line_api || null, notes || null]
+            `INSERT INTO registration_clients (
+                id, company_name, legal_entity_number, phone, group_name, line_api, notes,
+                full_address, address_number, village, building, room_number,
+                floor_number, soi, moo, road, subdistrict, district, province, postal_code
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+                id, company_name.trim(), legal_entity_number || null, phone || null,
+                group_name.trim(), line_api || null, notes || null,
+                full_address || null, address_number || null, village || null,
+                building || null, room_number || null, floor_number || null,
+                soi || null, moo || null, road || null,
+                subdistrict || null, district || null, province || null, postal_code || null
+            ]
         )
 
         const [created] = await pool.execute(
             `SELECT id, company_name, legal_entity_number, phone, group_name,
-                    line_api, notes, is_active,
+                    line_api, notes,
+                    full_address, address_number, village, building, room_number,
+                    floor_number, soi, moo, road, subdistrict, district, province, postal_code,
+                    is_active,
                     DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') as created_at,
                     DATE_FORMAT(updated_at, '%Y-%m-%d %H:%i:%s') as updated_at
              FROM registration_clients WHERE id = ?`,
@@ -152,7 +175,11 @@ router.post('/', authenticateToken, authorize('admin', 'registration'), async (r
 router.put('/:id', authenticateToken, authorize('admin', 'registration'), async (req, res) => {
     try {
         const { id } = req.params
-        const { company_name, legal_entity_number, phone, group_name, line_api, notes, is_active } = req.body
+        const {
+            company_name, legal_entity_number, phone, group_name, line_api, notes, is_active,
+            full_address, address_number, village, building, room_number,
+            floor_number, soi, moo, road, subdistrict, district, province, postal_code
+        } = req.body
 
         // Check exists
         const [existing] = await pool.execute(
@@ -182,6 +209,20 @@ router.put('/:id', authenticateToken, authorize('admin', 'registration'), async 
         if (line_api !== undefined) { updates.push('line_api = ?'); params.push(line_api || null) }
         if (notes !== undefined) { updates.push('notes = ?'); params.push(notes || null) }
         if (is_active !== undefined) { updates.push('is_active = ?'); params.push(is_active ? 1 : 0) }
+        // Address fields
+        if (full_address !== undefined) { updates.push('full_address = ?'); params.push(full_address || null) }
+        if (address_number !== undefined) { updates.push('address_number = ?'); params.push(address_number || null) }
+        if (village !== undefined) { updates.push('village = ?'); params.push(village || null) }
+        if (building !== undefined) { updates.push('building = ?'); params.push(building || null) }
+        if (room_number !== undefined) { updates.push('room_number = ?'); params.push(room_number || null) }
+        if (floor_number !== undefined) { updates.push('floor_number = ?'); params.push(floor_number || null) }
+        if (soi !== undefined) { updates.push('soi = ?'); params.push(soi || null) }
+        if (moo !== undefined) { updates.push('moo = ?'); params.push(moo || null) }
+        if (road !== undefined) { updates.push('road = ?'); params.push(road || null) }
+        if (subdistrict !== undefined) { updates.push('subdistrict = ?'); params.push(subdistrict || null) }
+        if (district !== undefined) { updates.push('district = ?'); params.push(district || null) }
+        if (province !== undefined) { updates.push('province = ?'); params.push(province || null) }
+        if (postal_code !== undefined) { updates.push('postal_code = ?'); params.push(postal_code || null) }
 
         if (updates.length === 0) {
             return res.status(400).json({ success: false, message: 'ไม่มีข้อมูลที่ต้องการแก้ไข' })
@@ -195,7 +236,10 @@ router.put('/:id', authenticateToken, authorize('admin', 'registration'), async 
 
         const [updated] = await pool.execute(
             `SELECT id, company_name, legal_entity_number, phone, group_name,
-                    line_api, notes, is_active,
+                    line_api, notes,
+                    full_address, address_number, village, building, room_number,
+                    floor_number, soi, moo, road, subdistrict, district, province, postal_code,
+                    is_active,
                     DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') as created_at,
                     DATE_FORMAT(updated_at, '%Y-%m-%d %H:%i:%s') as updated_at
              FROM registration_clients WHERE id = ?`,

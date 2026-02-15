@@ -4,7 +4,8 @@
  * Access: Admin/HR only
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import { useDebouncedValue } from '@mantine/hooks'
 import {
   Container,
   Title,
@@ -36,7 +37,7 @@ import {
   SimpleGrid,
   Accordion,
 } from '@mantine/core'
-import { TbPlus, TbSearch, TbEdit, TbRefresh, TbAlertCircle, TbCheck, TbColumns, TbEye, TbEyeOff, TbUpload } from 'react-icons/tb'
+import { TbPlus, TbSearch, TbEdit, TbRefresh, TbAlertCircle, TbCheck, TbColumns, TbEye, TbEyeOff, TbUpload, TbUserEdit, TbTrash } from 'react-icons/tb'
 import { useQuery, useMutation, useQueryClient } from 'react-query'
 import { useAuthStore } from '../store/authStore'
 import workAssignmentsService, {
@@ -47,6 +48,7 @@ import { employeeService, Employee } from '../services/employeeService'
 import usersService, { User } from '../services/usersService'
 import { notifications } from '@mantine/notifications'
 import WorkAssignmentImport from '../components/WorkAssignment/WorkAssignmentImport'
+import ResponsibilityChangeModal from '../components/WorkAssignment/ResponsibilityChangeModal'
 import { isApiError, isNetworkError, getErrorMessage } from '../types/errors'
 
 // Thai month names for display
@@ -124,6 +126,14 @@ export default function WorkAssignment() {
   const [formMode, setFormMode] = useState<'create' | 'edit'>('create')
   const [editingAssignment, setEditingAssignment] = useState<WorkAssignmentType | null>(null)
   const [selectedAssignment, setSelectedAssignment] = useState<WorkAssignmentType | null>(null)
+
+  // Responsibility change modal state
+  const [changeResponsibleOpened, setChangeResponsibleOpened] = useState(false)
+  const [changeResponsibleAssignment, setChangeResponsibleAssignment] = useState<WorkAssignmentType | null>(null)
+
+  // Delete confirmation state
+  const [deleteConfirmOpened, setDeleteConfirmOpened] = useState(false)
+  const [deleteAssignment, setDeleteAssignment] = useState<WorkAssignmentType | null>(null)
 
   // Bulk create state
   const [bulkCreateModalOpened, setBulkCreateModalOpened] = useState(false)
@@ -276,8 +286,8 @@ export default function WorkAssignment() {
         year: year || viewMonth.year.toString(),
         month: month || viewMonth.month.toString(),
         search: search || undefined,
-        sortBy: 'assigned_at',
-        sortOrder: 'desc',
+        sortBy: 'build',
+        sortOrder: 'asc',
       })
     },
     {
@@ -354,17 +364,23 @@ export default function WorkAssignment() {
   // State for company status filter
   const [companyStatusFilter, setCompanyStatusFilter] = useState<string>('all')
 
-  // Fetch clients for dropdown (filtered by company_status)
-  const { data: clientsData } = useQuery(
-    ['clients-list', companyStatusFilter],
+  // State for client dropdown search
+  const [clientSearchValue, setClientSearchValue] = useState('')
+  const [debouncedClientSearch] = useDebouncedValue(clientSearchValue, 300)
+
+  // Fetch clients for dropdown (lightweight — search on type, limit 5)
+  const { data: clientsDropdownData } = useQuery(
+    ['clients-dropdown', companyStatusFilter, debouncedClientSearch],
     () =>
-      clientsService.getList({
-        limit: 1000,
+      clientsService.getDropdownList({
         company_status: companyStatusFilter === 'all' ? undefined : companyStatusFilter,
+        search: debouncedClientSearch || undefined,
+        limit: 5,
       }),
     {
-      enabled: isAdmin && formOpened,
-      staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+      enabled: isAdmin,
+      staleTime: 30 * 1000, // Cache for 30 seconds (shorter because search changes)
+      keepPreviousData: true,
     }
   )
 
@@ -1621,9 +1637,8 @@ export default function WorkAssignment() {
     }
   }, [bulkCreateModalOpened])
 
-  // Client options
   const clientOptions =
-    clientsData?.data?.map((client: Client) => ({
+    clientsDropdownData?.map((client: { build: string; company_name: string }) => ({
       value: client.build,
       label: `${client.build} - ${client.company_name}`,
     })) || []
@@ -2375,13 +2390,16 @@ export default function WorkAssignment() {
                     เลือกลูกค้า
                   </Text>
                   <Select
-                    placeholder="เลือกลูกค้า"
+                    placeholder="พิมพ์ค้นหาลูกค้า..."
                     data={clientOptions}
                     value={build}
                     onChange={(value) => setBuild(value || '')}
+                    onSearchChange={setClientSearchValue}
+                    searchValue={clientSearchValue}
                     clearable
                     radius="lg"
                     searchable
+                    nothingFoundMessage="ไม่พบลูกค้า"
                   />
                 </Stack>
               </Grid.Col>
@@ -2693,6 +2711,18 @@ export default function WorkAssignment() {
                                 <TbEdit size={16} />
                               </ActionIcon>
                             </Tooltip>
+                            <Tooltip label="เปลี่ยนผู้รับผิดชอบ">
+                              <ActionIcon
+                                variant="subtle"
+                                color="violet"
+                                onClick={() => {
+                                  setChangeResponsibleAssignment(assignment)
+                                  setChangeResponsibleOpened(true)
+                                }}
+                              >
+                                <TbUserEdit size={16} />
+                              </ActionIcon>
+                            </Tooltip>
                             {!assignment.is_reset_completed && (
                               <Tooltip label="รีเซ็ตข้อมูล">
                                 <ActionIcon
@@ -2704,6 +2734,18 @@ export default function WorkAssignment() {
                                 </ActionIcon>
                               </Tooltip>
                             )}
+                            <Tooltip label="ลบ">
+                              <ActionIcon
+                                variant="subtle"
+                                color="red"
+                                onClick={() => {
+                                  setDeleteAssignment(assignment)
+                                  setDeleteConfirmOpened(true)
+                                }}
+                              >
+                                <TbTrash size={16} />
+                              </ActionIcon>
+                            </Tooltip>
                           </Group>
                         </Table.Td>
                       </Table.Tr>
@@ -2750,17 +2792,20 @@ export default function WorkAssignment() {
             />
             <Select
               label="ลูกค้า (Build)"
-              placeholder="เลือกลูกค้า"
+              placeholder="พิมพ์ค้นหาลูกค้า..."
               data={clientOptions}
               value={formBuild}
               onChange={(value) => setFormBuild(value || '')}
+              onSearchChange={setClientSearchValue}
+              searchValue={clientSearchValue}
               required
               searchable
+              nothingFoundMessage="ไม่พบลูกค้า"
               disabled={formMode === 'edit'}
               description={
                 companyStatusFilter !== 'all'
                   ? `แสดงเฉพาะบริษัทที่มีสถานะ: ${companyStatusOptions.find((opt) => opt.value === companyStatusFilter)?.label}`
-                  : 'แสดงบริษัททั้งหมด'
+                  : 'พิมพ์ค้นหาเพื่อแสดงรายชื่อบริษัท'
               }
             />
             <Grid>
@@ -5074,6 +5119,98 @@ export default function WorkAssignment() {
               </Button>
             </Group>
           </Stack>
+        </Modal>
+
+        {/* Responsibility Change Modal */}
+        <ResponsibilityChangeModal
+          opened={changeResponsibleOpened}
+          onClose={() => {
+            setChangeResponsibleOpened(false)
+            setChangeResponsibleAssignment(null)
+          }}
+          assignment={changeResponsibleAssignment}
+        />
+
+        {/* Delete Confirmation Modal */}
+        <Modal
+          opened={deleteConfirmOpened}
+          onClose={() => {
+            setDeleteConfirmOpened(false)
+            setDeleteAssignment(null)
+          }}
+          title={
+            <Group gap="xs">
+              <TbTrash size={20} color="red" />
+              <Text fw={600} c="red">ยืนยันการลบการจัดงาน</Text>
+            </Group>
+          }
+          size="md"
+          centered
+        >
+          {deleteAssignment && (
+            <Stack gap="md">
+              <Alert variant="light" color="red" icon={<TbAlertCircle />}>
+                <Text size="sm">
+                  คุณต้องการลบการจัดงานนี้หรือไม่? การลบจะลบข้อมูลที่เกี่ยวข้องทั้งหมด รวมถึงข้อมูลภาษีรายเดือนและข้อมูลคีย์เอกสาร
+                </Text>
+              </Alert>
+              <Card withBorder p="sm">
+                <Stack gap={4}>
+                  <Group justify="space-between">
+                    <Text size="sm" c="dimmed">Build:</Text>
+                    <Text size="sm" fw={500}>{deleteAssignment.build}</Text>
+                  </Group>
+                  <Group justify="space-between">
+                    <Text size="sm" c="dimmed">บริษัท:</Text>
+                    <Text size="sm" fw={500}>{deleteAssignment.company_name || '-'}</Text>
+                  </Group>
+                  <Group justify="space-between">
+                    <Text size="sm" c="dimmed">เดือนภาษี:</Text>
+                    <Text size="sm" fw={500}>{deleteAssignment.assignment_month}/{deleteAssignment.assignment_year}</Text>
+                  </Group>
+                </Stack>
+              </Card>
+              <Group justify="flex-end" gap="sm">
+                <Button
+                  variant="light"
+                  color="gray"
+                  onClick={() => {
+                    setDeleteConfirmOpened(false)
+                    setDeleteAssignment(null)
+                  }}
+                >
+                  ยกเลิก
+                </Button>
+                <Button
+                  color="red"
+                  leftSection={<TbTrash size={16} />}
+                  onClick={async () => {
+                    try {
+                      const result = await workAssignmentsService.deleteAssignment(deleteAssignment.id)
+                      notifications.show({
+                        title: 'ลบสำเร็จ',
+                        message: result.message,
+                        color: 'green',
+                        icon: <TbCheck size={16} />,
+                      })
+                      queryClient.invalidateQueries(['work-assignments'])
+                      setDeleteConfirmOpened(false)
+                      setDeleteAssignment(null)
+                    } catch (error: any) {
+                      notifications.show({
+                        title: 'เกิดข้อผิดพลาด',
+                        message: error?.response?.data?.message || 'ไม่สามารถลบการจัดงานได้',
+                        color: 'red',
+                        icon: <TbAlertCircle size={16} />,
+                      })
+                    }
+                  }}
+                >
+                  ยืนยันลบ
+                </Button>
+              </Group>
+            </Stack>
+          )}
         </Modal>
 
         {/* Import Modal */}

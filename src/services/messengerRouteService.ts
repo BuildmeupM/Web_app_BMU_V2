@@ -4,20 +4,12 @@
  */
 
 import axios from 'axios'
+import { useAuthStore } from '../store/authStore'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
 
 function getToken(): string | null {
-    try {
-        const authStorage = sessionStorage.getItem('auth-storage')
-        if (authStorage) {
-            const parsed = JSON.parse(authStorage)
-            return parsed?.state?.token || null
-        }
-    } catch {
-        return null
-    }
-    return null
+    return useAuthStore.getState().token
 }
 
 // Types
@@ -61,6 +53,7 @@ export interface CreateRouteData {
     start_location?: string
     start_lat?: number | null
     start_lng?: number | null
+    linked_task_ids?: string[]
     stops: (Omit<RouteStop, 'id' | 'route_id' | 'status'> & { latitude?: number | null; longitude?: number | null })[]
 }
 
@@ -117,6 +110,48 @@ export async function deleteRoute(id: string): Promise<void> {
     await axios.delete(`${API_URL}/api/messenger-routes/${id}`, {
         headers: { Authorization: `Bearer ${token}` }
     })
+}
+
+// ============================================================
+// Messenger Pending Tasks (from registration_tasks)
+// ============================================================
+
+export interface MessengerPendingTask {
+    id: string
+    department: string
+    received_date: string
+    client_id: string
+    client_name: string
+    job_type: string
+    job_type_sub: string
+    job_type_name?: string
+    job_type_sub_name?: string
+    responsible_id: string
+    responsible_name: string
+    status: string
+    notes: string
+    needs_messenger: boolean
+    messenger_destination: string | null
+    messenger_details: string | null
+    messenger_notes: string | null
+    messenger_status: string
+    client_address?: string | null
+    client_phone?: string | null
+    client_subdistrict?: string | null
+    client_district?: string | null
+    client_province?: string | null
+    client_road?: string | null
+    client_postal_code?: string | null
+    created_at: string
+}
+
+export async function getMessengerPendingTasks(): Promise<MessengerPendingTask[]> {
+    const token = getToken()
+    const response = await axios.get<{ success: boolean; data: { tasks: MessengerPendingTask[]; count: number } }>(
+        `${API_URL}/api/registration-tasks/messenger-pending?_t=${Date.now()}`,
+        { headers: { Authorization: `Bearer ${token}`, 'Cache-Control': 'no-cache' } }
+    )
+    return response.data.data.tasks
 }
 
 // ============================================================

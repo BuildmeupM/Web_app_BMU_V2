@@ -111,15 +111,15 @@ export default function TaxInspection() {
   const totalPages = taxDataResponse?.pagination.totalPages || 1
 
   const handleSelectCompany = (record: { build: string } & RecordWithAcknowledgmentFields) => {
-    // ⚠️ แสดง acknowledgment modal เฉพาะเมื่อมีข้อมูลความคิดเห็นต่างๆ
-    // ถ้าไม่มีข้อมูล ให้เปิดฟอร์มตรงเลยโดยไม่ต้องยืนยัน
-    if (hasAcknowledgmentData(record)) {
+    // ⚠️ แสดง acknowledgment modal เฉพาะเมื่อมีข้อมูล สอบถาม/ตอบกลับ (inquiry) เท่านั้น
+    // ไม่ตรวจ ส่งงาน/ตอบกลับ (submission)
+    if (hasAcknowledgmentData(record, 'inquiry')) {
       setPendingBuildId(record.build)
-      setAcknowledgmentSections(getSectionsWithData(record))
+      setAcknowledgmentSections(getSectionsWithData(record, 'inquiry'))
       setAcknowledgmentRecord(record)
       setAcknowledgmentOpened(true)
     } else {
-      // ไม่มีข้อมูลความคิดเห็น → เปิดฟอร์มตรงเลย
+      // ไม่มีข้อมูลสอบถาม/ตอบกลับ → เปิดฟอร์มตรงเลย
       setSelectedBuildId(record.build)
       setFormOpened(true)
     }
@@ -161,14 +161,13 @@ export default function TaxInspection() {
     try {
       // ⚠️ สำคัญ: Invalidate cache ทั้งหมดที่เกี่ยวข้องกับ tax-inspection เพื่อบังคับให้ refetch แม้ว่า cache จะยังไม่ stale
       // ใช้ exact: false เพื่อ invalidate ทุก queries ที่ขึ้นต้นด้วย ['monthly-tax-data', 'tax-inspection']
-      await queryClient.invalidateQueries({ queryKey: ['monthly-tax-data', 'tax-inspection'], exact: false }, { refetchType: 'active' })
-      await queryClient.invalidateQueries({ queryKey: ['monthly-tax-data-summary', 'tax-inspection'], exact: false }, { refetchType: 'active' })
+      await queryClient.invalidateQueries(['monthly-tax-data', 'tax-inspection'], { exact: false, refetchActive: true })
+      await queryClient.invalidateQueries(['monthly-tax-data-summary', 'tax-inspection'], { exact: false, refetchActive: true })
 
       // ⚠️ สำคัญ: Refetch queries ทั้งหมดที่ active เพื่อให้ได้ข้อมูลล่าสุดจาก server
-      // ใช้ type: 'active' เพื่อ refetch เฉพาะ queries ที่กำลัง active (component ที่ mount อยู่)
       await Promise.all([
-        queryClient.refetchQueries({ queryKey: ['monthly-tax-data', 'tax-inspection'], exact: false, type: 'active' }),
-        queryClient.refetchQueries({ queryKey: ['monthly-tax-data-summary', 'tax-inspection'], exact: false, type: 'active' }),
+        queryClient.refetchQueries(['monthly-tax-data', 'tax-inspection'], { exact: false }),
+        queryClient.refetchQueries(['monthly-tax-data-summary', 'tax-inspection'], { exact: false }),
       ])
 
       // ⏱️ Reset last update time after successful refresh
@@ -336,6 +335,7 @@ export default function TaxInspection() {
           }}
           sectionsWithData={acknowledgmentSections}
           record={acknowledgmentRecord}
+          filter="inquiry"
           onConfirm={handleAcknowledgmentConfirm}
         />
 

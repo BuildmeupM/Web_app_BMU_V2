@@ -7,17 +7,20 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
     Container, Stack, Group, Text, TextInput, Button, ActionIcon, Card, Badge,
-    Box, Loader, Accordion, Tooltip, Divider, ThemeIcon, Title, Paper, Grid, ScrollArea
+    Box, Loader, Accordion, Tooltip, Divider, ThemeIcon, Title, Paper, Grid, ScrollArea,
+    ColorSwatch, ColorPicker,
 } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import {
     TbPlus, TbTrash, TbEdit, TbCheck, TbX, TbBuildingBank, TbReceiptTax,
-    TbShieldCheck, TbUsers, TbSettings, TbListDetails, TbChevronRight
+    TbShieldCheck, TbUsers, TbSettings, TbListDetails, TbChevronRight,
+    TbUsersGroup,
 } from 'react-icons/tb'
 import {
     WorkType, Department,
     getWorkTypes, createWorkType, updateWorkType, deleteWorkType,
-    createSubType, updateSubType, deleteSubType
+    createSubType, updateSubType, deleteSubType,
+    TeamStatus, getTeamStatuses, createTeamStatus, updateTeamStatus, deleteTeamStatus,
 } from '../services/registrationWorkService'
 
 const departmentConfig: { key: Department; label: string; fullLabel: string; icon: React.ComponentType<any>; color: string; gradient: string }[] = [
@@ -39,6 +42,16 @@ export default function RegistrationSettings() {
     const [addingSubFor, setAddingSubFor] = useState<string | null>(null)
     const [editingSubId, setEditingSubId] = useState<string | null>(null)
     const [editSubName, setEditSubName] = useState('')
+
+    // Team Status state
+    const [teamStatuses, setTeamStatuses] = useState<TeamStatus[]>([])
+    const [loadingTeam, setLoadingTeam] = useState(false)
+    const [newTeamName, setNewTeamName] = useState('')
+    const [newTeamColor, setNewTeamColor] = useState('#228be6')
+    const [addingTeam, setAddingTeam] = useState(false)
+    const [editingTeamId, setEditingTeamId] = useState<string | null>(null)
+    const [editTeamName, setEditTeamName] = useState('')
+    const [editTeamColor, setEditTeamColor] = useState('')
 
     const currentDept = departmentConfig.find(d => d.key === activeDept)!
 
@@ -180,6 +193,83 @@ export default function RegistrationSettings() {
 
     const totalSubs = workTypes.reduce((sum, t) => sum + t.sub_types.length, 0)
     const DeptIcon = currentDept.icon
+
+    // ============================================================
+    // Team Status Handlers
+    // ============================================================
+    const fetchTeamStatuses = useCallback(async () => {
+        setLoadingTeam(true)
+        try {
+            const statuses = await getTeamStatuses()
+            setTeamStatuses(statuses)
+        } catch (error: any) {
+            console.error('Fetch team statuses error:', error)
+        } finally {
+            setLoadingTeam(false)
+        }
+    }, [])
+
+    useEffect(() => {
+        fetchTeamStatuses()
+    }, [fetchTeamStatuses])
+
+    const handleAddTeamStatus = async () => {
+        if (!newTeamName.trim()) return
+        setAddingTeam(true)
+        try {
+            await createTeamStatus({ name: newTeamName.trim(), color: newTeamColor })
+            setNewTeamName('')
+            setNewTeamColor('#228be6')
+            notifications.show({ title: 'สำเร็จ', message: 'เพิ่มสถานะทีมแล้ว', color: 'green' })
+            fetchTeamStatuses()
+        } catch (error: any) {
+            notifications.show({
+                title: 'เกิดข้อผิดพลาด',
+                message: error?.response?.data?.message || 'ไม่สามารถเพิ่มได้',
+                color: 'red'
+            })
+        } finally {
+            setAddingTeam(false)
+        }
+    }
+
+    const handleUpdateTeamStatus = async (id: string) => {
+        if (!editTeamName.trim()) return
+        try {
+            await updateTeamStatus(id, { name: editTeamName.trim(), color: editTeamColor })
+            setEditingTeamId(null)
+            notifications.show({ title: 'สำเร็จ', message: 'แก้ไขสถานะทีมแล้ว', color: 'green' })
+            fetchTeamStatuses()
+        } catch (error: any) {
+            notifications.show({
+                title: 'เกิดข้อผิดพลาด',
+                message: error?.response?.data?.message || 'ไม่สามารถแก้ไขได้',
+                color: 'red'
+            })
+        }
+    }
+
+    const handleDeleteTeamStatus = async (id: string, name: string) => {
+        if (!window.confirm(`ต้องการลบสถานะ "${name}" หรือไม่? งานที่ใช้สถานะนี้จะถูกเคลียร์`)) return
+        try {
+            await deleteTeamStatus(id)
+            notifications.show({ title: 'สำเร็จ', message: 'ลบสถานะทีมแล้ว', color: 'green' })
+            fetchTeamStatuses()
+        } catch (error: any) {
+            notifications.show({
+                title: 'เกิดข้อผิดพลาด',
+                message: error?.response?.data?.message || 'ไม่สามารถลบได้',
+                color: 'red'
+            })
+        }
+    }
+
+    const TEAM_COLOR_SWATCHES = [
+        '#f44336', '#E91E63', '#9C27B0', '#673AB7',
+        '#3F51B5', '#2196F3', '#03A9F4', '#00BCD4',
+        '#009688', '#4CAF50', '#8BC34A', '#FF9800',
+        '#FF5722', '#795548', '#607D8B', '#228be6',
+    ]
 
     return (
         <Container size="xl" py="md">
@@ -545,6 +635,176 @@ export default function RegistrationSettings() {
                         </Card>
                     </Grid.Col>
                 </Grid>
+
+                {/* ======================== TEAM STATUS SECTION ======================== */}
+                <Divider />
+
+                <Group gap="sm">
+                    <ThemeIcon size={32} radius="md" variant="light" color="cyan">
+                        <TbUsersGroup size={20} />
+                    </ThemeIcon>
+                    <div>
+                        <Text size="lg" fw={700}>สถานะการทำงานในทีม</Text>
+                        <Text size="xs" c="dimmed">กำหนดตัวเลือกสถานะทีมที่ใช้ในระบบ (ใช้ร่วมกันทุกหน่วยงาน)</Text>
+                    </div>
+                </Group>
+
+                <Card withBorder radius="lg" p={0} style={{ overflow: 'hidden' }}>
+                    {/* Header */}
+                    <Box p="md" style={{ background: 'linear-gradient(135deg, #0097a7 0%, #00bcd4 100%)' }}>
+                        <Group gap="md">
+                            <Box style={{
+                                width: 44, height: 44, borderRadius: 12,
+                                backgroundColor: 'rgba(255,255,255,0.25)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            }}>
+                                <TbUsersGroup size={24} color="white" />
+                            </Box>
+                            <div>
+                                <Text size="lg" fw={700} c="white">สถานะการทำงานในทีม</Text>
+                                <Text size="xs" c="rgba(255,255,255,0.8)">
+                                    {teamStatuses.length} สถานะ
+                                </Text>
+                            </div>
+                        </Group>
+                    </Box>
+
+                    {/* Content */}
+                    <Box p="md">
+                        <Stack gap="md">
+                            {/* Add new team status */}
+                            <Paper p="sm" radius="md" style={{ border: '1px solid #00bcd430', backgroundColor: '#00bcd406' }}>
+                                <Text size="sm" fw={600} mb="xs" c="#0097a7">เพิ่มสถานะใหม่</Text>
+                                <Group gap="sm" align="flex-end">
+                                    <TextInput
+                                        placeholder="ชื่อสถานะ เช่น รอดำเนินการ, กำลังตรวจสอบ..."
+                                        value={newTeamName}
+                                        onChange={(e) => setNewTeamName(e.currentTarget.value)}
+                                        onKeyDown={(e) => e.key === 'Enter' && handleAddTeamStatus()}
+                                        style={{ flex: 1 }}
+                                        size="sm"
+                                    />
+                                    <Group gap={6}>
+                                        {TEAM_COLOR_SWATCHES.slice(0, 8).map(c => (
+                                            <ColorSwatch
+                                                key={c}
+                                                color={c}
+                                                size={22}
+                                                onClick={() => setNewTeamColor(c)}
+                                                style={{
+                                                    cursor: 'pointer',
+                                                    border: newTeamColor === c ? '2px solid #333' : '2px solid transparent',
+                                                    borderRadius: '50%',
+                                                }}
+                                            />
+                                        ))}
+                                    </Group>
+                                    <Button
+                                        size="sm"
+                                        leftSection={<TbPlus size={16} />}
+                                        onClick={handleAddTeamStatus}
+                                        loading={addingTeam}
+                                        color="cyan"
+                                        disabled={!newTeamName.trim()}
+                                    >
+                                        เพิ่มสถานะ
+                                    </Button>
+                                </Group>
+                            </Paper>
+
+                            {/* Loading */}
+                            {loadingTeam && (
+                                <Box ta="center" py="xl"><Loader size="sm" /></Box>
+                            )}
+
+                            {/* Empty */}
+                            {!loadingTeam && teamStatuses.length === 0 && (
+                                <Box ta="center" py="xl">
+                                    <TbUsersGroup size={48} color="#ccc" />
+                                    <Text c="dimmed" size="sm" mt="sm">ยังไม่มีสถานะทีม</Text>
+                                    <Text c="dimmed" size="xs">เพิ่มสถานะแรกด้านบน</Text>
+                                </Box>
+                            )}
+
+                            {/* Team Statuses List */}
+                            {!loadingTeam && teamStatuses.length > 0 && (
+                                <Stack gap={6}>
+                                    {teamStatuses.map((ts, idx) => (
+                                        <Group key={ts.id} gap="sm" justify="space-between"
+                                            style={{
+                                                padding: '10px 14px', borderRadius: 8,
+                                                backgroundColor: '#f8f9fa',
+                                            }}
+                                        >
+                                            {editingTeamId === ts.id ? (
+                                                <Group gap="xs" style={{ flex: 1 }} wrap="wrap">
+                                                    <TextInput
+                                                        value={editTeamName}
+                                                        onChange={(e) => setEditTeamName(e.currentTarget.value)}
+                                                        onKeyDown={(e) => {
+                                                            if (e.key === 'Enter') handleUpdateTeamStatus(ts.id)
+                                                            if (e.key === 'Escape') setEditingTeamId(null)
+                                                        }}
+                                                        size="xs"
+                                                        style={{ flex: 1, minWidth: 150 }}
+                                                        autoFocus
+                                                    />
+                                                    <Group gap={4}>
+                                                        {TEAM_COLOR_SWATCHES.map(c => (
+                                                            <ColorSwatch
+                                                                key={c}
+                                                                color={c}
+                                                                size={18}
+                                                                onClick={() => setEditTeamColor(c)}
+                                                                style={{
+                                                                    cursor: 'pointer',
+                                                                    border: editTeamColor === c ? '2px solid #333' : '2px solid transparent',
+                                                                    borderRadius: '50%',
+                                                                }}
+                                                            />
+                                                        ))}
+                                                    </Group>
+                                                    <Group gap={4}>
+                                                        <ActionIcon size="sm" color="green" variant="light" onClick={() => handleUpdateTeamStatus(ts.id)}>
+                                                            <TbCheck size={14} />
+                                                        </ActionIcon>
+                                                        <ActionIcon size="sm" color="gray" variant="light" onClick={() => setEditingTeamId(null)}>
+                                                            <TbX size={14} />
+                                                        </ActionIcon>
+                                                    </Group>
+                                                </Group>
+                                            ) : (
+                                                <>
+                                                    <Group gap="sm">
+                                                        <Text size="xs" c="dimmed" w={20} ta="center">{idx + 1}</Text>
+                                                        <ColorSwatch color={ts.color} size={20} />
+                                                        <Text size="sm" fw={500}>{ts.name}</Text>
+                                                    </Group>
+                                                    <Group gap={4}>
+                                                        <Tooltip label="แก้ไข">
+                                                            <ActionIcon size="sm" variant="subtle" color="blue" onClick={() => {
+                                                                setEditingTeamId(ts.id)
+                                                                setEditTeamName(ts.name)
+                                                                setEditTeamColor(ts.color)
+                                                            }}>
+                                                                <TbEdit size={14} />
+                                                            </ActionIcon>
+                                                        </Tooltip>
+                                                        <Tooltip label="ลบ">
+                                                            <ActionIcon size="sm" variant="subtle" color="red" onClick={() => handleDeleteTeamStatus(ts.id, ts.name)}>
+                                                                <TbTrash size={14} />
+                                                            </ActionIcon>
+                                                        </Tooltip>
+                                                    </Group>
+                                                </>
+                                            )}
+                                        </Group>
+                                    ))}
+                                </Stack>
+                            )}
+                        </Stack>
+                    </Box>
+                </Card>
             </Stack>
         </Container>
     )

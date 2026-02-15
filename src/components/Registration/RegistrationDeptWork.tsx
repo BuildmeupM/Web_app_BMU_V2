@@ -4,7 +4,7 @@
  * แต่ละหน้าจะส่ง config (department, title, icon, gradient) เข้ามา
  */
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import {
     Container, Title, Stack, Card, Group, Text, Badge, Box, TextInput,
     Button, Table, ActionIcon, Modal, Select, Textarea, Tooltip,
@@ -14,7 +14,7 @@ import { useDisclosure } from '@mantine/hooks'
 import { DatePickerInput } from '@mantine/dates'
 import {
     TbPlus, TbEdit, TbTrash, TbSearch, TbCalendar,
-    TbAlertCircle, TbDeviceFloppy, TbFilter, TbUserPlus, TbUser,
+    TbAlertCircle, TbDeviceFloppy, TbFilter, TbUserPlus, TbUser, TbClipboard,
 } from 'react-icons/tb'
 import { useQuery, useMutation, useQueryClient } from 'react-query'
 import {
@@ -66,7 +66,7 @@ const STATUS_OPTIONS = [
 
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
     pending: { label: 'รอดำเนินการ', color: 'yellow' },
-    in_progress: { label: 'กำลังดำเนินการ', color: 'blue' },
+    in_progress: { label: 'กำลังดำเนินการ', color: 'orange' },
     completed: { label: 'เสร็จสิ้น', color: 'green' },
 }
 
@@ -209,6 +209,42 @@ function TaskFormModal({ opened, onClose, editingTask, clients, clientGroups, wo
     // Add client modal
     const [addClientOpened, { open: openAddClient, close: closeAddClient }] = useDisclosure(false)
 
+    // Main clients search (debounced — from /api/clients/dropdown)
+    const [mainClients, setMainClients] = useState<{ build: string; company_name: string }[]>([])
+    const [mainClientSearching, setMainClientSearching] = useState(false)
+    const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const selectedMainClientRef = useRef<{ value: string; label: string } | null>(null)
+
+    const handleClientSearch = useCallback((query: string) => {
+        // Clear previous timer
+        if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
+
+        if (!query || query.trim().length < 2) {
+            setMainClients([])
+            setMainClientSearching(false)
+            return
+        }
+
+        setMainClientSearching(true)
+        searchTimerRef.current = setTimeout(async () => {
+            try {
+                const results = await registrationClientService.searchMainClients(query)
+                setMainClients(results)
+            } catch {
+                setMainClients([])
+            } finally {
+                setMainClientSearching(false)
+            }
+        }, 300) // 300ms debounce
+    }, [])
+
+    // Cleanup timer on unmount
+    useEffect(() => {
+        return () => {
+            if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
+        }
+    }, [])
+
     useEffect(() => {
         if (opened && editingTask) {
             setReceivedDate(new Date(editingTask.received_date))
@@ -226,17 +262,60 @@ function TaskFormModal({ opened, onClose, editingTask, clients, clientGroups, wo
             setResponsibleId(null)
             setStatus('pending')
             setNotes('')
+            setMainClients([])
+            selectedMainClientRef.current = null
         }
     }, [opened, editingTask])
 
-    // Client select data
-    const clientOptions = useMemo(() =>
-        (clients || []).filter(c => c.is_active).map(c => ({
+    // Track selected main client so it persists in options
+    const handleClientChange = useCallback((val: string | null) => {
+        setClientId(val)
+        if (val && val.startsWith('main::')) {
+            const buildCode = val.replace('main::', '')
+            const mc = mainClients.find(c => c.build === buildCode)
+            if (mc) {
+                selectedMainClientRef.current = {
+                    value: val,
+                    label: `${mc.build} - ${mc.company_name}`,
+                }
+            }
+        } else {
+            selectedMainClientRef.current = null
+        }
+    }, [mainClients])
+
+    // Client select data — merge registration clients + main clients
+    const clientOptions = useMemo(() => {
+        const regItems = (clients || []).filter(c => c.is_active).map(c => ({
             value: c.id,
             label: c.company_name,
-        })),
-        [clients]
-    )
+        }))
+
+        // Deduplicate: exclude main clients that already exist in registration clients
+        const regNames = new Set(regItems.map(o => o.label.toLowerCase()))
+        const mainItems = mainClients
+            .filter(mc => !regNames.has(mc.company_name.toLowerCase()))
+            .map(mc => ({
+                value: `main::${mc.build}`,
+                label: `${mc.build} - ${mc.company_name}`,
+            }))
+
+        // Always include the currently selected main client
+        const sel = selectedMainClientRef.current
+        if (sel && !mainItems.find(i => i.value === sel.value)) {
+            mainItems.unshift(sel)
+        }
+
+        const groups: { group: string; items: { value: string; label: string }[] }[] = []
+        if (regItems.length > 0) {
+            groups.push({ group: 'ลูกค้าทะเบียน', items: regItems })
+        }
+        if (mainItems.length > 0) {
+            groups.push({ group: 'ข้อมูลลูกค้า (ระบบหลัก)', items: mainItems })
+        }
+
+        return groups
+    }, [clients, mainClients, clientId])
 
     // Work type options (main types from settings API)
     const workTypeOptions = useMemo(() => {
@@ -295,13 +374,27 @@ function TaskFormModal({ opened, onClose, editingTask, clients, clientGroups, wo
             return
         }
 
-        const selectedClient = clients.find(c => c.id === clientId)
+        // Resolve client name — handle both registration clients and main clients
+        let resolvedClientId = clientId
+        let resolvedClientName = ''
+
+        if (clientId.startsWith('main::')) {
+            // Main client selected — extract build code
+            const buildCode = clientId.replace('main::', '')
+            const mainClient = mainClients.find(mc => mc.build === buildCode)
+            resolvedClientId = buildCode
+            resolvedClientName = mainClient?.company_name || buildCode
+        } else {
+            const selectedClient = clients.find(c => c.id === clientId)
+            resolvedClientName = selectedClient?.company_name || ''
+        }
+
         const selectedUser = users.find(u => u.id === responsibleId)
 
         onSave({
             received_date: receivedDate.toISOString().split('T')[0],
-            client_id: clientId,
-            client_name: selectedClient?.company_name || '',
+            client_id: resolvedClientId,
+            client_name: resolvedClientName,
             job_type: workTypeId,
             job_type_sub: subTypeId || '',
             responsible_id: responsibleId,
@@ -353,13 +446,15 @@ function TaskFormModal({ opened, onClose, editingTask, clients, clientGroups, wo
                             </Button>
                         </Group>
                         <Select
-                            placeholder="ค้นหาชื่อลูกค้า..."
+                            placeholder="ค้นหาชื่อลูกค้า... (พิมพ์ 2 ตัวอักษรขึ้นไป)"
                             data={clientOptions}
                             value={clientId}
-                            onChange={setClientId}
+                            onChange={handleClientChange}
                             searchable
-                            nothingFoundMessage="ไม่พบลูกค้า — กดปุ่ม 'เพิ่มลูกค้าใหม่' ด้านบน"
+                            onSearchChange={handleClientSearch}
+                            nothingFoundMessage={mainClientSearching ? 'กำลังค้นหา...' : "ไม่พบลูกค้า — กดปุ่ม 'เพิ่มลูกค้าใหม่' ด้านบน"}
                             clearable
+                            filter={({ options }) => options}
                         />
                     </Box>
 
@@ -459,6 +554,10 @@ export default function RegistrationDeptWork({ config }: { config: DeptConfig })
     const queryClient = useQueryClient()
     const [statusModalOpened, { open: openStatusModal, close: closeStatusModal }] = useDisclosure(false)
     const [selectedTask, setSelectedTask] = useState<RegistrationTask | null>(null)
+    // Capture ?task= param once on mount for deep-link auto-open
+    const pendingTaskIdRef = useRef<string | null>(
+        new URLSearchParams(window.location.search).get('task')
+    )
 
     // Fetch tasks from API
     const { data: taskData, isLoading: tasksLoading } = useQuery(
@@ -466,6 +565,21 @@ export default function RegistrationDeptWork({ config }: { config: DeptConfig })
         () => registrationTaskService.getByDepartment(department),
     )
     const tasks: DeptTask[] = (taskData?.tasks || []) as DeptTask[]
+
+    // Auto-open task detail from ?task=taskId (e.g. from payment detail modal)
+    useEffect(() => {
+        if (pendingTaskIdRef.current && tasks.length > 0) {
+            const taskId = pendingTaskIdRef.current
+            pendingTaskIdRef.current = null // Only trigger once
+            const target = tasks.find(t => t.id === taskId)
+            if (target) {
+                setSelectedTask(target as unknown as RegistrationTask)
+                openStatusModal()
+            }
+            // Clean URL without re-render
+            window.history.replaceState({}, '', window.location.pathname)
+        }
+    }, [tasks])
 
     // Fetch real clients
     const { data: clientData } = useQuery(
@@ -630,6 +744,24 @@ export default function RegistrationDeptWork({ config }: { config: DeptConfig })
         return Array.from(map.values()).sort((a, b) => b.total - a.total)
     }, [tasks, users])
 
+    // Per-job-type summary
+    const jobTypeStats = useMemo(() => {
+        const map = new Map<string, { label: string; total: number; completed: number; in_progress: number; pending: number }>()
+        for (const t of tasks) {
+            const key = t.job_type || 'unknown'
+            const label = getJobTypeLabel(t)
+            if (!map.has(key)) {
+                map.set(key, { label, total: 0, completed: 0, in_progress: 0, pending: 0 })
+            }
+            const entry = map.get(key)!
+            entry.total++
+            if (t.status === 'completed') entry.completed++
+            else if (t.status === 'in_progress') entry.in_progress++
+            else entry.pending++
+        }
+        return Array.from(map.values()).sort((a, b) => b.total - a.total)
+    }, [tasks])
+
     return (
         <Container size="xl" py="md">
             <Stack gap="md">
@@ -680,88 +812,259 @@ export default function RegistrationDeptWork({ config }: { config: DeptConfig })
                         <SimpleGrid cols={{ base: 1, xs: 2, sm: 3, md: 3 }} spacing="sm">
                             {personStats.map((p, i) => {
                                 const pct = p.total > 0 ? Math.round((p.completed / p.total) * 100) : 0
-                                const remaining = p.total - p.completed
-                                const initials = p.name.charAt(0).toUpperCase()
                                 const avatarColors = ['#1976d2', '#e65100', '#2e7d32', '#6a1b9a', '#c62828', '#00838f', '#4527a0', '#ad1457']
                                 const avatarColor = avatarColors[i % avatarColors.length]
+                                const initials = p.name.charAt(0).toUpperCase()
                                 return (
                                     <Card
                                         key={p.name}
                                         withBorder
-                                        radius="md"
-                                        p="sm"
+                                        radius="lg"
+                                        p={0}
                                         style={{
-                                            borderLeft: `4px solid ${avatarColor}`,
-                                            transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+                                            overflow: 'hidden',
+                                            transition: 'transform 0.2s ease, box-shadow 0.2s ease',
                                             cursor: 'default',
                                         }}
                                         onMouseEnter={(e: React.MouseEvent<HTMLDivElement>) => {
-                                            e.currentTarget.style.transform = 'translateY(-2px)'
-                                            e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)'
+                                            e.currentTarget.style.transform = 'translateY(-3px)'
+                                            e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.12)'
                                         }}
                                         onMouseLeave={(e: React.MouseEvent<HTMLDivElement>) => {
                                             e.currentTarget.style.transform = 'translateY(0)'
                                             e.currentTarget.style.boxShadow = 'none'
                                         }}
                                     >
-                                        <Group gap="sm" wrap="nowrap">
-                                            {/* Avatar */}
-                                            <Box style={{
-                                                width: 42, height: 42, borderRadius: '50%',
-                                                background: `linear-gradient(135deg, ${avatarColor}, ${avatarColor}dd)`,
-                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                flexShrink: 0,
-                                                boxShadow: `0 2px 8px ${avatarColor}44`,
-                                            }}>
-                                                <Text size="md" fw={700} c="white">{initials}</Text>
-                                            </Box>
-                                            {/* Info */}
-                                            <Box style={{ flex: 1, minWidth: 0 }}>
-                                                <Text size="sm" fw={600} truncate mb={2}>{p.name}</Text>
-                                                <Group gap={6}>
-                                                    <Tooltip label="งานทั้งหมด" withArrow position="bottom">
-                                                        <Badge size="sm" variant="light" color="gray" style={{ cursor: 'help' }}>
-                                                            📋 {p.total}
-                                                        </Badge>
-                                                    </Tooltip>
-                                                    <Tooltip label="เสร็จแล้ว" withArrow position="bottom">
-                                                        <Badge size="sm" variant="light" color="green" style={{ cursor: 'help' }}>
-                                                            ✅ {p.completed}
-                                                        </Badge>
-                                                    </Tooltip>
-                                                    <Tooltip label="ค้างอยู่" withArrow position="bottom">
-                                                        <Badge size="sm" variant="light" color={remaining > 0 ? 'orange' : 'gray'} style={{ cursor: 'help' }}>
-                                                            ⏳ {remaining}
-                                                        </Badge>
-                                                    </Tooltip>
+                                        {/* Gradient accent top bar */}
+                                        <Box style={{
+                                            height: 6,
+                                            background: `linear-gradient(90deg, ${avatarColor}, ${avatarColor}99)`,
+                                        }} />
+
+                                        <Box p="md">
+                                            {/* Avatar + Name + Progress Ring */}
+                                            <Group gap="sm" wrap="nowrap" mb="md">
+                                                <Box style={{
+                                                    width: 48, height: 48, borderRadius: '50%',
+                                                    background: `linear-gradient(135deg, ${avatarColor}, ${avatarColor}cc)`,
+                                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                    flexShrink: 0,
+                                                    boxShadow: `0 3px 12px ${avatarColor}40`,
+                                                }}>
+                                                    <Text size="lg" fw={700} c="white">{initials}</Text>
+                                                </Box>
+                                                <Box style={{ flex: 1, minWidth: 0 }}>
+                                                    <Text size="sm" fw={700} truncate>{p.name}</Text>
+                                                    <Text size="xs" c="dimmed">{p.total} งานทั้งหมด</Text>
+                                                </Box>
+                                                {/* Progress Ring */}
+                                                <Box style={{
+                                                    width: 52, height: 52,
+                                                    position: 'relative',
+                                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                    flexShrink: 0,
+                                                }}>
+                                                    <svg width="52" height="52" viewBox="0 0 52 52" style={{ transform: 'rotate(-90deg)' }}>
+                                                        <circle cx="26" cy="26" r="22" fill="none" stroke="#f1f3f5" strokeWidth="5" />
+                                                        <circle
+                                                            cx="26" cy="26" r="22" fill="none"
+                                                            stroke={pct === 100 ? '#40c057' : pct >= 50 ? '#228be6' : '#fd7e14'}
+                                                            strokeWidth="5"
+                                                            strokeDasharray={`${(pct / 100) * 138.23} 138.23`}
+                                                            strokeLinecap="round"
+                                                            style={{ transition: 'stroke-dasharray 0.5s ease' }}
+                                                        />
+                                                    </svg>
+                                                    <Text
+                                                        size="xs" fw={800}
+                                                        style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}
+                                                        c={pct === 100 ? 'green' : pct >= 50 ? 'blue' : 'orange'}
+                                                    >
+                                                        {pct}%
+                                                    </Text>
+                                                </Box>
+                                            </Group>
+
+                                            {/* Mini stat bars */}
+                                            <Stack gap={6}>
+                                                <Group gap="xs" wrap="nowrap">
+                                                    <Text size="xs" c="dimmed" style={{ width: 60, flexShrink: 0 }}>เสร็จแล้ว</Text>
+                                                    <Box style={{ flex: 1, height: 8, borderRadius: 4, backgroundColor: '#f1f3f5', overflow: 'hidden' }}>
+                                                        <Box style={{
+                                                            height: '100%', borderRadius: 4,
+                                                            width: p.total > 0 ? `${(p.completed / p.total) * 100}%` : '0%',
+                                                            background: 'linear-gradient(90deg, #40c057, #69db7c)',
+                                                            transition: 'width 0.5s ease',
+                                                        }} />
+                                                    </Box>
+                                                    <Text size="xs" fw={600} c="green" style={{ width: 20, textAlign: 'right' }}>{p.completed}</Text>
                                                 </Group>
-                                            </Box>
-                                            {/* Percentage Ring */}
-                                            <Box style={{
-                                                width: 48, height: 48,
-                                                position: 'relative',
-                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                flexShrink: 0,
-                                            }}>
-                                                <svg width="48" height="48" viewBox="0 0 48 48" style={{ transform: 'rotate(-90deg)' }}>
-                                                    <circle cx="24" cy="24" r="20" fill="none" stroke="#e9ecef" strokeWidth="4" />
-                                                    <circle
-                                                        cx="24" cy="24" r="20" fill="none"
-                                                        stroke={pct === 100 ? '#40c057' : pct >= 50 ? '#228be6' : '#fd7e14'}
-                                                        strokeWidth="4"
-                                                        strokeDasharray={`${(pct / 100) * 125.66} 125.66`}
-                                                        strokeLinecap="round"
-                                                    />
-                                                </svg>
-                                                <Text
-                                                    size="xs" fw={700}
-                                                    style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}
-                                                    c={pct === 100 ? 'green' : pct >= 50 ? 'blue' : 'orange'}
-                                                >
-                                                    {pct}%
-                                                </Text>
-                                            </Box>
-                                        </Group>
+                                                <Group gap="xs" wrap="nowrap">
+                                                    <Text size="xs" c="dimmed" style={{ width: 60, flexShrink: 0 }}>กำลังทำ</Text>
+                                                    <Box style={{ flex: 1, height: 8, borderRadius: 4, backgroundColor: '#f1f3f5', overflow: 'hidden' }}>
+                                                        <Box style={{
+                                                            height: '100%', borderRadius: 4,
+                                                            width: p.total > 0 ? `${(p.in_progress / p.total) * 100}%` : '0%',
+                                                            background: 'linear-gradient(90deg, #fd7e14, #ffa94d)',
+                                                            transition: 'width 0.5s ease',
+                                                        }} />
+                                                    </Box>
+                                                    <Text size="xs" fw={600} c="orange" style={{ width: 20, textAlign: 'right' }}>{p.in_progress}</Text>
+                                                </Group>
+                                                <Group gap="xs" wrap="nowrap">
+                                                    <Text size="xs" c="dimmed" style={{ width: 60, flexShrink: 0 }}>รอดำเนิน</Text>
+                                                    <Box style={{ flex: 1, height: 8, borderRadius: 4, backgroundColor: '#f1f3f5', overflow: 'hidden' }}>
+                                                        <Box style={{
+                                                            height: '100%', borderRadius: 4,
+                                                            width: p.total > 0 ? `${(p.pending / p.total) * 100}%` : '0%',
+                                                            background: 'linear-gradient(90deg, #fab005, #ffd43b)',
+                                                            transition: 'width 0.5s ease',
+                                                        }} />
+                                                    </Box>
+                                                    <Text size="xs" fw={600} c="yellow.7" style={{ width: 20, textAlign: 'right' }}>{p.pending}</Text>
+                                                </Group>
+                                            </Stack>
+                                        </Box>
+                                    </Card>
+                                )
+                            })}
+                        </SimpleGrid>
+                    </Card>
+                )}
+
+                {/* Per-job-type Summary */}
+                {jobTypeStats.length > 0 && (
+                    <Card withBorder radius="lg" p="md" style={{ overflow: 'hidden' }}>
+                        <Group gap="xs" mb="md">
+                            <Box style={{
+                                width: 28, height: 28, borderRadius: '50%',
+                                background: gradient,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            }}>
+                                <TbClipboard size={15} color="white" />
+                            </Box>
+                            <div>
+                                <Text size="sm" fw={700}>สรุปงานตามประเภทงาน</Text>
+                                <Text size="xs" c="dimmed">ภาพรวมจำนวนงานแยกตามประเภท</Text>
+                            </div>
+                        </Group>
+                        <SimpleGrid cols={{ base: 1, xs: 2, sm: 3, md: 4 }} spacing="sm">
+                            {jobTypeStats.map((jt, i) => {
+                                const pct = jt.total > 0 ? Math.round((jt.completed / jt.total) * 100) : 0
+                                const barColors = ['#6a1b9a', '#e65100', '#1565c0', '#2e7d32', '#c62828', '#00838f', '#4527a0', '#ad1457']
+                                const barColor = barColors[i % barColors.length]
+                                const iconEmojis = ['📝', '📊', '📁', '📋', '🔧', '📦', '🏢', '📄']
+                                const iconEmoji = iconEmojis[i % iconEmojis.length]
+                                return (
+                                    <Card
+                                        key={jt.label}
+                                        withBorder
+                                        radius="lg"
+                                        p={0}
+                                        style={{
+                                            overflow: 'hidden',
+                                            transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                                            cursor: 'default',
+                                        }}
+                                        onMouseEnter={(e: React.MouseEvent<HTMLDivElement>) => {
+                                            e.currentTarget.style.transform = 'translateY(-3px)'
+                                            e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.12)'
+                                        }}
+                                        onMouseLeave={(e: React.MouseEvent<HTMLDivElement>) => {
+                                            e.currentTarget.style.transform = 'translateY(0)'
+                                            e.currentTarget.style.boxShadow = 'none'
+                                        }}
+                                    >
+                                        {/* Gradient accent top bar */}
+                                        <Box style={{
+                                            height: 6,
+                                            background: `linear-gradient(90deg, ${barColor}, ${barColor}99)`,
+                                        }} />
+
+                                        <Box p="md">
+                                            {/* Icon + Label + Progress Ring */}
+                                            <Group gap="sm" wrap="nowrap" mb="md">
+                                                <Box style={{
+                                                    width: 42, height: 42, borderRadius: 12,
+                                                    background: `linear-gradient(135deg, ${barColor}18, ${barColor}30)`,
+                                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                    flexShrink: 0,
+                                                    border: `1px solid ${barColor}25`,
+                                                }}>
+                                                    <Text size="lg">{iconEmoji}</Text>
+                                                </Box>
+                                                <Box style={{ flex: 1, minWidth: 0 }}>
+                                                    <Text size="sm" fw={700} truncate>{jt.label}</Text>
+                                                    <Text size="xs" c="dimmed">{jt.total} งานทั้งหมด</Text>
+                                                </Box>
+                                                {/* Progress Ring */}
+                                                <Box style={{
+                                                    width: 48, height: 48,
+                                                    position: 'relative',
+                                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                    flexShrink: 0,
+                                                }}>
+                                                    <svg width="48" height="48" viewBox="0 0 48 48" style={{ transform: 'rotate(-90deg)' }}>
+                                                        <circle cx="24" cy="24" r="20" fill="none" stroke="#f1f3f5" strokeWidth="4.5" />
+                                                        <circle
+                                                            cx="24" cy="24" r="20" fill="none"
+                                                            stroke={pct === 100 ? '#40c057' : pct >= 50 ? barColor : '#fd7e14'}
+                                                            strokeWidth="4.5"
+                                                            strokeDasharray={`${(pct / 100) * 125.66} 125.66`}
+                                                            strokeLinecap="round"
+                                                            style={{ transition: 'stroke-dasharray 0.5s ease' }}
+                                                        />
+                                                    </svg>
+                                                    <Text
+                                                        size="xs" fw={800}
+                                                        style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}
+                                                        c={pct === 100 ? 'green' : pct >= 50 ? 'blue' : 'orange'}
+                                                    >
+                                                        {pct}%
+                                                    </Text>
+                                                </Box>
+                                            </Group>
+
+                                            {/* Mini stat bars */}
+                                            <Stack gap={6}>
+                                                <Group gap="xs" wrap="nowrap">
+                                                    <Text size="xs" c="dimmed" style={{ width: 60, flexShrink: 0 }}>เสร็จแล้ว</Text>
+                                                    <Box style={{ flex: 1, height: 8, borderRadius: 4, backgroundColor: '#f1f3f5', overflow: 'hidden' }}>
+                                                        <Box style={{
+                                                            height: '100%', borderRadius: 4,
+                                                            width: jt.total > 0 ? `${(jt.completed / jt.total) * 100}%` : '0%',
+                                                            background: 'linear-gradient(90deg, #40c057, #69db7c)',
+                                                            transition: 'width 0.5s ease',
+                                                        }} />
+                                                    </Box>
+                                                    <Text size="xs" fw={600} c="green" style={{ width: 20, textAlign: 'right' }}>{jt.completed}</Text>
+                                                </Group>
+                                                <Group gap="xs" wrap="nowrap">
+                                                    <Text size="xs" c="dimmed" style={{ width: 60, flexShrink: 0 }}>กำลังทำ</Text>
+                                                    <Box style={{ flex: 1, height: 8, borderRadius: 4, backgroundColor: '#f1f3f5', overflow: 'hidden' }}>
+                                                        <Box style={{
+                                                            height: '100%', borderRadius: 4,
+                                                            width: jt.total > 0 ? `${(jt.in_progress / jt.total) * 100}%` : '0%',
+                                                            background: 'linear-gradient(90deg, #fd7e14, #ffa94d)',
+                                                            transition: 'width 0.5s ease',
+                                                        }} />
+                                                    </Box>
+                                                    <Text size="xs" fw={600} c="orange" style={{ width: 20, textAlign: 'right' }}>{jt.in_progress}</Text>
+                                                </Group>
+                                                <Group gap="xs" wrap="nowrap">
+                                                    <Text size="xs" c="dimmed" style={{ width: 60, flexShrink: 0 }}>รอดำเนิน</Text>
+                                                    <Box style={{ flex: 1, height: 8, borderRadius: 4, backgroundColor: '#f1f3f5', overflow: 'hidden' }}>
+                                                        <Box style={{
+                                                            height: '100%', borderRadius: 4,
+                                                            width: jt.total > 0 ? `${(jt.pending / jt.total) * 100}%` : '0%',
+                                                            background: 'linear-gradient(90deg, #fab005, #ffd43b)',
+                                                            transition: 'width 0.5s ease',
+                                                        }} />
+                                                    </Box>
+                                                    <Text size="xs" fw={600} c="yellow.7" style={{ width: 20, textAlign: 'right' }}>{jt.pending}</Text>
+                                                </Group>
+                                            </Stack>
+                                        </Box>
                                     </Card>
                                 )
                             })}
@@ -776,7 +1079,7 @@ export default function RegistrationDeptWork({ config }: { config: DeptConfig })
                         <Text size="xs" c="dimmed">รอดำเนินการ</Text>
                     </Card>
                     <Card withBorder radius="lg" p="sm" style={{ textAlign: 'center' }}>
-                        <Text size="xl" fw={700} c="blue">{stats.in_progress}</Text>
+                        <Text size="xl" fw={700} c="orange">{stats.in_progress}</Text>
                         <Text size="xs" c="dimmed">กำลังดำเนินการ</Text>
                     </Card>
                     <Card withBorder radius="lg" p="sm" style={{ textAlign: 'center' }}>

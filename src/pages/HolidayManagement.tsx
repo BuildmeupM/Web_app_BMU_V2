@@ -3,7 +3,7 @@
  * หน้าจัดการวันหยุดนักขัตฤกษ์สำหรับ Admin/HR
  */
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import {
     Container,
     Title,
@@ -23,6 +23,12 @@ import {
     Alert,
     Menu,
     Select,
+    SimpleGrid,
+    Progress,
+    Tooltip,
+    Divider,
+    ThemeIcon,
+    RingProgress,
 } from '@mantine/core'
 import { DatePickerInput } from '@mantine/dates'
 import { notifications } from '@mantine/notifications'
@@ -279,6 +285,62 @@ export default function HolidayManagement() {
         label: `พ.ศ. ${currentYear - 1 + i}`,
     }))
 
+    // Thai month names
+    const thaiMonths = [
+        'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน',
+        'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม',
+        'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
+    ]
+    const thaiMonthsShort = [
+        'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.',
+        'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.',
+        'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'
+    ]
+
+    // Monthly color palette
+    const monthColors = [
+        '#ff6b35', '#e8590c', '#d9480f', '#f76707',
+        '#fd7e14', '#f59f00', '#fab005', '#40c057',
+        '#12b886', '#15aabf', '#228be6', '#7950f2'
+    ]
+
+    // Monthly summary computation
+    const monthlySummary = useMemo(() => {
+        const summary = Array.from({ length: 12 }, (_, i) => ({
+            month: i,
+            name: thaiMonths[i],
+            shortName: thaiMonthsShort[i],
+            count: 0,
+            activeCount: 0,
+            holidays: [] as typeof holidays,
+            color: monthColors[i],
+        }))
+
+        holidays.forEach((h) => {
+            const month = new Date(h.holiday_date).getMonth()
+            summary[month].count++
+            summary[month].holidays.push(h)
+            if (h.is_active) summary[month].activeCount++
+        })
+
+        const maxCount = Math.max(...summary.map(s => s.count), 1)
+        return { months: summary, maxCount }
+    }, [holidays])
+
+    // Quarter summary
+    const quarterSummary = useMemo(() => {
+        const quarters = [
+            { label: 'Q1 (ม.ค.-มี.ค.)', months: [0, 1, 2], color: '#ff6b35' },
+            { label: 'Q2 (เม.ย.-มิ.ย.)', months: [3, 4, 5], color: '#f59f00' },
+            { label: 'Q3 (ก.ค.-ก.ย.)', months: [6, 7, 8], color: '#40c057' },
+            { label: 'Q4 (ต.ค.-ธ.ค.)', months: [9, 10, 11], color: '#228be6' },
+        ]
+        return quarters.map(q => ({
+            ...q,
+            count: q.months.reduce((sum, m) => sum + monthlySummary.months[m].count, 0),
+        }))
+    }, [monthlySummary])
+
     return (
         <Container size="xl">
             <Stack gap="lg">
@@ -322,6 +384,119 @@ export default function HolidayManagement() {
                         </Group>
                     </Paper>
                 </Group>
+
+                {/* ========== Monthly Summary Dashboard ========== */}
+                {holidays.length > 0 && (
+                    <Paper withBorder radius="md" p="lg">
+                        <Group justify="space-between" mb="md">
+                            <Text fw={700} size="lg">📊 สรุปวันหยุดรายเดือน — พ.ศ. {selectedYear}</Text>
+                        </Group>
+
+                        {/* Quarterly Summary with RingProgress */}
+                        <SimpleGrid cols={{ base: 2, sm: 4 }} mb="lg">
+                            {quarterSummary.map((q) => (
+                                <Paper
+                                    key={q.label}
+                                    p="md"
+                                    radius="md"
+                                    style={{
+                                        background: `linear-gradient(135deg, ${q.color}12 0%, ${q.color}08 100%)`,
+                                        border: `1px solid ${q.color}30`,
+                                    }}
+                                >
+                                    <Group justify="space-between" align="center">
+                                        <Stack gap={4}>
+                                            <Text size="xs" c="dimmed" fw={600}>{q.label}</Text>
+                                            <Text size="xl" fw={800} c={q.color}>{q.count} <Text span size="sm" fw={500} c="dimmed">วัน</Text></Text>
+                                        </Stack>
+                                        <RingProgress
+                                            size={50}
+                                            thickness={5}
+                                            roundCaps
+                                            sections={[{
+                                                value: holidays.length > 0 ? (q.count / holidays.length) * 100 : 0,
+                                                color: q.color,
+                                            }]}
+                                            label={
+                                                <Text ta="center" size="xs" fw={700}>
+                                                    {holidays.length > 0 ? Math.round((q.count / holidays.length) * 100) : 0}%
+                                                </Text>
+                                            }
+                                        />
+                                    </Group>
+                                </Paper>
+                            ))}
+                        </SimpleGrid>
+
+                        <Divider mb="md" />
+
+                        {/* Monthly Grid - 12 months */}
+                        <SimpleGrid cols={{ base: 2, xs: 3, sm: 4, md: 6 }} spacing="sm">
+                            {monthlySummary.months.map((m) => (
+                                <Tooltip
+                                    key={m.month}
+                                    multiline
+                                    w={220}
+                                    position="bottom"
+                                    withArrow
+                                    label={
+                                        m.holidays.length > 0
+                                            ? m.holidays.map(h => `• ${dayjs(h.holiday_date).format('D')} ${m.shortName} — ${h.name}`).join('\n')
+                                            : 'ไม่มีวันหยุด'
+                                    }
+                                    styles={{ tooltip: { whiteSpace: 'pre-line', fontSize: 12 } }}
+                                >
+                                    <Paper
+                                        p="sm"
+                                        radius="md"
+                                        style={{
+                                            border: m.count > 0 ? `1.5px solid ${m.color}50` : '1px solid #e9ecef',
+                                            background: m.count > 0 ? `${m.color}08` : '#fafafa',
+                                            cursor: 'default',
+                                            transition: 'all 0.2s ease',
+                                        }}
+                                        onMouseEnter={(e: React.MouseEvent<HTMLDivElement>) => {
+                                            if (m.count > 0) {
+                                                e.currentTarget.style.transform = 'translateY(-2px)'
+                                                e.currentTarget.style.boxShadow = `0 4px 12px ${m.color}20`
+                                            }
+                                        }}
+                                        onMouseLeave={(e: React.MouseEvent<HTMLDivElement>) => {
+                                            e.currentTarget.style.transform = ''
+                                            e.currentTarget.style.boxShadow = ''
+                                        }}
+                                    >
+                                        <Stack gap={6}>
+                                            <Group justify="space-between" align="center">
+                                                <Text size="xs" fw={600} c={m.count > 0 ? m.color : 'dimmed'}>
+                                                    {m.name}
+                                                </Text>
+                                                {m.count > 0 && (
+                                                    <ThemeIcon size={22} radius="xl" color={m.color} variant="light">
+                                                        <Text size="xs" fw={700}>{m.count}</Text>
+                                                    </ThemeIcon>
+                                                )}
+                                            </Group>
+                                            <Text size="xl" fw={800} ta="center" c={m.count > 0 ? undefined : 'dimmed'}>
+                                                {m.count > 0 ? m.count : '—'}
+                                            </Text>
+                                            <Text size="xs" c="dimmed" ta="center">
+                                                {m.count > 0 ? `${m.count} วันหยุด` : 'ไม่มีวันหยุด'}
+                                            </Text>
+                                            <Progress
+                                                value={(m.count / monthlySummary.maxCount) * 100}
+                                                color={m.color}
+                                                size="xs"
+                                                radius="xl"
+                                                style={{ opacity: m.count > 0 ? 1 : 0.3 }}
+                                            />
+                                        </Stack>
+                                    </Paper>
+                                </Tooltip>
+                            ))}
+                        </SimpleGrid>
+                    </Paper>
+                )}
 
                 {/* Table */}
                 <Paper withBorder radius="md" p="md" pos="relative">
@@ -497,6 +672,6 @@ export default function HolidayManagement() {
                     </Group>
                 </Stack>
             </Modal>
-        </Container>
+        </Container >
     )
 }

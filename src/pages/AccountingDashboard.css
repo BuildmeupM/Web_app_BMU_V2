@@ -1,0 +1,209 @@
+/* ───────────────────────────────────────────────────
+   AccountingDashboard – Service Tab Animations
+   ─────────────────────────────────────────────────── */
+
+/* Fade-in-up animation */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(16px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Fade-in scale for hero cards */
+@keyframes fadeInScale {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+/* Shimmer for progress bars */
+@keyframes shimmer {
+    0% {
+        background-position: -200% 0;
+    }
+
+    100% {
+        background-position: 200% 0;
+    }
+}
+
+/* ── Section cards with staggered fade-in ────────── */
+.service-section {
+    animation: fadeInUp 0.5s ease-out both;
+}
+
+.service-section:nth-child(1) {
+    animation-delay: 0s;
+}
+
+.service-section:nth-child(2) {
+    animation-delay: 0.08s;
+}
+
+.service-section:nth-child(3) {
+    animation-delay: 0.16s;
+}
+
+.service-section:nth-child(4) {
+    animation-delay: 0.24s;
+}
+
+.service-section:nth-child(5) {
+    animation-delay: 0.32s;
+}
+
+/* ── Card hover effects ──────────────────────────── */
+.service-card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.service-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.08) !important;
+}
+
+/* ── Hero stat cards ─────────────────────────────── */
+.hero-card {
+    animation: fadeInScale 0.4s ease-out both;
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.hero-card:nth-child(1) {
+    animation-delay: 0.1s;
+}
+
+.hero-card:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.hero-card:nth-child(3) {
+    animation-delay: 0.3s;
+}
+
+.hero-card:hover {
+    transform: translateY(-3px) scale(1.01);
+    box-shadow: 0 8px 28px rgba(255, 107, 53, 0.12) !important;
+}
+
+/* ── Ranking cards ───────────────────────────────── */
+.rank-card {
+    animation: fadeInUp 0.4s ease-out both;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.rank-card:nth-child(1) {
+    animation-delay: 0.05s;
+}
+
+.rank-card:nth-child(2) {
+    animation-delay: 0.12s;
+}
+
+.rank-card:nth-child(3) {
+    animation-delay: 0.19s;
+}
+
+.rank-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.06) !important;
+}
+
+/* ── Status row hover ────────────────────────────── */
+.status-row {
+    transition: background 0.15s ease, padding-left 0.15s ease;
+}
+
+.status-row:hover {
+    background: #fff5f0 !important;
+    padding-left: 20px !important;
+}
+
+/* ── Table row hover effects ─────────────────────── */
+.emp-table-row {
+    transition: background 0.15s ease;
+}
+
+.emp-table-row:hover {
+    background: #fff5f0 !important;
+}
+
+/* ── Progress bar animation ──────────────────────── */
+.service-section .mantine-Progress-section {
+    transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── Badge subtle pulse on hover ─────────────────── */
+.service-card .mantine-Badge-root {
+    transition: transform 0.15s ease;
+}
+
+.service-card .mantine-Badge-root:hover {
+    transform: scale(1.05);
+}
+
+/* ── Smooth number count appearance ──────────────── */
+.stat-number {
+    animation: fadeInScale 0.5s ease-out both;
+    animation-delay: 0.3s;
+}
+
+/* ── Table header shimmer on load ────────────────── */
+.emp-table-header th {
+    position: relative;
+    overflow: hidden;
+}
+
+.emp-table-header th::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(90deg,
+            transparent 0%,
+            rgba(255, 255, 255, 0.15) 50%,
+            transparent 100%);
+    background-size: 200% 100%;
+    animation: shimmer 2s ease-in-out 0.5s 1;
+    pointer-events: none;
+}
+
+/* ── Progress ring animations ────────────────────── */
+.progress-ring {
+    animation: fadeInScale 0.6s ease-out both;
+    animation-delay: 0.2s;
+    transition: transform 0.3s ease;
+}
+
+.progress-ring:hover {
+    transform: scale(1.06);
+}
+
+.progress-ring .mantine-RingProgress-root {
+    filter: drop-shadow(0 2px 8px rgba(255, 107, 53, 0.15));
+}
+
+/* ── Mobile responsive adjustments ───────────────── */
+@media (max-width: 768px) {
+
+    .hero-card:hover,
+    .service-card:hover,
+    .rank-card:hover,
+    .progress-ring:hover {
+        transform: none;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04) !important;
+    }
+}

@@ -8,13 +8,13 @@ import {
     Container, Title, Stack, Card, Group, Text, Badge, Box, TextInput,
     Button, Table, ActionIcon, Modal, Select, Textarea, Switch, Tooltip,
     Paper, ThemeIcon, Divider, Loader, Center, Alert, ScrollArea, Pagination,
-    SimpleGrid,
+    SimpleGrid, Collapse,
 } from '@mantine/core'
 import { useDisclosure } from '@mantine/hooks'
 import {
     TbPlus, TbEdit, TbTrash, TbSearch, TbAddressBook, TbPhone,
     TbBuildingSkyscraper, TbUsers, TbApi, TbAlertCircle, TbX,
-    TbDeviceFloppy, TbFilter,
+    TbDeviceFloppy, TbFilter, TbMapPin, TbArrowsSplit, TbChevronDown, TbChevronUp,
 } from 'react-icons/tb'
 import { useQuery, useMutation, useQueryClient } from 'react-query'
 import {
@@ -23,6 +23,8 @@ import {
     type RegistrationClientCreateData,
 } from '../services/registrationClientService'
 import { notifications } from '@mantine/notifications'
+import { parseThaiAddress } from '../utils/addressParser'
+
 
 // ========== Form Modal Component ==========
 interface ClientFormModalProps {
@@ -35,6 +37,7 @@ interface ClientFormModalProps {
 function ClientFormModal({ opened, onClose, editingClient, existingGroups }: ClientFormModalProps) {
     const queryClient = useQueryClient()
     const isEditing = !!editingClient
+    const [showAddressDetails, setShowAddressDetails] = useState(false)
 
     const [formData, setFormData] = useState<RegistrationClientCreateData & { is_active?: boolean }>({
         company_name: '',
@@ -43,6 +46,19 @@ function ClientFormModal({ opened, onClose, editingClient, existingGroups }: Cli
         group_name: '',
         line_api: '',
         notes: '',
+        full_address: '',
+        address_number: '',
+        village: '',
+        building: '',
+        room_number: '',
+        floor_number: '',
+        soi: '',
+        moo: '',
+        road: '',
+        subdistrict: '',
+        district: '',
+        province: '',
+        postal_code: '',
     })
     const [customGroup, setCustomGroup] = useState('')
     const [useCustomGroup, setUseCustomGroup] = useState(false)
@@ -57,10 +73,30 @@ function ClientFormModal({ opened, onClose, editingClient, existingGroups }: Cli
                 group_name: editingClient.group_name,
                 line_api: editingClient.line_api || '',
                 notes: editingClient.notes || '',
+                full_address: editingClient.full_address || '',
+                address_number: editingClient.address_number || '',
+                village: editingClient.village || '',
+                building: editingClient.building || '',
+                room_number: editingClient.room_number || '',
+                floor_number: editingClient.floor_number || '',
+                soi: editingClient.soi || '',
+                moo: editingClient.moo || '',
+                road: editingClient.road || '',
+                subdistrict: editingClient.subdistrict || '',
+                district: editingClient.district || '',
+                province: editingClient.province || '',
+                postal_code: editingClient.postal_code || '',
                 is_active: editingClient.is_active,
             })
             setUseCustomGroup(!existingGroups.includes(editingClient.group_name))
             setCustomGroup(!existingGroups.includes(editingClient.group_name) ? editingClient.group_name : '')
+            // Show address details if any sub-field has data
+            const hasAddressDetail = !!editingClient.address_number || !!editingClient.village ||
+                !!editingClient.building || !!editingClient.room_number || !!editingClient.floor_number ||
+                !!editingClient.soi || !!editingClient.moo || !!editingClient.road ||
+                !!editingClient.subdistrict || !!editingClient.district ||
+                !!editingClient.province || !!editingClient.postal_code
+            setShowAddressDetails(hasAddressDetail)
         } else if (opened) {
             setFormData({
                 company_name: '',
@@ -69,9 +105,23 @@ function ClientFormModal({ opened, onClose, editingClient, existingGroups }: Cli
                 group_name: '',
                 line_api: '',
                 notes: '',
+                full_address: '',
+                address_number: '',
+                village: '',
+                building: '',
+                room_number: '',
+                floor_number: '',
+                soi: '',
+                moo: '',
+                road: '',
+                subdistrict: '',
+                district: '',
+                province: '',
+                postal_code: '',
             })
             setUseCustomGroup(false)
             setCustomGroup('')
+            setShowAddressDetails(false)
         }
     }, [opened, editingClient])
 
@@ -143,8 +193,9 @@ function ClientFormModal({ opened, onClose, editingClient, existingGroups }: Cli
                     <Text fw={700} size="lg">{isEditing ? 'แก้ไขลูกค้า' : 'เพิ่มลูกค้าใหม่'}</Text>
                 </Group>
             }
-            size="lg"
+            size="xl"
             centered
+            styles={{ body: { maxHeight: '80vh', overflowY: 'auto' } }}
         >
             <Stack gap="md">
                 {/* Company Name — Required */}
@@ -176,6 +227,176 @@ function ClientFormModal({ opened, onClose, editingClient, existingGroups }: Cli
                         onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
                     />
                 </SimpleGrid>
+
+                {/* ========== Address Section ========== */}
+                <Divider
+                    label={
+                        <Group gap={6}>
+                            <TbMapPin size={16} />
+                            <Text size="sm" fw={600}>ที่อยู่</Text>
+                        </Group>
+                    }
+                    labelPosition="left"
+                />
+
+                {/* Full address */}
+                <Textarea
+                    label="ที่อยู่รวม"
+                    placeholder="กรอกที่อยู่รวมทั้งหมด เช่น 123/4 หมู่บ้านสุขสันต์ ซอยลาดพร้าว 1 ถนนลาดพร้าว แขวงจอมพล เขตจตุจักร กรุงเทพมหานคร 10900"
+                    minRows={3}
+                    leftSection={<TbMapPin size={16} style={{ alignSelf: 'flex-start', marginTop: 8 }} />}
+                    value={formData.full_address || ''}
+                    onChange={(e) => setFormData(prev => ({ ...prev, full_address: e.target.value }))}
+                />
+
+                {/* Auto-parse button */}
+                <Group gap="sm">
+                    <Button
+                        variant="light"
+                        color="violet"
+                        size="xs"
+                        leftSection={<TbArrowsSplit size={14} />}
+                        onClick={() => {
+                            if (!formData.full_address?.trim()) {
+                                notifications.show({
+                                    title: 'ไม่มีที่อยู่',
+                                    message: 'กรุณากรอกที่อยู่รวมก่อนกดกระจาย',
+                                    color: 'orange',
+                                })
+                                return
+                            }
+                            const parsed = parseThaiAddress(formData.full_address)
+                            setFormData(prev => ({
+                                ...prev,
+                                address_number: parsed.address_number || prev.address_number,
+                                village: parsed.village || prev.village,
+                                building: parsed.building || prev.building,
+                                room_number: parsed.room_number || prev.room_number,
+                                floor_number: parsed.floor_number || prev.floor_number,
+                                soi: parsed.soi || prev.soi,
+                                moo: parsed.moo || prev.moo,
+                                road: parsed.road || prev.road,
+                                subdistrict: parsed.subdistrict || prev.subdistrict,
+                                district: parsed.district || prev.district,
+                                province: parsed.province || prev.province,
+                                postal_code: parsed.postal_code || prev.postal_code,
+                            }))
+                            setShowAddressDetails(true)
+                            notifications.show({
+                                title: 'กระจายที่อยู่สำเร็จ',
+                                message: 'กรุณาตรวจสอบฟิลด์ย่อยด้านล่าง แก้ไขได้ตามต้องการ',
+                                color: 'green',
+                            })
+                        }}
+                    >
+                        กระจายที่อยู่อัตโนมัติ
+                    </Button>
+                    <Button
+                        variant="subtle"
+                        color="gray"
+                        size="xs"
+                        leftSection={showAddressDetails ? <TbChevronUp size={14} /> : <TbChevronDown size={14} />}
+                        onClick={() => setShowAddressDetails(prev => !prev)}
+                    >
+                        {showAddressDetails ? 'ซ่อนฟิลด์ย่อย' : 'แสดงฟิลด์ย่อย'}
+                    </Button>
+                </Group>
+
+                {/* Sub-address fields (collapsible) */}
+                <Collapse in={showAddressDetails}>
+                    <Paper withBorder p="md" radius="md" style={{ backgroundColor: 'var(--mantine-color-gray-0)' }}>
+                        <Stack gap="sm">
+                            <Text size="xs" c="dimmed" fw={500}>ฟิลด์ที่อยู่ย่อย (แก้ไขได้)</Text>
+                            <SimpleGrid cols={2}>
+                                <TextInput
+                                    label="เลขที่"
+                                    placeholder="เช่น 123/4"
+                                    size="sm"
+                                    value={formData.address_number || ''}
+                                    onChange={(e) => setFormData(prev => ({ ...prev, address_number: e.target.value }))}
+                                />
+                                <TextInput
+                                    label="หมู่บ้าน"
+                                    placeholder="เช่น สุขสันต์"
+                                    size="sm"
+                                    value={formData.village || ''}
+                                    onChange={(e) => setFormData(prev => ({ ...prev, village: e.target.value }))}
+                                />
+                                <TextInput
+                                    label="อาคาร"
+                                    placeholder="เช่น อาคารเอบีซี"
+                                    size="sm"
+                                    value={formData.building || ''}
+                                    onChange={(e) => setFormData(prev => ({ ...prev, building: e.target.value }))}
+                                />
+                                <TextInput
+                                    label="ห้องเลขที่"
+                                    placeholder="เช่น 501"
+                                    size="sm"
+                                    value={formData.room_number || ''}
+                                    onChange={(e) => setFormData(prev => ({ ...prev, room_number: e.target.value }))}
+                                />
+                                <TextInput
+                                    label="ชั้นที่"
+                                    placeholder="เช่น 5"
+                                    size="sm"
+                                    value={formData.floor_number || ''}
+                                    onChange={(e) => setFormData(prev => ({ ...prev, floor_number: e.target.value }))}
+                                />
+                                <TextInput
+                                    label="ซอย/ตรอก"
+                                    placeholder="เช่น ลาดพร้าว 1"
+                                    size="sm"
+                                    value={formData.soi || ''}
+                                    onChange={(e) => setFormData(prev => ({ ...prev, soi: e.target.value }))}
+                                />
+                                <TextInput
+                                    label="หมู่ที่"
+                                    placeholder="เช่น 3"
+                                    size="sm"
+                                    value={formData.moo || ''}
+                                    onChange={(e) => setFormData(prev => ({ ...prev, moo: e.target.value }))}
+                                />
+                                <TextInput
+                                    label="ถนน"
+                                    placeholder="เช่น ลาดพร้าว"
+                                    size="sm"
+                                    value={formData.road || ''}
+                                    onChange={(e) => setFormData(prev => ({ ...prev, road: e.target.value }))}
+                                />
+                                <TextInput
+                                    label="แขวง/ตำบล"
+                                    placeholder="เช่น จอมพล"
+                                    size="sm"
+                                    value={formData.subdistrict || ''}
+                                    onChange={(e) => setFormData(prev => ({ ...prev, subdistrict: e.target.value }))}
+                                />
+                                <TextInput
+                                    label="เขต/อำเภอ"
+                                    placeholder="เช่น จตุจักร"
+                                    size="sm"
+                                    value={formData.district || ''}
+                                    onChange={(e) => setFormData(prev => ({ ...prev, district: e.target.value }))}
+                                />
+                                <TextInput
+                                    label="จังหวัด"
+                                    placeholder="เช่น กรุงเทพมหานคร"
+                                    size="sm"
+                                    value={formData.province || ''}
+                                    onChange={(e) => setFormData(prev => ({ ...prev, province: e.target.value }))}
+                                />
+                                <TextInput
+                                    label="รหัสไปรษณีย์"
+                                    placeholder="เช่น 10900"
+                                    size="sm"
+                                    maxLength={5}
+                                    value={formData.postal_code || ''}
+                                    onChange={(e) => setFormData(prev => ({ ...prev, postal_code: e.target.value }))}
+                                />
+                            </SimpleGrid>
+                        </Stack>
+                    </Paper>
+                </Collapse>
 
                 {/* Group Name — Required */}
                 <Box>
@@ -226,6 +447,7 @@ function ClientFormModal({ opened, onClose, editingClient, existingGroups }: Cli
                     value={formData.notes || ''}
                     onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
                 />
+
 
                 {/* Active toggle (edit only) */}
                 {isEditing && (

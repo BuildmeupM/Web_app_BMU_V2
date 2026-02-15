@@ -134,7 +134,7 @@ const getStatusColor = (status: string | null): string => {
     case 'sent_to_customer':
       return '#81d4fa' // สีฟ้าอ่อน
     case 'draft_completed':
-      return '#ffcdd2' // สีแดงอ่อน
+      return '#ffb74d' // สีส้มอ่อน (ตรงกับ TaxInspectionForm)
     case 'passed':
       return '#4caf50' // สีเขียว
     case 'pending_review':
@@ -152,7 +152,7 @@ const getStatusColor = (status: string | null): string => {
     case 'additional_review':
       return '#81d4fa' // สีฟ้าอ่อน
     case 'not_submitted':
-      return '#808080' // สีเทา (ไม่มียื่น)
+      return '#000000' // สีดำ (ตรงกับ TaxInspectionForm)
     case 'not_started':
       return '#808080' // สีเทา (สถานะยังไม่ดำเนินการ)
     default:

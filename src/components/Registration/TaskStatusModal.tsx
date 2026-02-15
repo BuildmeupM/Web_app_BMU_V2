@@ -103,8 +103,9 @@ export default function TaskStatusModal({ opened, onClose, task, onUpdated }: Ta
         }
     )
 
-    // Progress calculation
+    // Progress calculation — step_5 done = 100% regardless of step_4
     const progress = useMemo(() => {
+        if (steps.step_5) return 100
         const completed = Object.values(steps).filter(Boolean).length
         return completed * 20
     }, [steps])
@@ -119,20 +120,44 @@ export default function TaskStatusModal({ opened, onClose, task, onUpdated }: Ta
 
     const agingColor = agingDays <= 7 ? 'green' : agingDays <= 14 ? 'orange' : 'red'
 
-    // Toggle step
+    // Toggle step — allow skipping step_4 when checking step_5
     const toggleStep = (stepKey: keyof typeof steps) => {
-        setSteps(prev => ({ ...prev, [stepKey]: !prev[stepKey] }))
+        setSteps(prev => {
+            const stepIndex = STEPS.findIndex(s => s.key === stepKey)
+            const isActive = prev[stepKey]
+            if (isActive) {
+                // Unchecking: also uncheck all steps after this one
+                const updated = { ...prev }
+                STEPS.forEach((s, i) => {
+                    if (i >= stepIndex) updated[s.key] = false
+                })
+                return updated
+            } else {
+                // Checking: require all previous steps except step_4 when checking step_5
+                for (let i = 0; i < stepIndex; i++) {
+                    if (i === 3 && stepIndex === 4) continue // allow skip step_4
+                    if (!prev[STEPS[i].key]) {
+                        notifications.show({
+                            title: 'ไม่สามารถข้ามขั้นตอน',
+                            message: `กรุณาทำขั้นตอน "${STEPS[i].label}" ให้เสร็จก่อน`,
+                            color: 'orange',
+                        })
+                        return prev
+                    }
+                }
+                return { ...prev, [stepKey]: true }
+            }
+        })
     }
 
     // Handle save
     const handleSave = () => {
         if (!task) return
 
-        // Determine status from steps
-        const completedSteps = Object.values(steps).filter(Boolean).length
+        // Determine status — step_5 done = completed regardless of step_4
         let status: string = task.status
-        if (completedSteps === 5) status = 'completed'
-        else if (completedSteps > 0) status = 'in_progress'
+        if (steps.step_5) status = 'completed'
+        else if (Object.values(steps).some(Boolean)) status = 'in_progress'
         else status = 'pending'
 
         updateMutation.mutate({

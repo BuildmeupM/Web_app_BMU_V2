@@ -15,6 +15,7 @@ const router = express.Router()
 let hasStepColumns = null // null = not checked, true/false = result
 let hasMessengerColumns = null
 let hasPaymentColumns = null
+let hasTeamStatusColumn = null
 
 async function checkStepColumns() {
     if (hasStepColumns !== null) return hasStepColumns
@@ -49,8 +50,19 @@ async function checkPaymentColumns() {
     return hasPaymentColumns
 }
 
+async function checkTeamStatusColumn() {
+    if (hasTeamStatusColumn !== null) return hasTeamStatusColumn
+    try {
+        await pool.execute(`SELECT team_status FROM registration_tasks LIMIT 1`)
+        hasTeamStatusColumn = true
+    } catch {
+        hasTeamStatusColumn = false
+    }
+    return hasTeamStatusColumn
+}
+
 // Build SELECT columns based on available columns
-function getTaskColumns(withSteps, withMessenger, withPayment) {
+function getTaskColumns(withSteps, withMessenger, withPayment, withTeamStatus) {
     const base = `
         t.id, t.department,
         DATE_FORMAT(t.received_date, '%Y-%m-%d') as received_date,
@@ -80,12 +92,235 @@ function getTaskColumns(withSteps, withMessenger, withPayment) {
         t.payment_status, t.deposit_amount`
     }
 
+    if (withTeamStatus) {
+        cols += `,
+        t.team_status, ts.name as team_status_name, ts.color as team_status_color`
+    }
+
     return cols
 }
 
+// Build FROM clause based on available columns
+function getTaskFrom(withTeamStatus) {
+    let from = `FROM registration_tasks t
+    LEFT JOIN registration_work_types wt ON wt.id = t.job_type
+    LEFT JOIN registration_work_sub_types wst ON wst.id = t.job_type_sub`
+    if (withTeamStatus) {
+        from += `
+    LEFT JOIN registration_team_statuses ts ON ts.id = t.team_status`
+    }
+    return from
+}
+
+// Keep backward-compatible constant for routes that don't use team_status
 const TASK_FROM = `FROM registration_tasks t
     LEFT JOIN registration_work_types wt ON wt.id = t.job_type
     LEFT JOIN registration_work_sub_types wst ON wst.id = t.job_type_sub`
+
+// ============================================================
+// GET /api/registration-tasks/messenger-pending
+// ดึงเฉพาะงานที่ต้องวิ่งแมสแต่ยังไม่ได้จัดเส้นทาง
+// ============================================================
+router.get('/messenger-pending', authenticateToken, authorize('admin', 'registration'), async (req, res) => {
+    try {
+        const withMessenger = await checkMessengerColumns()
+        if (!withMessenger) {
+            return res.json({ success: true, data: { tasks: [], count: 0 } })
+        }
+
+        const withSteps = await checkStepColumns()
+        const withPayment = await checkPaymentColumns()
+        const TASK_COLUMNS = getTaskColumns(withSteps, withMessenger, withPayment)
+
+        // Also join with registration_clients for address info
+        // Only show tasks that have reached step 4 (รอวิ่งแมส): step_1,2,3 done, step_5 not done
+        const stepFilter = withSteps
+            ? `AND t.step_1 = 1 AND t.step_2 = 1 AND t.step_3 = 1 AND t.step_5 = 0`
+            : ''
+        const query = `SELECT ${TASK_COLUMNS},
+            rc.full_address as client_address,
+            rc.phone as client_phone,
+            rc.subdistrict as client_subdistrict,
+            rc.district as client_district,
+            rc.province as client_province,
+            rc.road as client_road,
+            rc.postal_code as client_postal_code
+            ${TASK_FROM}
+            LEFT JOIN registration_clients rc ON rc.id = t.client_id
+            WHERE t.deleted_at IS NULL
+              AND t.needs_messenger = 1
+              AND t.messenger_status = 'pending'
+              ${stepFilter}
+            ORDER BY t.received_date ASC, t.created_at ASC`
+
+        const [tasks] = await pool.execute(query)
+
+        res.json({
+            success: true,
+            data: {
+                tasks: tasks,
+                count: tasks.length,
+            },
+        })
+    } catch (error) {
+        console.error('Get messenger pending tasks error:', error)
+        res.status(500).json({ success: false, message: 'Internal server error' })
+    }
+})
+
+// ============================================================
+// GET /api/registration-tasks/dashboard-summary
+// ข้อมูลสรุปสำหรับ Dashboard (aggregated)
+// ============================================================
+router.get('/dashboard-summary', authenticateToken, authorize('admin', 'registration'), async (req, res) => {
+    try {
+        // Run all aggregation queries in parallel
+        const [
+            [deptStatus],
+            [paymentBreakdown],
+            [workload],
+            [recentTasks],
+            [clientCount],
+            [messengerRoutes],
+            [messengerPending],
+        ] = await Promise.all([
+            // 1. Per-department status counts
+            pool.execute(`
+                SELECT department, status, COUNT(*) as count
+                FROM registration_tasks
+                WHERE deleted_at IS NULL
+                GROUP BY department, status
+            `),
+            // 2. Payment status breakdown
+            pool.execute(`
+                SELECT COALESCE(payment_status, 'unpaid') as payment_status, COUNT(*) as count
+                FROM registration_tasks
+                WHERE deleted_at IS NULL
+                GROUP BY payment_status
+            `),
+            // 3. Workload per responsible (with department breakdown)
+            pool.execute(`
+                SELECT responsible_name, department,
+                       COUNT(*) as total,
+                       SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
+                       SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) as in_progress,
+                       SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending
+                FROM registration_tasks
+                WHERE deleted_at IS NULL
+                GROUP BY responsible_name, department
+                ORDER BY total DESC
+            `),
+            // 4. Recent 10 tasks
+            pool.execute(`
+                SELECT t.id, t.client_name,
+                       COALESCE(wt.name, t.job_type) as job_type,
+                       t.department, t.status,
+                       DATE_FORMAT(t.received_date, '%Y-%m-%d') as received_date
+                FROM registration_tasks t
+                LEFT JOIN registration_work_types wt ON wt.id = t.job_type
+                WHERE t.deleted_at IS NULL
+                ORDER BY t.received_date DESC, t.created_at DESC
+                LIMIT 10
+            `),
+            // 5. Total distinct clients
+            pool.execute(`
+                SELECT COUNT(DISTINCT client_id) as total_clients
+                FROM registration_tasks
+                WHERE deleted_at IS NULL
+            `),
+            // 6. Messenger routes summary (this month)
+            pool.execute(`
+                SELECT
+                  COUNT(*) as total_routes,
+                  SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed_routes,
+                  SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) as active_routes,
+                  SUM(CASE WHEN status = 'planned' THEN 1 ELSE 0 END) as planned_routes,
+                  COALESCE(SUM(total_distance), 0) as total_distance
+                FROM messenger_routes
+                WHERE deleted_at IS NULL
+                  AND route_date >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
+            `),
+            // 7. Messenger pending tasks count
+            pool.execute(`
+                SELECT COUNT(*) as pending_count
+                FROM registration_tasks
+                WHERE deleted_at IS NULL
+                  AND needs_messenger = 1
+                  AND (messenger_status IS NULL OR messenger_status = 'pending')
+            `),
+        ])
+
+        // Build per-department summary
+        const departments = ['dbd', 'rd', 'sso', 'hr']
+        const byDepartment = {}
+        for (const dept of departments) {
+            byDepartment[dept] = { pending: 0, in_progress: 0, completed: 0, total: 0 }
+        }
+        for (const row of deptStatus) {
+            if (byDepartment[row.department]) {
+                byDepartment[row.department][row.status] = Number(row.count)
+                byDepartment[row.department].total += Number(row.count)
+            }
+        }
+
+        // Build totals
+        let totalPending = 0, totalInProgress = 0, totalCompleted = 0
+        for (const dept of departments) {
+            totalPending += byDepartment[dept].pending
+            totalInProgress += byDepartment[dept].in_progress
+            totalCompleted += byDepartment[dept].completed
+        }
+
+        res.json({
+            success: true,
+            data: {
+                totals: {
+                    all: totalPending + totalInProgress + totalCompleted,
+                    pending: totalPending,
+                    in_progress: totalInProgress,
+                    completed: totalCompleted,
+                    clients: Number(clientCount[0]?.total_clients || 0),
+                },
+                byDepartment,
+                payment: paymentBreakdown.map(r => ({
+                    status: r.payment_status,
+                    count: Number(r.count),
+                })),
+                workload: (() => {
+                    const personMap = {}
+                    for (const r of workload) {
+                        const name = r.responsible_name
+                        if (!personMap[name]) {
+                            personMap[name] = { name, total: 0, completed: 0, in_progress: 0, pending: 0, departments: {} }
+                        }
+                        const p = personMap[name]
+                        const t = Number(r.total), c = Number(r.completed), ip = Number(r.in_progress), pd = Number(r.pending)
+                        p.total += t
+                        p.completed += c
+                        p.in_progress += ip
+                        p.pending += pd
+                        if (r.department) {
+                            p.departments[r.department] = { total: t, completed: c, in_progress: ip, pending: pd }
+                        }
+                    }
+                    return Object.values(personMap).sort((a, b) => b.total - a.total).slice(0, 10)
+                })(),
+                recentTasks: recentTasks,
+                messengerSummary: {
+                    total_routes: Number(messengerRoutes[0]?.total_routes || 0),
+                    completed_routes: Number(messengerRoutes[0]?.completed_routes || 0),
+                    active_routes: Number(messengerRoutes[0]?.active_routes || 0),
+                    planned_routes: Number(messengerRoutes[0]?.planned_routes || 0),
+                    total_distance: Number(messengerRoutes[0]?.total_distance || 0),
+                    pending_tasks: Number(messengerPending[0]?.pending_count || 0),
+                },
+            }
+        })
+    } catch (error) {
+        console.error('Dashboard summary error:', error)
+        res.status(500).json({ success: false, message: 'Internal server error' })
+    }
+})
 
 // ============================================================
 // GET /api/registration-tasks?department=dbd
@@ -96,10 +331,12 @@ router.get('/', authenticateToken, authorize('admin', 'registration'), async (re
         const withSteps = await checkStepColumns()
         const withMessenger = await checkMessengerColumns()
         const withPayment = await checkPaymentColumns()
-        const TASK_COLUMNS = getTaskColumns(withSteps, withMessenger, withPayment)
+        const withTeamStatus = await checkTeamStatusColumn()
+        const TASK_COLUMNS = getTaskColumns(withSteps, withMessenger, withPayment, withTeamStatus)
+        const TASK_FROM_Q = getTaskFrom(withTeamStatus)
         const { department, status, search } = req.query
 
-        let query = `SELECT ${TASK_COLUMNS} ${TASK_FROM} WHERE t.deleted_at IS NULL`
+        let query = `SELECT ${TASK_COLUMNS} ${TASK_FROM_Q} WHERE t.deleted_at IS NULL`
         const params = []
 
         if (department) {
@@ -123,6 +360,13 @@ router.get('/', authenticateToken, authorize('admin', 'registration'), async (re
             query += ` AND (t.client_name LIKE ? OR t.responsible_name LIKE ? OR t.notes LIKE ?)`
             const searchPattern = `%${search}%`
             params.push(searchPattern, searchPattern, searchPattern)
+        }
+
+        // Filter by payment_status
+        const { payment_status } = req.query
+        if (payment_status) {
+            query += ` AND COALESCE(t.payment_status, 'unpaid') = ?`
+            params.push(payment_status)
         }
 
         query += ` ORDER BY t.received_date DESC, t.created_at DESC`
@@ -150,6 +394,12 @@ router.get('/', authenticateToken, authorize('admin', 'registration'), async (re
             enrichedTasks = enrichedTasks.map(t => ({
                 ...t,
                 payment_status: 'unpaid', deposit_amount: null,
+            }))
+        }
+        if (!withTeamStatus) {
+            enrichedTasks = enrichedTasks.map(t => ({
+                ...t,
+                team_status: null, team_status_name: null, team_status_color: null,
             }))
         }
 
@@ -268,6 +518,7 @@ router.put('/:id', authenticateToken, authorize('admin', 'registration'), async 
             needs_messenger, messenger_destination, messenger_details,
             messenger_notes, messenger_status,
             payment_status, deposit_amount,
+            team_status,
         } = req.body
 
         // Check exists
@@ -324,6 +575,12 @@ router.put('/:id', authenticateToken, authorize('admin', 'registration'), async 
             if (deposit_amount !== undefined) { fields.push('deposit_amount = ?'); values.push(deposit_amount !== null && deposit_amount !== '' ? deposit_amount : null) }
         }
 
+        // Only include team_status if column exists
+        const withTeamStatus = await checkTeamStatusColumn()
+        if (withTeamStatus) {
+            if (team_status !== undefined) { fields.push('team_status = ?'); values.push(team_status || null) }
+        }
+
         if (fields.length > 0) {
             values.push(id)
             await pool.execute(
@@ -332,9 +589,10 @@ router.put('/:id', authenticateToken, authorize('admin', 'registration'), async 
             )
         }
 
-        const TASK_COLUMNS = getTaskColumns(withSteps, withMessenger, withPayment)
+        const TASK_COLUMNS = getTaskColumns(withSteps, withMessenger, withPayment, withTeamStatus)
+        const TASK_FROM_Q = getTaskFrom(withTeamStatus)
         const [updated] = await pool.execute(
-            `SELECT ${TASK_COLUMNS} ${TASK_FROM} WHERE t.id = ?`,
+            `SELECT ${TASK_COLUMNS} ${TASK_FROM_Q} WHERE t.id = ?`,
             [id]
         )
 
@@ -358,6 +616,12 @@ router.put('/:id', authenticateToken, authorize('admin', 'registration'), async 
             result = {
                 ...result,
                 payment_status: 'unpaid', deposit_amount: null,
+            }
+        }
+        if (!withTeamStatus) {
+            result = {
+                ...result,
+                team_status: null, team_status_name: null, team_status_color: null,
             }
         }
 

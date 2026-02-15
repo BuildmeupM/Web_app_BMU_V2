@@ -85,15 +85,15 @@ export default function TaxFiling() {
   }, [])
 
   const handleSelectCompany = (record: { build: string } & RecordWithAcknowledgmentFields) => {
-    // ⚠️ แสดง acknowledgment modal เฉพาะเมื่อมีข้อมูลความคิดเห็นต่างๆ
-    // ถ้าไม่มีข้อมูล ให้เปิดฟอร์มตรงเลยโดยไม่ต้องยืนยัน
-    if (hasAcknowledgmentData(record)) {
+    // ⚠️ แสดง acknowledgment modal เฉพาะเมื่อมีข้อมูล ส่งงาน/ตอบกลับ (submission) เท่านั้น
+    // ไม่ตรวจ สอบถาม/ตอบกลับ (inquiry)
+    if (hasAcknowledgmentData(record, 'submission')) {
       setPendingBuildId(record.build)
-      setAcknowledgmentSections(getSectionsWithData(record))
+      setAcknowledgmentSections(getSectionsWithData(record, 'submission'))
       setAcknowledgmentRecord(record)
       setAcknowledgmentOpened(true)
     } else {
-      // ไม่มีข้อมูลความคิดเห็น → เปิดฟอร์มตรงเลย
+      // ไม่มีข้อมูลส่งงาน/ตอบกลับ → เปิดฟอร์มตรงเลย
       setSelectedBuildId(record.build)
       setFormOpened(true)
     }
@@ -308,6 +308,7 @@ export default function TaxFiling() {
           }}
           sectionsWithData={acknowledgmentSections}
           record={acknowledgmentRecord}
+          filter="submission"
           onConfirm={handleAcknowledgmentConfirm}
         />
 
