@@ -6,7 +6,7 @@
 import express from 'express'
 import pool from '../config/database.js'
 import { authenticateToken, authorize } from '../middleware/auth.js'
-import { v4 as uuidv4 } from 'uuid'
+import crypto from 'crypto'
 
 const router = express.Router()
 
@@ -305,7 +305,7 @@ router.post('/:id/approve', authenticateToken, authorize('admin', 'audit'), asyn
         const taxMonths = typeof report.tax_months === 'string' ? JSON.parse(report.tax_months) : report.tax_months
 
         // Create registration task with needs_messenger=1 → shows in "รอวิ่งแมส" tab
-        const taskId = uuidv4()
+        const taskId = crypto.randomUUID()
         const jobDescription = `ปรับแบบภาษี: ${errorTypes.join(', ')} | เดือน: ${taxMonths.join(', ')} | ค่าปรับ: ${report.fine_amount || 0} บาท`
 
         await pool.execute(
