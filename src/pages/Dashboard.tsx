@@ -461,15 +461,13 @@ export default function Dashboard() {
                 <ActionIcon variant="light" onClick={nextMonth} size="md" radius="xl">
                   <TbChevronRight size={18} />
                 </ActionIcon>
-                {isAdmin && (
-                  <Button
-                    variant="gradient" gradient={{ from: 'orange', to: '#ff6b35' }}
-                    size="xs" leftSection={<TbPlus size={14} />}
-                    onClick={openEventModal} radius="md" ml="sm"
-                  >
-                    เพิ่มอีเวนต์
-                  </Button>
-                )}
+                <Button
+                  variant="gradient" gradient={{ from: 'orange', to: '#ff6b35' }}
+                  size="xs" leftSection={<TbPlus size={14} />}
+                  onClick={openEventModal} radius="md" ml="sm"
+                >
+                  เพิ่มอีเวนต์
+                </Button>
               </Group>
             </Group>
 
@@ -593,14 +591,12 @@ export default function Dashboard() {
                     </Text>
                   </div>
                 </Group>
-                {isAdmin && (
-                  <Button variant="light" size="xs" leftSection={<TbPlus size={14} />}
-                    onClick={() => { setNewEvent(prev => ({ ...prev, event_date: selectedDate })); openEventModal() }}
-                    radius="md"
-                  >
-                    เพิ่มอีเวนต์วันนี้
-                  </Button>
-                )}
+                <Button variant="light" size="xs" leftSection={<TbPlus size={14} />}
+                  onClick={() => { setNewEvent(prev => ({ ...prev, event_date: selectedDate })); openEventModal() }}
+                  radius="md"
+                >
+                  เพิ่มอีเวนต์วันนี้
+                </Button>
               </Group>
 
               {selectedDateEvents.length === 0 ? (
@@ -645,7 +641,7 @@ export default function Dashboard() {
                               </Group>
                             </div>
                           </Group>
-                          {isAdmin && !ev.id.startsWith('holiday-') && (
+                          {!ev.id.startsWith('holiday-') && (
                             <Tooltip label="ลบอีเวนต์" withArrow>
                               <ActionIcon variant="subtle" color="red" size="sm" onClick={() => deleteEventMut.mutate(ev.id)}>
                                 <TbTrash size={14} />

@@ -436,9 +436,9 @@ router.get('/events', authenticateToken, async (req, res) => {
 
 /**
  * POST /api/company-feed/events
- * สร้างอีเวนต์ใหม่ (admin only)
+ * สร้างอีเวนต์ใหม่ (ทุก role)
  */
-router.post('/events', authenticateToken, authorize('admin'), async (req, res) => {
+router.post('/events', authenticateToken, async (req, res) => {
     try {
         const { title, description, event_date, event_end_date, event_type = 'other', color, start_time, end_time, is_all_day = true, location } = req.body
         const createdBy = req.user.id
@@ -482,9 +482,9 @@ router.post('/events', authenticateToken, authorize('admin'), async (req, res) =
 
 /**
  * PUT /api/company-feed/events/:id
- * แก้ไขอีเวนต์ (admin only)
+ * แก้ไขอีเวนต์ (ทุก role)
  */
-router.put('/events/:id', authenticateToken, authorize('admin'), async (req, res) => {
+router.put('/events/:id', authenticateToken, async (req, res) => {
     try {
         const { id } = req.params
         const { title, description, event_date, event_end_date, event_type, color, start_time, end_time, is_all_day, location } = req.body
@@ -523,9 +523,9 @@ router.put('/events/:id', authenticateToken, authorize('admin'), async (req, res
 
 /**
  * DELETE /api/company-feed/events/:id
- * ลบอีเวนต์ (admin only, soft delete)
+ * ลบอีเวนต์ (ทุก role, soft delete)
  */
-router.delete('/events/:id', authenticateToken, authorize('admin'), async (req, res) => {
+router.delete('/events/:id', authenticateToken, async (req, res) => {
     try {
         const { id } = req.params
 

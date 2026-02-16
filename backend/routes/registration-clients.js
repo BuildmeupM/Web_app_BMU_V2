@@ -4,6 +4,7 @@
  */
 
 import express from 'express'
+import crypto from 'crypto'
 import pool from '../config/database.js'
 import { authenticateToken, authorize } from '../middleware/auth.js'
 
