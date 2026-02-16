@@ -67,8 +67,8 @@ const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
     not_started: { label: 'ยังไม่ดำเนินการ', color: '#808080' },
 }
 
-const WHT_COMPLETED_STATUSES = ['pending_review', 'passed', 'sent_to_customer', 'paid', 'received_receipt', 'draft_completed']
-const VAT_COMPLETED_STATUSES = ['pending_review', 'passed', 'sent_to_customer', 'paid', 'received_receipt', 'draft_completed']
+const WHT_COMPLETED_STATUSES = ['sent_to_customer', 'paid', 'received_receipt']
+const VAT_COMPLETED_STATUSES = ['sent_to_customer', 'paid', 'received_receipt']
 const CORRECTION_STATUSES = ['needs_correction', 'edit', 'pending_recheck']
 
 type TabKey = 'service' | 'audit' | 'sendTax' | 'dataEntry'
@@ -300,6 +300,9 @@ function ServiceTab({ data }: { data: MonthlyTaxData[] }) {
         })
     }, [data, detailModal])
 
+    // Employee detail modal state
+    const [selectedEmployee, setSelectedEmployee] = useState<string | null>(null)
+
     // WHT calculations
     const whtTotal = data.filter(d => d.pnd_status && d.pnd_status !== 'not_submitted').length
     const whtCompleted = data.filter(d => WHT_COMPLETED_STATUSES.includes(d.pnd_status || '')).length
@@ -312,13 +315,21 @@ function ServiceTab({ data }: { data: MonthlyTaxData[] }) {
     const vatRemaining = vatTotal - vatCompleted
     const vatPct = vatTotal > 0 ? Math.round((vatCompleted / vatTotal) * 1000) / 10 : 0
 
+    // Helper: format employee name as ชื่อ(ชื่อเล่น)
+    const fmtName = (firstName?: string | null, nickName?: string | null) => {
+        const f = firstName || ''
+        const n = nickName || ''
+        if (f && n) return `${f}(${n})`
+        return f || n || 'ไม่ระบุ'
+    }
+
     // Employee grouping
     const employeeStats = useMemo(() => {
-        const map = new Map<string, { name: string; items: MonthlyTaxData[] }>()
+        const map = new Map<string, { name: string; id: string; items: MonthlyTaxData[] }>()
         data.forEach(d => {
-            const name = d.accounting_responsible_nick_name || d.accounting_responsible_first_name || 'ไม่ระบุ'
+            const name = fmtName(d.accounting_responsible_first_name, d.accounting_responsible_nick_name)
             const id = d.accounting_responsible || 'unknown'
-            if (!map.has(id)) map.set(id, { name, items: [] })
+            if (!map.has(id)) map.set(id, { name, id, items: [] })
             map.get(id)!.items.push(d)
         })
         return Array.from(map.values()).map(emp => {
@@ -330,6 +341,8 @@ function ServiceTab({ data }: { data: MonthlyTaxData[] }) {
             const vc = vi.filter(d => CORRECTION_STATUSES.includes(d.pp30_form || '')).length
             return {
                 name: emp.name,
+                id: emp.id,
+                items: emp.items,
                 whtTotal: wi.length, whtDone: wd, whtPct: wi.length > 0 ? Math.round((wd / wi.length) * 1000) / 10 : 0,
                 whtCorr: wc, whtCorrPct: wi.length > 0 ? Math.round((wc / wi.length) * 1000) / 10 : 0,
                 vatTotal: vi.length, vatDone: vd, vatPct: vi.length > 0 ? Math.round((vd / vi.length) * 1000) / 10 : 0,
@@ -337,6 +350,12 @@ function ServiceTab({ data }: { data: MonthlyTaxData[] }) {
             }
         }).sort((a, b) => b.whtPct - a.whtPct)
     }, [data])
+
+    // Selected employee detail data
+    const selectedEmpData = useMemo(() => {
+        if (!selectedEmployee) return null
+        return employeeStats.find(e => e.id === selectedEmployee) || null
+    }, [selectedEmployee, employeeStats])
 
     const top3Wht = employeeStats.filter(e => e.whtTotal > 0).slice(0, 3)
     const top3Vat = [...employeeStats].sort((a, b) => b.vatPct - a.vatPct).filter(e => e.vatTotal > 0).slice(0, 3)
@@ -605,13 +624,16 @@ function ServiceTab({ data }: { data: MonthlyTaxData[] }) {
                                 const wCl = getCorrLabel(emp.whtCorrPct)
                                 const vCl = getCorrLabel(emp.vatCorrPct)
                                 return (
-                                    <Table.Tr key={emp.name} className="emp-table-row" style={{ background: idx % 2 === 0 ? '#fff' : '#fafafa' }}>
+                                    <Table.Tr key={emp.id} className="emp-table-row" style={{ background: idx % 2 === 0 ? '#fff' : '#fafafa' }}>
                                         <Table.Td style={{ padding: '8px 12px' }}>
-                                            <Group gap={6}>
-                                                <Box style={{ width: 24, height: 24, borderRadius: '50%', background: O, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                                    <Text size="xs" c="white" fw={700}>{emp.name.charAt(0)}</Text>
-                                                </Box>
-                                                <Text size="sm" fw={600} c="dark">{emp.name}</Text>
+                                            <Group gap={6} justify="space-between" wrap="nowrap">
+                                                <Group gap={6} wrap="nowrap">
+                                                    <Box style={{ width: 24, height: 24, borderRadius: '50%', background: O, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                                        <Text size="xs" c="white" fw={700}>{emp.name.charAt(0)}</Text>
+                                                    </Box>
+                                                    <Text size="sm" fw={600} c="dark">{emp.name}</Text>
+                                                </Group>
+                                                <Badge size="sm" variant="light" color="orange" radius="xl" style={{ cursor: 'pointer', flexShrink: 0 }} onClick={() => setSelectedEmployee(emp.id)}>ดูงานที่รับผิดชอบ →</Badge>
                                             </Group>
                                         </Table.Td>
                                         <Table.Td style={{ textAlign: 'center', padding: '8px 6px' }}><Text size="sm">{emp.whtTotal}</Text></Table.Td>
@@ -678,20 +700,20 @@ function ServiceTab({ data }: { data: MonthlyTaxData[] }) {
                                         <Table.Td style={{ padding: '6px 12px' }}><Text size="sm" c="dark">{rec.company_name || '-'}</Text></Table.Td>
                                         <Table.Td style={{ padding: '6px 12px' }}>
                                             <Text size="sm" c="dark">
-                                                {rec.accounting_responsible_nick_name || rec.accounting_responsible_first_name || rec.accounting_responsible || '-'}
+                                                {fmtName(rec.accounting_responsible_first_name, rec.accounting_responsible_nick_name)}
                                             </Text>
                                         </Table.Td>
                                         {detailModal?.status === 'passed' && (
                                             <Table.Td style={{ padding: '6px 12px' }}>
                                                 <Text size="sm" c="dark">
-                                                    {rec.wht_filer_employee_nick_name || rec.wht_filer_employee_first_name || rec.wht_filer_employee_name || '-'}
+                                                    {fmtName(rec.wht_filer_employee_first_name, rec.wht_filer_employee_nick_name)}
                                                 </Text>
                                             </Table.Td>
                                         )}
                                         {detailModal?.status === 'passed' && (
                                             <Table.Td style={{ padding: '6px 12px' }}>
                                                 <Text size="sm" c="dark">
-                                                    {rec.vat_filer_employee_nick_name || rec.vat_filer_employee_first_name || rec.vat_filer_employee_name || '-'}
+                                                    {fmtName(rec.vat_filer_employee_first_name, rec.vat_filer_employee_nick_name)}
                                                 </Text>
                                             </Table.Td>
                                         )}
@@ -702,6 +724,93 @@ function ServiceTab({ data }: { data: MonthlyTaxData[] }) {
                     </ScrollArea>
                 ) : (
                     <Center h={80}><Text c="gray.4" size="sm">ไม่มีข้อมูล</Text></Center>
+                )}
+            </Modal>
+
+            {/* ═══ Employee Detail Modal ═══ */}
+            <Modal
+                opened={!!selectedEmployee && !!selectedEmpData}
+                onClose={() => setSelectedEmployee(null)}
+                title={
+                    selectedEmpData ? (
+                        <Group gap={8}>
+                            <Box style={{ width: 28, height: 28, borderRadius: '50%', background: O, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <Text size="xs" c="white" fw={700}>{selectedEmpData.name.charAt(0)}</Text>
+                            </Box>
+                            <Text fw={700} size="md">{selectedEmpData.name}</Text>
+                            <Badge size="sm" variant="filled" color="gray">{selectedEmpData.items.length} ลูกค้า</Badge>
+                        </Group>
+                    ) : null
+                }
+                size="xl"
+                centered
+            >
+                {selectedEmpData && (
+                    <Stack gap="md">
+                        {/* Summary Cards */}
+                        <SimpleGrid cols={4}>
+                            <Paper p="sm" radius="md" withBorder style={{ borderLeft: `3px solid ${O}` }}>
+                                <Text size="xs" c="gray.6">WHT เสร็จ</Text>
+                                <Group gap={4} mt={2}><Text fw={700} size="lg" c="dark">{selectedEmpData.whtDone}</Text><Text size="xs" c="gray.5">/ {selectedEmpData.whtTotal}</Text></Group>
+                                <Badge size="xs" variant="light" color={selectedEmpData.whtPct >= 80 ? 'green' : selectedEmpData.whtPct >= 50 ? 'orange' : 'red'} mt={4}>{selectedEmpData.whtPct}%</Badge>
+                            </Paper>
+                            <Paper p="sm" radius="md" withBorder style={{ borderLeft: '3px solid #ffa726' }}>
+                                <Text size="xs" c="gray.6">VAT เสร็จ</Text>
+                                <Group gap={4} mt={2}><Text fw={700} size="lg" c="dark">{selectedEmpData.vatDone}</Text><Text size="xs" c="gray.5">/ {selectedEmpData.vatTotal}</Text></Group>
+                                <Badge size="xs" variant="light" color={selectedEmpData.vatPct >= 80 ? 'green' : selectedEmpData.vatPct >= 50 ? 'orange' : 'red'} mt={4}>{selectedEmpData.vatPct}%</Badge>
+                            </Paper>
+                            <Paper p="sm" radius="md" withBorder style={{ borderLeft: '3px solid #f44336' }}>
+                                <Text size="xs" c="gray.6">แก้ไข WHT</Text>
+                                <Text fw={700} size="lg" c="dark" mt={2}>{selectedEmpData.whtCorr}</Text>
+                                <Badge size="xs" variant="light" color={selectedEmpData.whtCorrPct <= 25 ? 'green' : selectedEmpData.whtCorrPct <= 50 ? 'orange' : 'red'} mt={4}>{selectedEmpData.whtCorrPct}%</Badge>
+                            </Paper>
+                            <Paper p="sm" radius="md" withBorder style={{ borderLeft: '3px solid #f44336' }}>
+                                <Text size="xs" c="gray.6">แก้ไข VAT</Text>
+                                <Text fw={700} size="lg" c="dark" mt={2}>{selectedEmpData.vatCorr}</Text>
+                                <Badge size="xs" variant="light" color={selectedEmpData.vatCorrPct <= 25 ? 'green' : selectedEmpData.vatCorrPct <= 50 ? 'orange' : 'red'} mt={4}>{selectedEmpData.vatCorrPct}%</Badge>
+                            </Paper>
+                        </SimpleGrid>
+
+                        {/* Task Table */}
+                        <ScrollArea>
+                            <Table withColumnBorders withTableBorder style={{ minWidth: 650 }}>
+                                <Table.Thead>
+                                    <Table.Tr>
+                                        {(() => {
+                                            const hd = { background: O, color: '#fff', fontSize: 11, fontWeight: 700 as const, textAlign: 'center' as const, padding: '8px' }; return (<>
+                                                <Table.Th style={{ ...hd, width: 40 }}>#</Table.Th>
+                                                <Table.Th style={{ ...hd, textAlign: 'left', padding: '8px 12px' }}>Build</Table.Th>
+                                                <Table.Th style={{ ...hd, textAlign: 'left', padding: '8px 12px' }}>ชื่อบริษัท</Table.Th>
+                                                <Table.Th style={hd}>สถานะ WHT</Table.Th>
+                                                <Table.Th style={hd}>สถานะ VAT</Table.Th>
+                                            </>)
+                                        })()}
+                                    </Table.Tr>
+                                </Table.Thead>
+                                <Table.Tbody>
+                                    {selectedEmpData.items.map((rec, idx) => {
+                                        const whtStatus = rec.pnd_status || 'not_started'
+                                        const vatStatus = rec.pp30_form || 'not_started'
+                                        const whtCfg = STATUS_CONFIG[whtStatus] || { label: whtStatus, color: '#808080' }
+                                        const vatCfg = STATUS_CONFIG[vatStatus] || { label: vatStatus, color: '#808080' }
+                                        return (
+                                            <Table.Tr key={rec.id || idx} style={{ background: idx % 2 === 0 ? '#fff' : '#fafafa' }}>
+                                                <Table.Td style={{ textAlign: 'center', padding: '6px 8px' }}><Text size="sm" c="gray.6">{idx + 1}</Text></Table.Td>
+                                                <Table.Td style={{ padding: '6px 12px' }}><Text size="sm" fw={600} c="dark">{rec.build}</Text></Table.Td>
+                                                <Table.Td style={{ padding: '6px 12px' }}><Text size="sm" c="dark" lineClamp={1}>{rec.company_name || '-'}</Text></Table.Td>
+                                                <Table.Td style={{ textAlign: 'center', padding: '6px 8px' }}>
+                                                    <Badge size="sm" variant="light" radius="xl" style={{ backgroundColor: whtCfg.color + '20', color: whtCfg.color, borderColor: whtCfg.color + '40' }}>{whtCfg.label}</Badge>
+                                                </Table.Td>
+                                                <Table.Td style={{ textAlign: 'center', padding: '6px 8px' }}>
+                                                    <Badge size="sm" variant="light" radius="xl" style={{ backgroundColor: vatCfg.color + '20', color: vatCfg.color, borderColor: vatCfg.color + '40' }}>{vatCfg.label}</Badge>
+                                                </Table.Td>
+                                            </Table.Tr>
+                                        )
+                                    })}
+                                </Table.Tbody>
+                            </Table>
+                        </ScrollArea>
+                    </Stack>
                 )}
             </Modal>
         </Stack>
