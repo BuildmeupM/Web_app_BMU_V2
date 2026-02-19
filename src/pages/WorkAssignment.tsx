@@ -152,6 +152,10 @@ export default function WorkAssignment() {
   const [previewPage, setPreviewPage] = useState(1)
   const [previewLimit, setPreviewLimit] = useState(20)
 
+  // Preview search state (Build Code / ชื่อบริษัท)
+  const [previewSearch, setPreviewSearch] = useState('')
+  const [debouncedPreviewSearch] = useDebouncedValue(previewSearch, 300)
+
   // State สำหรับเก็บข้อมูลที่โหลดแล้วและข้อมูลที่กรอกไว้
   const [allClients, setAllClients] = useState<Client[]>([]) // เก็บ client list ทั้งหมด
   const [loadedPreviewData, setLoadedPreviewData] = useState<typeof previewData>([]) // เก็บข้อมูลที่โหลดแล้วและข้อมูลที่กรอกไว้
@@ -1818,50 +1822,51 @@ export default function WorkAssignment() {
 
   const workStatistics = calculateWorkStatistics()
 
-  // Filter previewData by responsible persons
-  const filteredPreviewData = previewData.filter((item) => {
-    // Filter by assignment status (จัดแล้ว/ยังไม่จัด)
-    if (filterByAssignmentStatus === 'assigned' && !item.is_assigned) {
-      return false // แสดงเฉพาะงานที่จัดแล้ว
-    }
-    if (filterByAssignmentStatus === 'unassigned' && item.is_assigned) {
-      return false // แสดงเฉพาะงานที่ยังไม่จัด
-    }
-    // filterByAssignmentStatus === 'all' จะแสดงทั้งหมด
+  // Filter previewData by responsible persons, text search, and sort by build code
+  const filteredPreviewData = previewData
+    .filter((item) => {
+      // Filter by text search (Build Code / ชื่อบริษัท)
+      if (debouncedPreviewSearch) {
+        const searchLower = debouncedPreviewSearch.toLowerCase()
+        const matchesBuild = item.build.toLowerCase().includes(searchLower)
+        const matchesName = item.company_name.toLowerCase().includes(searchLower)
+        if (!matchesBuild && !matchesName) {
+          return false
+        }
+      }
 
-    // If no filters are set, show all
-    if (!filterByAccounting && !filterByTaxInspection && !filterByWht && !filterByVat && !filterByDocumentEntry) {
-      return true
-    }
+      // Filter by assignment status (จัดแล้ว/ยังไม่จัด)
+      if (filterByAssignmentStatus === 'assigned' && !item.is_assigned) {
+        return false // แสดงเฉพาะงานที่จัดแล้ว
+      }
+      if (filterByAssignmentStatus === 'unassigned' && item.is_assigned) {
+        return false // แสดงเฉพาะงานที่ยังไม่จัด
+      }
+      // filterByAssignmentStatus === 'all' จะแสดงทั้งหมด
 
-    // Check each filter
-    const matchesAccounting = !filterByAccounting || item.new_accounting_responsible === filterByAccounting
-    const matchesTaxInspection = !filterByTaxInspection || item.new_tax_inspection_responsible === filterByTaxInspection
-    const matchesWht = !filterByWht || item.new_wht_filer_responsible === filterByWht
-    const matchesVat = !filterByVat || item.new_vat_filer_responsible === filterByVat
-    const matchesDocumentEntry = !filterByDocumentEntry || item.new_document_entry_responsible === filterByDocumentEntry
+      // If no filters are set, show all
+      if (!filterByAccounting && !filterByTaxInspection && !filterByWht && !filterByVat && !filterByDocumentEntry) {
+        return true
+      }
 
-    // Show item if it matches at least one active filter (OR logic)
-    // Or if all active filters match (AND logic) - using AND for more precise filtering
-    const activeFilters = [
-      filterByAccounting,
-      filterByTaxInspection,
-      filterByWht,
-      filterByVat,
-      filterByDocumentEntry,
-    ].filter(Boolean)
+      // Check each filter
+      const matchesAccounting = !filterByAccounting || item.new_accounting_responsible === filterByAccounting
+      const matchesTaxInspection = !filterByTaxInspection || item.new_tax_inspection_responsible === filterByTaxInspection
+      const matchesWht = !filterByWht || item.new_wht_filer_responsible === filterByWht
+      const matchesVat = !filterByVat || item.new_vat_filer_responsible === filterByVat
+      const matchesDocumentEntry = !filterByDocumentEntry || item.new_document_entry_responsible === filterByDocumentEntry
 
-    if (activeFilters.length === 0) return true
-
-    // AND logic: all active filters must match
-    return (
-      (!filterByAccounting || matchesAccounting) &&
-      (!filterByTaxInspection || matchesTaxInspection) &&
-      (!filterByWht || matchesWht) &&
-      (!filterByVat || matchesVat) &&
-      (!filterByDocumentEntry || matchesDocumentEntry)
-    )
-  })
+      // AND logic: all active filters must match
+      return (
+        (!filterByAccounting || matchesAccounting) &&
+        (!filterByTaxInspection || matchesTaxInspection) &&
+        (!filterByWht || matchesWht) &&
+        (!filterByVat || matchesVat) &&
+        (!filterByDocumentEntry || matchesDocumentEntry)
+      )
+    })
+    // Sort by Build Code ascending (เรียงตาม Build Code)
+    .sort((a, b) => a.build.localeCompare(b.build, undefined, { numeric: true }))
 
   /**
    * Calculate work assignment statistics from Preview Data (for Preview section)
@@ -3862,12 +3867,13 @@ export default function WorkAssignment() {
                       <Text fw={700} size="md">
                         กรองข้อมูล
                       </Text>
-                      {(filterByAccounting || filterByTaxInspection || filterByWht || filterByVat || filterByDocumentEntry || filterByAssignmentStatus !== 'all') && (
+                      {(previewSearch || filterByAccounting || filterByTaxInspection || filterByWht || filterByVat || filterByDocumentEntry || filterByAssignmentStatus !== 'all') && (
                         <Button
                           variant="light"
                           size="xs"
                           color="red"
                           onClick={() => {
+                            setPreviewSearch('')
                             setFilterByAccounting(null)
                             setFilterByTaxInspection(null)
                             setFilterByWht(null)
@@ -3881,6 +3887,19 @@ export default function WorkAssignment() {
                         </Button>
                       )}
                     </Group>
+
+                    {/* Search by Build Code / Company Name */}
+                    <TextInput
+                      placeholder="ค้นหาด้วย Build Code หรือชื่อบริษัท..."
+                      leftSection={<TbSearch size={16} />}
+                      value={previewSearch}
+                      onChange={(e) => {
+                        setPreviewSearch(e.currentTarget.value)
+                        setPreviewPage(1)
+                      }}
+                      size="sm"
+                      style={{ maxWidth: 400 }}
+                    />
 
                     {/* Filter by Assignment Status */}
                     <Group gap="xs" align="center">
@@ -3985,7 +4004,7 @@ export default function WorkAssignment() {
                         size="sm"
                       />
                     </SimpleGrid>
-                    {(filterByAccounting || filterByTaxInspection || filterByWht || filterByVat || filterByDocumentEntry || filterByAssignmentStatus !== 'all') && (
+                    {(previewSearch || filterByAccounting || filterByTaxInspection || filterByWht || filterByVat || filterByDocumentEntry || filterByAssignmentStatus !== 'all') && (
                       <Alert color="blue" icon={<TbAlertCircle size={16} />}>
                         <Text size="sm">
                           แสดงผล {filteredPreviewData.length} รายการ จากทั้งหมด {previewData.length} รายการ
@@ -4198,9 +4217,9 @@ export default function WorkAssignment() {
                 กรุณาตรวจสอบและแก้ไขข้อมูลก่อนบันทึก ข้อมูลจะยังไม่ถูกบันทึกลงฐานข้อมูลจนกว่าจะกดปุ่ม "บันทึกทั้งหมด"
               </Alert>
 
-              <Table.ScrollContainer minWidth={1400}>
-                <Table highlightOnHover>
-                  <Table.Thead>
+              <div style={{ maxHeight: '70vh', overflow: 'auto' }}>
+                <Table highlightOnHover style={{ minWidth: 1400 }}>
+                  <Table.Thead style={{ position: 'sticky', top: 0, zIndex: 10, backgroundColor: 'var(--mantine-color-body)', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
                     <Table.Tr>
                       {visibleColumns.build && <Table.Th>Build Code</Table.Th>}
                       {visibleColumns.company_name && <Table.Th>ชื่อบริษัท</Table.Th>}
@@ -4614,7 +4633,7 @@ export default function WorkAssignment() {
                       })}
                   </Table.Tbody>
                 </Table>
-              </Table.ScrollContainer>
+              </div>
 
               {/* Pagination Controls */}
               {previewData.length > previewLimit && (

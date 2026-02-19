@@ -777,7 +777,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
  *   message: string
  * }
  */
-router.post('/bulk-create', authenticateToken, authorize('admin'), async (req, res) => {
+router.post('/bulk-create', authenticateToken, authorize('admin', 'audit'), async (req, res) => {
   try {
     const { assignments } = req.body
 
@@ -1026,7 +1026,7 @@ router.post('/bulk-create', authenticateToken, authorize('admin'), async (req, r
  *   }
  * }
  */
-router.get('/bulk-create/:jobId', authenticateToken, authorize('admin'), async (req, res) => {
+router.get('/bulk-create/:jobId', authenticateToken, authorize('admin', 'audit'), async (req, res) => {
   try {
     const { jobId } = req.params
 
@@ -1071,7 +1071,7 @@ router.get('/bulk-create/:jobId', authenticateToken, authorize('admin'), async (
  * สร้างการจัดงานใหม่ (พร้อมรีเซ็ตข้อมูล monthly_tax_data และ document_entry_work อัตโนมัติ)
  * Access: Admin/HR only
  */
-router.post('/', authenticateToken, authorize('admin'), async (req, res) => {
+router.post('/', authenticateToken, authorize('admin', 'audit'), async (req, res) => {
   try {
     const {
       build,
@@ -1333,7 +1333,7 @@ router.post('/', authenticateToken, authorize('admin'), async (req, res) => {
  * แก้ไขการจัดงาน (พร้อมรีเซ็ตข้อมูล monthly_tax_data และ document_entry_work อัตโนมัติ)
  * Access: Admin/HR only
  */
-router.put('/:id', authenticateToken, authorize('admin'), async (req, res) => {
+router.put('/:id', authenticateToken, authorize('admin', 'audit'), async (req, res) => {
   try {
     const { id } = req.params
     const { assignment_note, is_active } = req.body
@@ -1504,7 +1504,7 @@ router.put('/:id', authenticateToken, authorize('admin'), async (req, res) => {
  * รีเซ็ตข้อมูล monthly_tax_data และ document_entry_work สำหรับการจัดงานนี้ (Manual Reset)
  * Access: Admin/HR only
  */
-router.post('/:id/reset-data', authenticateToken, authorize('admin'), async (req, res) => {
+router.post('/:id/reset-data', authenticateToken, authorize('admin', 'audit'), async (req, res) => {
   try {
     const { id } = req.params
 
@@ -1581,7 +1581,7 @@ function padBuildCode(value) {
 router.post(
   '/import/validate',
   authenticateToken,
-  authorize('admin'),
+  authorize('admin', 'audit'),
   upload.single('file'),
   async (req, res) => {
     try {
@@ -1789,7 +1789,7 @@ router.post(
 router.post(
   '/import',
   authenticateToken,
-  authorize('admin'),
+  authorize('admin', 'audit'),
   upload.single('file'),
   async (req, res) => {
     const connection = await pool.getConnection()
@@ -2021,7 +2021,7 @@ router.post(
  *   change_reason?: string
  * }
  */
-router.post('/:id/change-responsible', authenticateToken, authorize('admin'), async (req, res) => {
+router.post('/:id/change-responsible', authenticateToken, authorize('admin', 'audit'), async (req, res) => {
   const connection = await pool.getConnection()
 
   try {
@@ -2312,7 +2312,7 @@ router.get('/:id/change-history', authenticateToken, async (req, res) => {
  * Soft-delete work_assignments, monthly_tax_data, document_entry_work ที่เกี่ยวข้อง
  * Access: Admin only
  */
-router.delete('/:id', authenticateToken, authorize('admin'), async (req, res) => {
+router.delete('/:id', authenticateToken, authorize('admin', 'audit'), async (req, res) => {
   const connection = await pool.getConnection()
   try {
     const { id } = req.params
