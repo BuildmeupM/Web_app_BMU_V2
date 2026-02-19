@@ -386,11 +386,10 @@ const TaxStatusTable = memo(function TaxStatusTable({
           queryKey: ['monthly-tax-data', 'tax-status'],
           exact: false,
         })
-        await queryClient.refetchQueries({
-          queryKey: ['monthly-tax-data', 'tax-status'],
-          exact: false,
-          type: 'active',
-        })
+        await queryClient.refetchQueries(
+          ['monthly-tax-data', 'tax-status'],
+          { exact: false, active: true }
+        )
       }
     } catch (error) {
       console.error('Data verification error:', error)
@@ -549,7 +548,7 @@ const TaxStatusTable = memo(function TaxStatusTable({
   }, [taxDataResponse?.data])
 
   // ✅ Performance: Memoize transformed data to avoid unnecessary recalculations
-  const allTableData: TaxStatusRecord[] = useMemo(() => {
+  const allTableData = useMemo<TaxStatusRecord[]>(() => {
     if (import.meta.env.DEV && taxDataResponse?.data) {
       console.log('🔍 [TaxStatusTable] Processing data from API:', {
         totalRecords: taxDataResponse.data.length,
@@ -580,7 +579,7 @@ const TaxStatusTable = memo(function TaxStatusTable({
       // ⚠️ สำคัญ: ใช้ pp30_form จาก API โดยตรง (backend ส่งเฉพาะ pp30_form แล้ว ไม่ส่ง pp30_status)
       // ถ้าไม่มี pp30_form → ใช้ derivePp30Status เพื่อ derive จาก timestamp fields (fallback)
       let pp30Status = ''
-      if (item.pp30_form != null && String(item.pp30_form).trim() !== '' && item.pp30_form !== '0' && item.pp30_form !== '1' && item.pp30_form !== 0 && item.pp30_form !== 1 && item.pp30_form !== true && item.pp30_form !== false) {
+      if (item.pp30_form != null && String(item.pp30_form).trim() !== '' && item.pp30_form !== '0' && item.pp30_form !== '1' && String(item.pp30_form) !== '0' && String(item.pp30_form) !== '1' && String(item.pp30_form) !== 'true' && String(item.pp30_form) !== 'false') {
         // ใช้ pp30_form โดยตรง (หลัง migration 028) - backend ส่งเฉพาะ pp30_form แล้ว
         pp30Status = String(item.pp30_form).trim()
       } else {
@@ -659,8 +658,8 @@ const TaxStatusTable = memo(function TaxStatusTable({
         pndSentToCustomerDate: formatDate(item.pnd_sent_to_customer_date),
         // ⚠️ สำคัญ: ใช้ pnd_status จาก API โดยตรง (backend ส่งมาแล้ว)
         // ถ้าไม่มีจาก API ค่อย derive เอง (fallback)
-        pndStatus: item.pnd_status && String(item.pnd_status).trim() !== ''
-          ? item.pnd_status
+        pndStatus: (item.pnd_status && String(item.pnd_status).trim() !== ''
+          ? item.pnd_status as TaxStatusRecord['pndStatus']
           : (() => {
             // Derive จาก fields อื่นๆ ถ้า pnd_status ไม่มี
             if (item.pnd_sent_to_customer_date) return 'sent_to_customer'
@@ -669,12 +668,12 @@ const TaxStatusTable = memo(function TaxStatusTable({
             if (item.wht_draft_completed_date) return 'draft_completed'
             if (item.wht_filing_response) return 'paid'
             return null
-          })(),
+          })()) as TaxStatusRecord['pndStatus'],
         // PP30 Dates
         pp30SentForReviewDate: formatDate(item.pp30_sent_for_review_date),
         pp30ReviewReturnedDate: formatDate(item.pp30_review_returned_date),
         pp30SentToCustomerDate: formatDate(item.pp30_sent_to_customer_date),
-        pp30Status: pp30Status,
+        pp30Status: pp30Status as TaxStatusRecord['pp30Status'],
         pp30PaymentStatus: item.pp30_payment_status || null,
         pp30PaymentAmount: item.pp30_payment_amount || null,
         performer: performerText, // เก็บข้อความรวมไว้สำหรับ backward compatibility

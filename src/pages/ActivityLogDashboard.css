@@ -1,0 +1,569 @@
+/* ═══════════════════════════════════════════════════
+   Activity Log Dashboard — Premium Visual Styles
+   Theme: Orange (#FF6B35) on White — Matching AccountingDashboard
+   ═══════════════════════════════════════════════════ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+
+.ald-root {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    min-height: 100vh;
+    background: linear-gradient(135deg, #f8f9fa 0%, #fff5f0 50%, #f8f9fa 100%);
+    padding: 24px;
+}
+
+/* ═══ Keyframes ═══ */
+
+@keyframes aldFadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(24px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes aldCountUp {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes aldPulseGlow {
+
+    0%,
+    100% {
+        box-shadow: 0 0 0 0 rgba(255, 107, 53, 0.2);
+    }
+
+    50% {
+        box-shadow: 0 0 20px 4px rgba(255, 107, 53, 0.1);
+    }
+}
+
+@keyframes aldShimmer {
+    0% {
+        background-position: -200% 0;
+    }
+
+    100% {
+        background-position: 200% 0;
+    }
+}
+
+/* ─── Staggered fade ─── */
+.ald-animate {
+    animation: aldFadeInUp 0.5s ease-out both;
+}
+
+.ald-delay-1 {
+    animation-delay: 0.05s;
+}
+
+.ald-delay-2 {
+    animation-delay: 0.10s;
+}
+
+.ald-delay-3 {
+    animation-delay: 0.15s;
+}
+
+.ald-delay-4 {
+    animation-delay: 0.20s;
+}
+
+.ald-delay-5 {
+    animation-delay: 0.25s;
+}
+
+.ald-delay-6 {
+    animation-delay: 0.30s;
+}
+
+/* ═══ Header / Banner ═══ */
+
+.ald-header-banner {
+    background: linear-gradient(135deg, #FF6B35 0%, #FF8A5C 60%, #FFa070 100%);
+    border-radius: 16px;
+    padding: 24px 28px;
+    margin-bottom: 24px;
+    box-shadow: 0 8px 32px rgba(255, 107, 53, 0.2);
+    position: relative;
+    overflow: hidden;
+}
+
+.ald-header-banner::before {
+    content: '';
+    position: absolute;
+    top: -40%;
+    right: -10%;
+    width: 300px;
+    height: 300px;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.12) 0%, transparent 70%);
+    border-radius: 50%;
+    pointer-events: none;
+}
+
+.ald-header-banner::after {
+    content: '';
+    position: absolute;
+    bottom: -30%;
+    left: 5%;
+    width: 200px;
+    height: 200px;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.08) 0%, transparent 70%);
+    border-radius: 50%;
+    pointer-events: none;
+}
+
+/* ═══ Hero Stat Cards ═══ */
+
+.ald-hero-card {
+    background: linear-gradient(135deg, #ffffff 0%, #fff8f5 100%);
+    border-radius: 16px;
+    padding: 20px;
+    border: 1px solid rgba(255, 107, 53, 0.1);
+    box-shadow: 0 4px 20px rgba(255, 107, 53, 0.06);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+.ald-hero-card::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 80px;
+    height: 80px;
+    background: radial-gradient(circle at top right, rgba(255, 107, 53, 0.06) 0%, transparent 70%);
+    pointer-events: none;
+}
+
+.ald-hero-card:hover {
+    box-shadow: 0 8px 32px rgba(255, 107, 53, 0.12);
+    transform: translateY(-3px);
+    border-color: rgba(255, 107, 53, 0.2);
+}
+
+.ald-hero-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+    background: linear-gradient(135deg, #fff5f0, #ffe8dd);
+    color: #FF6B35;
+}
+
+.ald-stat-number {
+    font-size: 28px;
+    font-weight: 800;
+    color: #FF6B35;
+    line-height: 1;
+    animation: aldCountUp 0.6s ease-out both;
+}
+
+/* ═══ Glass Cards / Sections ═══ */
+
+.ald-glass-card {
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    border-radius: 16px;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.05);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.ald-glass-card:hover {
+    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.08);
+    transform: translateY(-2px);
+}
+
+/* ═══ Section Header Icon ═══ */
+
+.ald-section-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #fff5f0, #ffe8dd);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+}
+
+/* ═══ Chart ═══ */
+
+.ald-chart-area {
+    height: 240px;
+    display: flex;
+    align-items: flex-end;
+    gap: 3px;
+    padding: 0;
+    position: relative;
+}
+
+.ald-bar-col {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+
+.ald-bar {
+    width: 100%;
+    max-width: 40px;
+    border-radius: 8px 8px 2px 2px;
+    background: linear-gradient(180deg, #FF8A5C, #FF6B35);
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    min-height: 4px;
+    cursor: pointer;
+    position: relative;
+}
+
+.ald-bar:hover {
+    filter: brightness(1.08);
+    transform: scaleY(1.04);
+    transform-origin: bottom;
+    box-shadow: 0 -4px 16px rgba(255, 107, 53, 0.3);
+}
+
+.ald-bar-date {
+    font-size: 10px;
+    color: #aaa;
+    white-space: nowrap;
+    font-weight: 500;
+}
+
+.ald-bar-val {
+    font-size: 11px;
+    font-weight: 700;
+    color: #1a1a2e;
+}
+
+/* ═══ Page Breakdown Chips ═══ */
+
+.ald-chip {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #ffffff, #fff8f5);
+    border: 1px solid rgba(255, 107, 53, 0.08);
+    transition: all 0.2s ease;
+}
+
+.ald-chip:hover {
+    border-color: rgba(255, 107, 53, 0.2);
+    box-shadow: 0 4px 14px rgba(255, 107, 53, 0.08);
+    transform: translateY(-1px);
+}
+
+.ald-chip-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #FF6B35, #FF8A5C);
+    flex-shrink: 0;
+    box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.1);
+}
+
+/* ═══ Tab Pills ═══ */
+
+.ald-tab-pill {
+    padding: 8px 20px;
+    border-radius: 24px;
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    user-select: none;
+    border: none;
+    background: transparent;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.ald-tab-pill:hover {
+    background: rgba(255, 255, 255, 0.18);
+    transform: translateY(-1px);
+    color: white;
+}
+
+.ald-tab-pill--active {
+    background: rgba(255, 255, 255, 0.95) !important;
+    color: #FF6B35 !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+    transform: translateY(-1px);
+}
+
+/* ═══ Table ═══ */
+
+.ald-table-wrap {
+    border-radius: 14px;
+    overflow: hidden;
+    border: 1px solid #f0f0f0;
+    box-shadow: 0 2px 16px rgba(0, 0, 0, 0.04);
+}
+
+.ald-table-wrap table {
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.ald-table-wrap thead tr {
+    background: linear-gradient(135deg, #FF6B35, #FF8A5C);
+}
+
+.ald-table-wrap thead tr th {
+    background: transparent !important;
+    color: #fff !important;
+    font-size: 11px;
+    font-weight: 700;
+    text-align: left;
+    padding: 12px 14px;
+    border-bottom: none !important;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.ald-table-wrap tbody tr {
+    transition: all 0.2s ease;
+}
+
+.ald-table-wrap tbody tr:hover {
+    background: #fff5f0 !important;
+}
+
+.ald-table-wrap tbody tr td {
+    padding: 10px 14px;
+    border-bottom: 1px solid #f5f5f5 !important;
+    font-size: 13px;
+}
+
+/* ═══ Filters (glass) ═══ */
+
+.ald-filter-glass {
+    background: rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-radius: 12px;
+    padding: 6px 12px;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+/* ═══ Correction / Employee summary cards ═══ */
+
+.ald-summary-card {
+    background: #ffffff;
+    border-radius: 16px;
+    padding: 24px;
+    border: none;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.05);
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.ald-summary-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    border-radius: 16px 16px 0 0;
+}
+
+.ald-summary-card.orange-line::before {
+    background: linear-gradient(90deg, #FF6B35, #FF8A5C);
+}
+
+.ald-summary-card.red-line::before {
+    background: linear-gradient(90deg, #ef4444, #f87171);
+}
+
+.ald-summary-card:hover {
+    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.08);
+    transform: translateY(-2px);
+}
+
+/* ─── Avatar circle ─── */
+
+.ald-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #FF6B35, #FF8A5C);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    box-shadow: 0 2px 8px rgba(255, 107, 53, 0.25);
+}
+
+.ald-avatar span {
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+/* ─── Summary row ─── */
+
+.ald-summary-row {
+    display: flex;
+    align-items: center;
+    padding: 10px 14px;
+    border-radius: 10px;
+    transition: all 0.2s ease;
+    border: 1px solid transparent;
+    margin-bottom: 6px;
+}
+
+.ald-summary-row:last-child {
+    margin-bottom: 0;
+}
+
+.ald-summary-row:hover {
+    background: rgba(255, 107, 53, 0.04);
+    border-color: rgba(255, 107, 53, 0.12);
+    transform: translateX(4px);
+}
+
+/* ═══ Badges ═══ */
+
+.ald-action-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.ald-action-badge.status {
+    background: #fff5ed;
+    color: #e65100;
+}
+
+.ald-action-badge.create {
+    background: #fff5ed;
+    color: #e65100;
+}
+
+.ald-action-badge.edit {
+    background: #fff5ed;
+    color: #e65100;
+}
+
+.ald-action-badge.correction {
+    background: #fef2f2;
+    color: #c62828;
+}
+
+.ald-action-badge.listing {
+    background: #fff5ed;
+    color: #e65100;
+}
+
+.ald-action-badge.page-badge {
+    background: #fff5ed;
+    color: #e65100;
+}
+
+/* ═══ Pagination ═══ */
+
+.ald-pager {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin-top: 16px;
+}
+
+.ald-pager-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    border: 1px solid #e5e5e5;
+    background: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    color: #666;
+    font-family: inherit;
+    transition: all 0.15s ease;
+}
+
+.ald-pager-btn:hover:not(:disabled):not(.active) {
+    border-color: #FF8A5C;
+    color: #FF6B35;
+    background: #fff8f3;
+}
+
+.ald-pager-btn.active {
+    background: linear-gradient(135deg, #FF6B35, #FF8A5C);
+    color: white;
+    border-color: #FF6B35;
+    box-shadow: 0 2px 8px rgba(255, 107, 53, 0.3);
+}
+
+.ald-pager-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
+/* ═══ Loading States ═══ */
+
+.ald-skeleton-bar {
+    border-radius: 8px;
+    background: linear-gradient(90deg, #f0f0f0 25%, #e8e8e8 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: aldShimmer 1.5s linear infinite;
+}
+
+/* ═══ Responsive ═══ */
+
+@media (max-width: 768px) {
+    .ald-root {
+        padding: 16px;
+    }
+
+    .ald-header-banner {
+        padding: 18px 20px;
+        border-radius: 12px;
+    }
+
+    .ald-hero-card {
+        padding: 16px;
+    }
+
+    .ald-stat-number {
+        font-size: 22px;
+    }
+}

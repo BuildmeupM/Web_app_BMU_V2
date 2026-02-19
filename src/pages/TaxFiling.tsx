@@ -130,14 +130,14 @@ export default function TaxFiling() {
     try {
       // ⚠️ สำคัญ: Invalidate cache ทั้งหมดที่เกี่ยวข้องกับ tax-filing เพื่อบังคับให้ refetch แม้ว่า cache จะยังไม่ stale
       // ใช้ exact: false เพื่อ invalidate ทุก queries ที่ขึ้นต้นด้วย ['monthly-tax-data', 'tax-filing']
-      await queryClient.invalidateQueries({ queryKey: ['monthly-tax-data', 'tax-filing'], exact: false }, { refetchType: 'active' })
-      await queryClient.invalidateQueries({ queryKey: ['monthly-tax-data-summary', 'tax-filing'], exact: false }, { refetchType: 'active' })
+      await queryClient.invalidateQueries(['monthly-tax-data', 'tax-filing'], { exact: false, refetchActive: true })
+      await queryClient.invalidateQueries(['monthly-tax-data-summary', 'tax-filing'], { exact: false, refetchActive: true })
 
       // ⚠️ สำคัญ: Refetch queries ทั้งหมดที่ active เพื่อให้ได้ข้อมูลล่าสุดจาก server
-      // ใช้ type: 'active' เพื่อ refetch เฉพาะ queries ที่กำลัง active (component ที่ mount อยู่)
+      // ใช้ active: true เพื่อ refetch เฉพาะ queries ที่กำลัง active (component ที่ mount อยู่)
       await Promise.all([
-        queryClient.refetchQueries({ queryKey: ['monthly-tax-data', 'tax-filing'], exact: false, type: 'active' }),
-        queryClient.refetchQueries({ queryKey: ['monthly-tax-data-summary', 'tax-filing'], exact: false, type: 'active' }),
+        queryClient.refetchQueries(['monthly-tax-data', 'tax-filing'], { exact: false, active: true }),
+        queryClient.refetchQueries(['monthly-tax-data-summary', 'tax-filing'], { exact: false, active: true }),
       ])
 
       // ⏱️ Reset last update time after successful refresh
@@ -202,7 +202,7 @@ export default function TaxFiling() {
         autoRefreshTriggeredRef.current = true
         handleRefresh()
       }
-    }, 1000)
+    }, 10000) // ✅ Performance: อัพเดททุก 10 วินาที (แทน 1 วินาที) ลด re-render 90%
 
     return () => clearInterval(interval)
   }, [lastUpdateTime, handleRefresh])

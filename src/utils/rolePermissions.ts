@@ -124,6 +124,12 @@ export const routePermissions: RoutePermission[] = [
     label: 'Dashboard งานบัญชี',
     roles: ['admin', 'audit', 'data_entry_and_service', 'service'],
   },
+  // 19. บันทึกกิจกรรม - admin, audit
+  {
+    path: '/activity-logs',
+    label: 'Dashboard - Log',
+    roles: ['admin', 'audit'],
+  },
 ]
 
 export const hasPermission = (userRole: UserRole, path: string): boolean => {

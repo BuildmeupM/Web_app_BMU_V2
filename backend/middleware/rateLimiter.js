@@ -28,11 +28,11 @@ export const loginRateLimiter = rateLimit({
 
 /**
  * General API rate limiter
- * จำกัด 250 requests ต่อ 15 นาที (เพิ่มจาก 100 เพื่อลด 429 ในหน้ายื่นภาษี/ตรวจภาษี ที่มีการโหลด list + summary + employee หลายรายการ)
+ * จำกัด 2000 requests ต่อ 15 นาที (เพิ่มเพื่อรองรับ office IP ที่พนักงานหลายคนใช้ร่วมกัน)
  */
 export const apiRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 นาที
-  max: 250, // จำกัด 250 requests ต่อ window
+  max: 2000, // จำกัด 2000 requests ต่อ window
   message: {
     success: false,
     message: 'Too many requests. Please try again later.',

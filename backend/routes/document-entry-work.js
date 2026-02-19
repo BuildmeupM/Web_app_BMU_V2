@@ -8,6 +8,7 @@ import express from 'express'
 import pool from '../config/database.js'
 import { authenticateToken } from '../middleware/auth.js'
 import { generateUUID } from '../utils/leaveHelpers.js'
+import { logActivity } from '../utils/logActivity.js'
 
 const router = express.Router()
 
@@ -1098,6 +1099,22 @@ router.post('/', authenticateToken, async (req, res) => {
 
     await connection.commit()
 
+    // ═══ Activity Log ═══
+    logActivity({
+      userId: req.user.id,
+      employeeId: req.user.employee_id,
+      userName: req.user.name || req.user.username,
+      action: 'data_create',
+      page: 'document_sorting',
+      entityType: 'document_entry_work',
+      entityId: id,
+      build,
+      companyName,
+      description: `ส่งเอกสารครั้งที่ ${newSubmissionCount} (WHT: ${wht_document_count}, VAT: ${vat_document_count}, Non-VAT: ${non_vat_document_count})`,
+      metadata: { year: work_year, month: work_month, submissionCount: newSubmissionCount, wht: wht_document_count, vat: vat_document_count, nonVat: non_vat_document_count },
+      ipAddress: req.ip,
+    })
+
     // Get created data with bots
     const [createdRows] = await pool.execute(
       `SELECT 
@@ -1411,6 +1428,27 @@ router.put('/:id', authenticateToken, async (req, res) => {
     await connection.commit()
     console.log(`✅ Transaction committed successfully for document_entry_work ${id}`)
 
+    // ═══ Activity Log ═══
+    const [logCompanyRows] = await pool.execute('SELECT company_name FROM clients WHERE build = ? AND deleted_at IS NULL LIMIT 1', [existing.build])
+    const logCompanyName = logCompanyRows[0]?.company_name || existing.build
+    logActivity({
+      userId: req.user.id,
+      employeeId: req.user.employee_id,
+      userName: req.user.name || req.user.username,
+      action: 'data_edit',
+      page: 'document_entry',
+      entityType: 'document_entry_work',
+      entityId: id,
+      build: existing.build,
+      companyName: logCompanyName,
+      description: `แก้ไขข้อมูลคีย์เอกสาร${returnCommentChanged ? ' (เปลี่ยน return_comment)' : ''}`,
+      fieldChanged: returnCommentChanged ? 'return_comment' : null,
+      oldValue: returnCommentChanged ? oldReturnComment : null,
+      newValue: returnCommentChanged ? return_comment : null,
+      metadata: { year: existing.work_year, month: existing.work_month },
+      ipAddress: req.ip,
+    })
+
     // Get updated data with bots (use connection to ensure we see committed data)
     const [updatedRows] = await connection.execute(
       `SELECT 
@@ -1645,6 +1683,35 @@ router.patch('/:id/status', authenticateToken, async (req, res) => {
     }
 
     await connection.execute(updateQuery, updateParams)
+
+    // ═══ Activity Log (status update) ═══
+    {
+      const docTypeLabel = { wht: 'WHT', vat: 'VAT', non_vat: 'Non-VAT' }
+      // Get company info for log
+      const [logRows] = await connection.execute(
+        `SELECT dew.build, c.company_name, dew.work_year, dew.work_month
+         FROM document_entry_work dew
+         LEFT JOIN clients c ON dew.build = c.build AND c.deleted_at IS NULL
+         WHERE dew.id = ? LIMIT 1`, [id]
+      )
+      const logRow = logRows[0]
+      logActivity({
+        userId: req.user.id,
+        employeeId: req.user.employee_id,
+        userName: req.user.name || req.user.username,
+        action: 'status_update',
+        page: 'document_entry',
+        entityType: 'document_entry_work',
+        entityId: id,
+        build: logRow?.build,
+        companyName: logRow?.company_name || logRow?.build,
+        description: `อัพเดทสถานะ ${docTypeLabel[document_type] || document_type}: ${status}`,
+        fieldChanged: `${document_type}_entry_status`,
+        newValue: status,
+        metadata: { year: logRow?.work_year, month: logRow?.work_month, documentType: document_type },
+        ipAddress: req.ip,
+      })
+    }
 
     // Get updated data with company info
     const [updatedRows] = await connection.execute(

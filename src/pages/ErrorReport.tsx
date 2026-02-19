@@ -3,7 +3,8 @@
  * Accounting team creates error reports → admin/audit approves → auto-create messenger task
  */
 
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import { useState, useMemo, useCallback, useRef } from 'react'
+import { useQuery, useQueryClient } from 'react-query'
 import {
     Container, Title, Button, Group, Text, Badge, Card,
     Table, Modal, TextInput, Textarea, Select, NumberInput,
@@ -81,17 +82,33 @@ export default function ErrorReportPage() {
     const { user } = useAuthStore()
     const isAdminOrAudit = user && ['admin', 'audit'].includes(user.role)
 
-    // Data state
-    const [reports, setReports] = useState<ErrorReport[]>([])
-    const [auditors, setAuditors] = useState<AuditorOption[]>([])
-    const [clients, setClients] = useState<ClientOption[]>([])
-    const [clientSearching, setClientSearching] = useState(false)
-    const clientSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-    const [loading, setLoading] = useState(true)
+    // ✅ Performance: ใช้ react-query แทน manual fetchAll เพื่อให้ได้ caching, deduplication, background refetch
+    const queryClient = useQueryClient()
+
+    const { data: reports = [], isLoading: loadingReports } = useQuery(
+        ['error-reports'],
+        () => errorReportService.getAll(),
+        { staleTime: 30 * 1000 } // 30s cache
+    )
+    const { data: auditors = [] } = useQuery(
+        ['error-reports-auditors'],
+        () => errorReportService.getAuditors(),
+        { staleTime: 5 * 60 * 1000 } // 5 min cache
+    )
+    const { data: clients = [], refetch: refetchClients } = useQuery(
+        ['error-reports-clients'],
+        () => errorReportService.getClients(),
+        { staleTime: 5 * 60 * 1000 }
+    )
+    const { data: locations = [] } = useQuery<MessengerLocation[]>(
+        ['error-reports-locations'],
+        () => getLocations(),
+        { staleTime: 5 * 60 * 1000 }
+    )
+    const loading = loadingReports
     const [refreshing, setRefreshing] = useState(false)
 
-    // Locations for submission address
-    const [locations, setLocations] = useState<MessengerLocation[]>([])
+    // Locations address search state
     const [addressSearch, setAddressSearch] = useState('')
     const addressCombobox = useCombobox({
         onDropdownClose: () => addressCombobox.resetSelectedOption(),
@@ -113,46 +130,36 @@ export default function ErrorReportPage() {
     // Tax month picker state
     const [selectedYear, setSelectedYear] = useState(String(currentYear))
 
-    // Fetch on mount
-    useEffect(() => {
-        fetchAll()
-    }, [])
-
-    const fetchAll = useCallback(async (showRefresh = false) => {
-        if (showRefresh) setRefreshing(true)
-        else setLoading(true)
+    // ✅ Performance: refetch ทุก query ที่เกี่ยวข้อง
+    const refreshAll = useCallback(async () => {
+        setRefreshing(true)
         try {
-            const [r, a, c, locs] = await Promise.all([
-                errorReportService.getAll(),
-                errorReportService.getAuditors(),
-                errorReportService.getClients(),
-                getLocations(),
-            ])
-            setReports(r)
-            setAuditors(a)
-            setClients(c)
-            setLocations(locs)
+            await queryClient.invalidateQueries(['error-reports'])
+            await queryClient.invalidateQueries(['error-reports-auditors'])
+            await queryClient.invalidateQueries(['error-reports-clients'])
+            await queryClient.invalidateQueries(['error-reports-locations'])
         } catch {
             notifications.show({ title: 'ข้อผิดพลาด', message: 'ไม่สามารถโหลดข้อมูลได้', color: 'red' })
         } finally {
-            setLoading(false)
             setRefreshing(false)
         }
-    }, [])
+    }, [queryClient])
 
     // Debounced client search
+    const [clientSearching, setClientSearching] = useState(false)
+    const clientSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
     const searchClients = useCallback((query: string) => {
         if (clientSearchTimer.current) clearTimeout(clientSearchTimer.current)
         clientSearchTimer.current = setTimeout(async () => {
             setClientSearching(true)
             try {
                 const results = await errorReportService.getClients(query)
-                // Replace entirely — only keep the currently selected client if not in results
-                setClients(results)
+                // ✅ Performance: ใช้ queryClient.setQueryData แทน setState
+                queryClient.setQueryData(['error-reports-clients'], results)
             } catch { /* ignore */ }
             setClientSearching(false)
         }, 300)
-    }, [])
+    }, [queryClient])
 
     // Client select options
     const clientOptions = useMemo(() =>
@@ -225,7 +232,7 @@ export default function ErrorReportPage() {
                 notifications.show({ title: 'สำเร็จ', message: 'สร้างรายงานเรียบร้อย — รอการตรวจสอบ', color: 'green' })
             }
             setFormOpened(false)
-            fetchAll()
+            queryClient.invalidateQueries(['error-reports'])
         } catch (err: any) {
             notifications.show({
                 title: 'ข้อผิดพลาด',
@@ -242,7 +249,7 @@ export default function ErrorReportPage() {
         try {
             await errorReportService.approve(id)
             notifications.show({ title: 'อนุมัติแล้ว', message: 'สร้างงานแมสไปทะเบียนเรียบร้อย', color: 'green' })
-            fetchAll()
+            queryClient.invalidateQueries(['error-reports'])
         } catch (err: any) {
             notifications.show({ title: 'ข้อผิดพลาด', message: err?.response?.data?.message || 'ไม่สามารถอนุมัติได้', color: 'red' })
         }
@@ -259,7 +266,7 @@ export default function ErrorReportPage() {
             notifications.show({ title: 'ปฏิเสธแล้ว', message: 'บันทึกเหตุผลเรียบร้อย', color: 'orange' })
             setRejectModalId(null)
             setRejectReason('')
-            fetchAll()
+            queryClient.invalidateQueries(['error-reports'])
         } catch (err: any) {
             notifications.show({ title: 'ข้อผิดพลาด', message: err?.response?.data?.message || 'ไม่สามารถปฏิเสธได้', color: 'red' })
         }
@@ -279,7 +286,7 @@ export default function ErrorReportPage() {
         try {
             await errorReportService.delete(id)
             notifications.show({ title: 'ลบแล้ว', message: 'ลบรายงานเรียบร้อย', color: 'gray' })
-            fetchAll()
+            queryClient.invalidateQueries(['error-reports'])
         } catch {
             notifications.show({ title: 'ข้อผิดพลาด', message: 'ไม่สามารถลบได้', color: 'red' })
         }
@@ -323,7 +330,7 @@ export default function ErrorReportPage() {
                                 color="orange"
                                 radius="md"
                                 size="lg"
-                                onClick={() => fetchAll(true)}
+                                onClick={() => refreshAll()}
                                 loading={refreshing}
                             >
                                 <TbRefresh size={18} />
@@ -626,7 +633,7 @@ export default function ErrorReportPage() {
                                 if (!name) return
                                 try {
                                     const newLoc = await createLocation({ name, category: 'อื่นๆ' })
-                                    setLocations(prev => [...prev, newLoc])
+                                    queryClient.setQueryData<MessengerLocation[]>(['error-reports-locations'], (prev) => [...(prev || []), newLoc])
                                     const addr = newLoc.name
                                     setForm(f => ({ ...f, submission_address: addr }))
                                     setAddressSearch(addr)

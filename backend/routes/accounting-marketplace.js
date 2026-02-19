@@ -8,6 +8,7 @@ import express from 'express'
 import pool from '../config/database.js'
 import { authenticateToken } from '../middleware/auth.js'
 import { generateUUID } from '../utils/leaveHelpers.js'
+import { logActivity } from '../utils/logActivity.js'
 
 const router = express.Router()
 
@@ -971,6 +972,23 @@ router.post('/', authenticateToken, async (req, res) => {
 
     await connection.commit()
 
+    // ═══ Activity Log ═══
+    const [logCompany] = await pool.execute('SELECT company_name FROM clients WHERE build = ? AND deleted_at IS NULL LIMIT 1', [build])
+    logActivity({
+      userId: req.user.id,
+      employeeId: sellerEmployeeId,
+      userName: req.user.name || req.user.username,
+      action: 'listing_create',
+      page: 'accounting_marketplace',
+      entityType: 'accounting_marketplace_listings',
+      entityId: listingId,
+      build,
+      companyName: logCompany[0]?.company_name || build,
+      description: `ลงขายงาน ราคา ${price} บาท`,
+      metadata: { taxYear: tax_year, taxMonth: tax_month, price },
+      ipAddress: req.ip,
+    })
+
     // Get created listing
     const [newListing] = await pool.execute(
       `SELECT 
@@ -1143,6 +1161,22 @@ router.post('/:id/purchase', authenticateToken, async (req, res) => {
 
     await connection.commit()
 
+    // ═══ Activity Log ═══
+    logActivity({
+      userId: req.user.id,
+      employeeId: buyerEmployeeId,
+      userName: req.user.name || req.user.username,
+      action: 'listing_purchase',
+      page: 'accounting_marketplace',
+      entityType: 'accounting_marketplace_listings',
+      entityId: id,
+      build: listing.build,
+      companyName: listing.company_name || listing.build,
+      description: `ซื้องาน ราคา ${listing.price} บาท`,
+      metadata: { taxYear: listing.tax_year, taxMonth: listing.tax_month, price: listing.price, sellerEmployeeId: listing.seller_employee_id },
+      ipAddress: req.ip,
+    })
+
     // Create notification for seller
     await createMarketplaceNotification(
       listing.seller_employee_id,
@@ -1270,6 +1304,21 @@ router.post('/:id/cancel', authenticateToken, async (req, res) => {
     )
 
     await connection.commit()
+
+    // ═══ Activity Log ═══
+    logActivity({
+      userId: req.user.id,
+      employeeId: currentEmployeeId,
+      userName: req.user.name || req.user.username,
+      action: 'listing_cancel',
+      page: 'accounting_marketplace',
+      entityType: 'accounting_marketplace_listings',
+      entityId: id,
+      build: listing.build,
+      description: `ยกเลิกรายการขายงาน`,
+      metadata: { taxYear: listing.tax_year, taxMonth: listing.tax_month, price: listing.price },
+      ipAddress: req.ip,
+    })
 
     // Get updated listing
     const [updatedListing] = await pool.execute(

@@ -39,6 +39,7 @@ import {
 import monthlyTaxDataService from '../services/monthlyTaxDataService'
 import type { MonthlyTaxData } from '../services/monthlyTaxDataService'
 import { getCurrentTaxMonth } from '../utils/taxMonthUtils'
+import './AccountingDashboard.css'
 
 // ═══════════════════════════════════════════════════
 //  Constants & Types
@@ -84,6 +85,24 @@ interface StatusCount {
 //  Helpers
 // ═══════════════════════════════════════════════════
 
+// ลำดับสถานะตามความเสร็จของงาน (เสร็จมาก → เสร็จน้อย)
+const STATUS_ORDER: string[] = [
+    'received_receipt',     // รับใบเสร็จ
+    'paid',                 // ชำระแล้ว
+    'sent_to_customer',     // ส่งลูกค้าแล้ว
+    'passed',               // ผ่าน
+    'pending_review',       // รอตรวจ
+    'needs_correction',     // แก้ไข
+    'edit',                 // แก้ไข
+    'pending_recheck',      // รอตรวจอีกครั้ง
+    'draft_completed',      // ร่างแบบเสร็จแล้ว
+    'draft_ready',          // ร่างแบบได้
+    'inquire_customer',     // สอบถามลูกค้าเพิ่มเติม
+    'additional_review',    // ตรวจสอบเพิ่มเติม
+    'not_submitted',        // ไม่มียื่น
+    'not_started',          // ยังไม่ดำเนินการ
+]
+
 function countStatuses(data: MonthlyTaxData[], field: keyof MonthlyTaxData): StatusCount[] {
     const counts: Record<string, number> = {}
     data.forEach(item => {
@@ -97,7 +116,11 @@ function countStatuses(data: MonthlyTaxData[], field: keyof MonthlyTaxData): Sta
             count,
             color: STATUS_CONFIG[status]?.color || '#808080',
         }))
-        .sort((a, b) => b.count - a.count)
+        .sort((a, b) => {
+            const ia = STATUS_ORDER.indexOf(a.status)
+            const ib = STATUS_ORDER.indexOf(b.status)
+            return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib)
+        })
 }
 
 // ═══════════════════════════════════════════════════
@@ -118,32 +141,26 @@ function SummaryCard({
         <Paper
             p="lg"
             radius="lg"
-            shadow="sm"
-            style={{
-                background: '#ffffff',
-                border: '1px solid #f0f0f0',
-                minHeight: 150,
-            }}
+            className="acct-glass-card"
+            style={{ minHeight: 150 }}
         >
             <Stack gap="xs" align="center">
-                <Text size="xs" c="gray.6" fw={500} ta="center">
-                    {title}
-                </Text>
+                <Group gap={6}>
+                    {icon && <div className="acct-section-icon" style={{ width: 28, height: 28, fontSize: 14 }}>{icon}</div>}
+                    <Text size="xs" c="gray.6" fw={600} ta="center">{title}</Text>
+                </Group>
                 <RingProgress
                     size={80}
                     thickness={6}
                     roundCaps
                     sections={[{ value: pct, color }]}
                     label={
-                        <Text ta="center" fw={700} size="lg" c="dark">
+                        <Text ta="center" fw={800} size="lg" c="dark" className="acct-summary-value" style={{ fontSize: 20 }}>
                             {value}
                         </Text>
                     }
                 />
-                <Group gap={4}>
-                    {icon && <Text size="sm">{icon}</Text>}
-                    <Text size="xs" c="gray.5">{pct}%</Text>
-                </Group>
+                <Text size="xs" c="gray.5" fw={600}>{pct}%</Text>
             </Stack>
         </Paper>
     )
@@ -158,13 +175,12 @@ function StatusBarChart({ data, title }: { data: StatusCount[]; title: string })
         <Paper
             p="lg"
             radius="lg"
-            shadow="sm"
-            style={{
-                background: '#ffffff',
-                border: '1px solid #f0f0f0',
-            }}
+            className="acct-glass-card"
         >
-            <Text size="sm" fw={600} c="dark" mb="md">{title}</Text>
+            <Group gap={8} mb="md">
+                <div className="acct-section-icon">📊</div>
+                <Text size="sm" fw={700} c="dark">{title}</Text>
+            </Group>
             <ResponsiveContainer width="100%" height={Math.max(data.length * 38, 200)}>
                 <BarChart data={data} layout="vertical" margin={{ left: 120, right: 30, top: 5, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
@@ -177,10 +193,12 @@ function StatusBarChart({ data, title }: { data: StatusCount[]; title: string })
                     />
                     <RechartsTooltip
                         contentStyle={{
-                            background: '#ffffff',
-                            border: '1px solid #e0e0e0',
-                            borderRadius: 8,
+                            background: 'rgba(255,255,255,0.95)',
+                            backdropFilter: 'blur(8px)',
+                            border: '1px solid #f0f0f0',
+                            borderRadius: 12,
                             color: '#333',
+                            boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
                         }}
                     />
                     <Bar dataKey="count" name="จำนวน" radius={[0, 6, 6, 0]}>
@@ -210,11 +228,7 @@ function StatusDonutChart({
         <Paper
             p="lg"
             radius="lg"
-            shadow="sm"
-            style={{
-                background: '#ffffff',
-                border: '1px solid #f0f0f0',
-            }}
+            className="acct-glass-card"
         >
             <Text size="sm" fw={600} c="dark" mb={4}>{title}</Text>
             <Text size="xs" c="gray.6" mb="md">{subtitle}</Text>
@@ -378,62 +392,61 @@ function ServiceTab({ data }: { data: MonthlyTaxData[] }) {
 
     // Unified orange/white theme
     const O = '#ff6b35' // primary orange
-    const card = { background: '#fff', border: '1px solid #f0f0f0', boxShadow: '0 2px 12px rgba(0,0,0,0.04)', transition: 'all 0.2s ease' }
 
     return (
-        <Stack gap="md">
+        <Stack gap="lg">
             {/* ═══ Section 1: สถานะลูกค้า ═══ */}
-            <Paper p={{ base: 'sm', md: 'lg' }} radius="md" style={card} className="service-section service-card">
-                <Group gap={8} mb="sm"><Text size="md">🏢</Text><Text size="md" fw={700} c="dark">สถานะลูกค้าทั้งหมด (รายเดือน)</Text></Group>
+            <Paper p={{ base: 'sm', md: 'lg' }} radius={16} className="acct-glass-card acct-animate acct-animate-1">
+                <Group gap={8} mb="md"><div className="acct-section-icon">🏢</div><Text size="md" fw={700} c="dark">สถานะลูกค้าทั้งหมด (รายเดือน)</Text></Group>
                 <SimpleGrid cols={{ base: 1, sm: 3 }}>
-                    <Paper p="md" radius="md" className="hero-card" style={{ background: '#fff5f0', borderLeft: `4px solid ${O}` }}>
-                        <Text size="xs" c="gray.6">รายเดือน</Text>
-                        <Text fw={800} c={O} className="stat-number" style={{ fontSize: 28 }}>{total}</Text>
-                        <Text size="xs" c={O} style={{ cursor: 'pointer' }}>คลิกเพื่อดูรายละเอียด →</Text>
-                    </Paper>
-                    <Paper p="md" radius="md" className="hero-card" style={{ background: '#fafafa', borderLeft: '4px solid #ddd', opacity: 0.6 }}>
-                        <Text size="xs" c="gray.6">รายเดือน / จ่ายรายปี</Text>
-                        <Text fw={800} c="gray.4" style={{ fontSize: 28 }}>—</Text>
+                    <div className="acct-hero-card">
+                        <Text size="xs" c="gray.6" fw={500}>รายเดือน</Text>
+                        <Text className="acct-stat-number">{total}</Text>
+                        <Text size="xs" c={O} fw={500} style={{ cursor: 'pointer' }}>คลิกเพื่อดูรายละเอียด →</Text>
+                    </div>
+                    <div className="acct-hero-card acct-hero-card--disabled">
+                        <Text size="xs" c="gray.6" fw={500}>รายเดือน / จ่ายรายปี</Text>
+                        <Text fw={800} c="gray.4" style={{ fontSize: 32, lineHeight: 1 }}>—</Text>
                         <Text size="xs" c="gray.4">เร็วๆ นี้</Text>
-                    </Paper>
-                    <Paper p="md" radius="md" className="hero-card" style={{ background: '#fafafa', borderLeft: '4px solid #ddd', opacity: 0.6 }}>
-                        <Text size="xs" c="gray.6">รายเดือน / วางมือ</Text>
-                        <Text fw={800} c="gray.4" style={{ fontSize: 28 }}>—</Text>
+                    </div>
+                    <div className="acct-hero-card acct-hero-card--disabled">
+                        <Text size="xs" c="gray.6" fw={500}>รายเดือน / วางมือ</Text>
+                        <Text fw={800} c="gray.4" style={{ fontSize: 32, lineHeight: 1 }}>—</Text>
                         <Text size="xs" c="gray.4">เร็วๆ นี้</Text>
-                    </Paper>
+                    </div>
                 </SimpleGrid>
             </Paper>
 
             {/* ═══ Section 2: สรุป WHT + VAT + ความคืบหน้า ═══ */}
-            <SimpleGrid cols={{ base: 1, md: 3 }}>
-                <Paper p={{ base: 'sm', md: 'lg' }} radius="md" className="service-section service-card" style={{ ...card, borderLeft: `4px solid ${O}` }}>
-                    <Group gap={8} mb="sm"><Text size="md">📋</Text><Text size="md" fw={700} c={O}>สรุป WHT</Text></Group>
+            <SimpleGrid cols={{ base: 1, md: 3 }} className="acct-animate acct-animate-2">
+                <div className="acct-summary-card">
+                    <Group gap={8} mb="sm"><div className="acct-section-icon">📋</div><Text size="md" fw={700} c={O}>สรุป WHT</Text></Group>
                     <Stack gap="xs">
-                        <Group justify="space-between"><Text size="sm" c="gray.7">งานทั้งหมด</Text><Text size="lg" fw={700} c="dark">{whtTotal}</Text></Group>
+                        <Group justify="space-between"><Text size="sm" c="gray.7" fw={500}>งานทั้งหมด</Text><Text size="lg" fw={800} c="dark">{whtTotal}</Text></Group>
                         <Divider />
-                        <Group justify="space-between"><Text size="sm" c="gray.7">เสร็จแล้ว</Text><Text size="lg" fw={700} c="dark">{whtCompleted}</Text></Group>
+                        <Group justify="space-between"><Text size="sm" c="gray.7" fw={500}>เสร็จแล้ว</Text><Text size="lg" fw={800} c="dark">{whtCompleted}</Text></Group>
                         <Divider />
-                        <Group justify="space-between"><Text size="sm" c="gray.7">คงเหลือ</Text><Text size="lg" fw={700} c={O}>{whtRemaining}</Text></Group>
+                        <Group justify="space-between"><Text size="sm" c="gray.7" fw={500}>คงเหลือ</Text><Text size="lg" fw={800} c={O}>{whtRemaining}</Text></Group>
                     </Stack>
-                </Paper>
-                <Paper p={{ base: 'sm', md: 'lg' }} radius="md" className="service-section service-card" style={{ ...card, borderLeft: `4px solid ${O}` }}>
-                    <Group gap={8} mb="sm"><Text size="md">📈</Text><Text size="md" fw={700} c={O}>สรุป VAT</Text></Group>
+                </div>
+                <div className="acct-summary-card">
+                    <Group gap={8} mb="sm"><div className="acct-section-icon">📈</div><Text size="md" fw={700} c={O}>สรุป VAT</Text></Group>
                     <Stack gap="xs">
-                        <Group justify="space-between"><Text size="sm" c="gray.7">งานทั้งหมด</Text><Text size="lg" fw={700} c="dark">{vatTotal}</Text></Group>
+                        <Group justify="space-between"><Text size="sm" c="gray.7" fw={500}>งานทั้งหมด</Text><Text size="lg" fw={800} c="dark">{vatTotal}</Text></Group>
                         <Divider />
-                        <Group justify="space-between"><Text size="sm" c="gray.7">เสร็จแล้ว</Text><Text size="lg" fw={700} c="dark">{vatCompleted}</Text></Group>
+                        <Group justify="space-between"><Text size="sm" c="gray.7" fw={500}>เสร็จแล้ว</Text><Text size="lg" fw={800} c="dark">{vatCompleted}</Text></Group>
                         <Divider />
-                        <Group justify="space-between"><Text size="sm" c="gray.7">คงเหลือ</Text><Text size="lg" fw={700} c={O}>{vatRemaining}</Text></Group>
+                        <Group justify="space-between"><Text size="sm" c="gray.7" fw={500}>คงเหลือ</Text><Text size="lg" fw={800} c={O}>{vatRemaining}</Text></Group>
                     </Stack>
-                </Paper>
-                <Paper p={{ base: 'sm', md: 'lg' }} radius="md" className="service-section service-card" style={{ ...card, borderLeft: `4px solid ${O}` }}>
-                    <Group gap={8} mb="md"><Text size="md">📊</Text><Text size="md" fw={700} c={O}>ความคืบหน้า</Text></Group>
+                </div>
+                <div className="acct-summary-card">
+                    <Group gap={8} mb="md"><div className="acct-section-icon">📊</div><Text size="md" fw={700} c={O}>ความคืบหน้า</Text></Group>
 
                     {/* Dual ring progress */}
                     <Group justify="center" gap="xl" mb="md" wrap="wrap">
                         {/* WHT Ring */}
                         <Stack align="center" gap={4}>
-                            <Box className="progress-ring" style={{ position: 'relative' }}>
+                            <Box className="acct-ring-container">
                                 <RingProgress
                                     size={120}
                                     thickness={10}
@@ -459,7 +472,7 @@ function ServiceTab({ data }: { data: MonthlyTaxData[] }) {
 
                         {/* VAT Ring */}
                         <Stack align="center" gap={4}>
-                            <Box className="progress-ring" style={{ position: 'relative' }}>
+                            <Box className="acct-ring-container">
                                 <RingProgress
                                     size={120}
                                     thickness={10}
@@ -484,29 +497,33 @@ function ServiceTab({ data }: { data: MonthlyTaxData[] }) {
                     {/* Combined progress bar */}
                     <Box mt="xs">
                         <Group justify="space-between" mb={4}>
-                            <Text size="xs" c="gray.6">ภาพรวมทั้งหมด</Text>
-                            <Text size="xs" fw={600} c={O}>{(whtTotal + vatTotal) > 0 ? Math.round(((whtCompleted + vatCompleted) / (whtTotal + vatTotal)) * 1000) / 10 : 0}%</Text>
+                            <Text size="xs" c="gray.6" fw={500}>ภาพรวมทั้งหมด</Text>
+                            <Text size="xs" fw={700} c={O}>{(whtTotal + vatTotal) > 0 ? Math.round(((whtCompleted + vatCompleted) / (whtTotal + vatTotal)) * 1000) / 10 : 0}%</Text>
                         </Group>
                         <Progress.Root size="sm" radius="xl">
                             <Progress.Section value={(whtTotal + vatTotal) > 0 ? ((whtCompleted + vatCompleted) / (whtTotal + vatTotal)) * 100 : 0} color="orange" />
                         </Progress.Root>
                     </Box>
-                </Paper>
+                </div>
             </SimpleGrid>
 
             {/* ═══ Section 3: 3 อันดับแรก WHT + VAT ═══ */}
-            <SimpleGrid cols={{ base: 1, md: 2 }}>
-                <Paper p={{ base: 'sm', md: 'lg' }} radius="md" className="service-section service-card" style={card}>
-                    <Group gap={8} mb="sm"><Text size="md">🏆</Text><Text size="md" fw={700} c="dark">3 อันดับแรกของ WHT</Text></Group>
+            <SimpleGrid cols={{ base: 1, md: 2 }} className="acct-animate acct-animate-3">
+                <Paper p={{ base: 'sm', md: 'lg' }} radius={16} className="acct-glass-card">
+                    <Group gap={8} mb="sm"><div className="acct-section-icon">🏆</div><Text size="md" fw={700} c="dark">3 อันดับแรกของ WHT</Text></Group>
                     <Stack gap="sm">
                         {top3Wht.map((emp, i) => {
                             const rank = getRank(emp.whtPct, emp.whtCorrPct)
                             const cl = getCorrLabel(emp.whtCorrPct)
-                            const rankCol = rank.color === 'green' ? '#4caf50' : rank.color === 'blue' ? '#2196f3' : rank.color === 'orange' ? '#ff9800' : '#f44336'
+                            const trophyClass = i === 0 ? 'acct-trophy-card--gold' : i === 1 ? 'acct-trophy-card--silver' : 'acct-trophy-card--bronze'
+                            const medalClass = i === 0 ? 'acct-trophy-medal--gold' : i === 1 ? 'acct-trophy-medal--silver' : 'acct-trophy-medal--bronze'
                             return (
-                                <Paper key={emp.name} p="sm" radius="md" withBorder className="rank-card" style={{ borderLeft: `4px solid ${rankCol}` }}>
+                                <div key={emp.name} className={`acct-trophy-card ${trophyClass}`}>
                                     <Group justify="space-between" wrap="wrap" mb="xs">
-                                        <Group gap={8}><Text>{medals[i]}</Text><Text fw={700} c="dark">{emp.name}</Text></Group>
+                                        <Group gap={10}>
+                                            <div className={`acct-trophy-medal ${medalClass}`}>{medals[i]}</div>
+                                            <Text fw={700} c="dark">{emp.name}</Text>
+                                        </Group>
                                         <Group gap={6}>
                                             <Badge size="sm" color="green" variant="filled">เสร็จ {emp.whtDone}</Badge>
                                             <Badge size="sm" color={rank.color} variant="filled">แรงค์ {rank.letter}</Badge>
@@ -518,24 +535,28 @@ function ServiceTab({ data }: { data: MonthlyTaxData[] }) {
                                         <Group justify="space-between"><Text size="xs" c="gray.5">แก้ไข: {emp.whtCorr} ครั้ง</Text><Text size="xs" fw={500} c={cl.color}>{cl.text}</Text></Group>
                                         <Box><Group justify="space-between" mb={2}><Text size="xs" c="gray.6">% แรงค์</Text><Text size="xs" fw={600} c="#4caf50">{Math.round(rank.scorePct * 100) / 100}%</Text></Group><Progress value={rank.scorePct} color="green" size="sm" radius="xl" /></Box>
                                     </Stack>
-                                </Paper>
+                                </div>
                             )
                         })}
                         {top3Wht.length === 0 && <Center h={120}><Text c="gray.4" size="sm">ยังไม่มีข้อมูล</Text></Center>}
                     </Stack>
                 </Paper>
 
-                <Paper p={{ base: 'sm', md: 'lg' }} radius="md" className="service-section service-card" style={card}>
-                    <Group gap={8} mb="sm"><Text size="md">🏆</Text><Text size="md" fw={700} c="dark">3 อันดับแรกของ VAT</Text></Group>
+                <Paper p={{ base: 'sm', md: 'lg' }} radius={16} className="acct-glass-card">
+                    <Group gap={8} mb="sm"><div className="acct-section-icon">🏆</div><Text size="md" fw={700} c="dark">3 อันดับแรกของ VAT</Text></Group>
                     <Stack gap="sm">
                         {top3Vat.map((emp, i) => {
                             const rank = getRank(emp.vatPct, emp.vatCorrPct)
                             const cl = getCorrLabel(emp.vatCorrPct)
-                            const rankCol = rank.color === 'green' ? '#4caf50' : rank.color === 'blue' ? '#2196f3' : rank.color === 'orange' ? '#ff9800' : '#f44336'
+                            const trophyClass = i === 0 ? 'acct-trophy-card--gold' : i === 1 ? 'acct-trophy-card--silver' : 'acct-trophy-card--bronze'
+                            const medalClass = i === 0 ? 'acct-trophy-medal--gold' : i === 1 ? 'acct-trophy-medal--silver' : 'acct-trophy-medal--bronze'
                             return (
-                                <Paper key={emp.name} p="sm" radius="md" withBorder className="rank-card" style={{ borderLeft: `4px solid ${rankCol}` }}>
+                                <div key={emp.name} className={`acct-trophy-card ${trophyClass}`}>
                                     <Group justify="space-between" wrap="wrap" mb="xs">
-                                        <Group gap={8}><Text>{medals[i]}</Text><Text fw={700} c="dark">{emp.name}</Text></Group>
+                                        <Group gap={10}>
+                                            <div className={`acct-trophy-medal ${medalClass}`}>{medals[i]}</div>
+                                            <Text fw={700} c="dark">{emp.name}</Text>
+                                        </Group>
                                         <Group gap={6}>
                                             <Badge size="sm" color="green" variant="filled">เสร็จ {emp.vatDone}</Badge>
                                             <Badge size="sm" color={rank.color} variant="filled">แรงค์ {rank.letter}</Badge>
@@ -547,7 +568,7 @@ function ServiceTab({ data }: { data: MonthlyTaxData[] }) {
                                         <Group justify="space-between"><Text size="xs" c="gray.5">แก้ไข: {emp.vatCorr} ครั้ง</Text><Text size="xs" fw={500} c={cl.color}>{cl.text}</Text></Group>
                                         <Box><Group justify="space-between" mb={2}><Text size="xs" c="gray.6">% แรงค์</Text><Text size="xs" fw={600} c="#4caf50">{Math.round(rank.scorePct * 100) / 100}%</Text></Group><Progress value={rank.scorePct} color="green" size="sm" radius="xl" /></Box>
                                     </Stack>
-                                </Paper>
+                                </div>
                             )
                         })}
                         {top3Vat.length === 0 && <Center h={120}><Text c="gray.4" size="sm">ยังไม่มีข้อมูล</Text></Center>}
@@ -556,109 +577,93 @@ function ServiceTab({ data }: { data: MonthlyTaxData[] }) {
             </SimpleGrid>
 
             {/* ═══ Section 4: สถานะงาน WHT + VAT ═══ */}
-            <SimpleGrid cols={{ base: 1, md: 2 }}>
-                <Paper p={{ base: 'sm', md: 'lg' }} radius="md" className="service-section service-card" style={card}>
-                    <Group gap={8} mb="sm"><Text size="md">📋</Text><Box><Text size="sm" fw={700} c="dark">สถานะงานทั้งหมด</Text><Text size="xs" c="gray.5">ภาษีหัก ณ ที่จ่าย (WHT)</Text></Box></Group>
-                    <Box style={{ borderRadius: 8, overflow: 'hidden', border: '1px solid #f0f0f0' }}>
-                        <Group px="sm" py="xs" style={{ background: O }}>
-                            <Text size="xs" fw={700} c="white" style={{ flex: 1 }}>สถานะ</Text>
-                            <Text size="xs" fw={700} c="white" w={50} ta="right">จำนวน</Text>
-                        </Group>
-                        {pndStatuses.map((s, i) => (
-                            <Group key={s.status} px="sm" py={8} onClick={() => setDetailModal({ status: s.status, label: s.label, color: s.color, type: 'wht' })} style={{ background: i % 2 === 0 ? '#fff' : '#fafafa', borderBottom: '1px solid #f5f5f5', cursor: 'pointer', transition: 'background 0.15s' }}>
-                                <Group style={{ flex: 1 }} gap={8}>
-                                    <Box style={{ width: 8, height: 8, borderRadius: 2, background: s.color }} />
-                                    <Text size="sm" c="dark">{s.label}</Text>
-                                </Group>
+            <SimpleGrid cols={{ base: 1, md: 2 }} className="acct-animate acct-animate-4">
+                <Paper p={{ base: 'sm', md: 'lg' }} radius={16} className="acct-glass-card">
+                    <Group gap={8} mb="sm"><div className="acct-section-icon">📋</div><Box><Text size="sm" fw={700} c="dark">สถานะงานทั้งหมด</Text><Text size="xs" c="gray.5">ภาษีหัก ณ ที่จ่าย (WHT)</Text></Box></Group>
+                    <Stack gap={0}>
+                        {pndStatuses.map((s) => (
+                            <div key={s.status} className="acct-status-row" onClick={() => setDetailModal({ status: s.status, label: s.label, color: s.color, type: 'wht' })}>
+                                <div className="acct-status-dot" style={{ background: s.color }} />
+                                <Text size="sm" c="dark" fw={500} style={{ flex: 1, marginLeft: 10 }}>{s.label}</Text>
                                 <Badge size="sm" variant="light" color="orange" radius="xl">{s.count} →</Badge>
-                            </Group>
+                            </div>
                         ))}
-                    </Box>
+                    </Stack>
                 </Paper>
-                <Paper p={{ base: 'sm', md: 'lg' }} radius="md" className="service-section service-card" style={card}>
-                    <Group gap={8} mb="sm"><Text size="md">📋</Text><Box><Text size="sm" fw={700} c="dark">สถานะงานทั้งหมด</Text><Text size="xs" c="gray.5">ภาษีมูลค่าเพิ่ม (VAT)</Text></Box></Group>
-                    <Box style={{ borderRadius: 8, overflow: 'hidden', border: '1px solid #f0f0f0' }}>
-                        <Group px="sm" py="xs" style={{ background: O }}>
-                            <Text size="xs" fw={700} c="white" style={{ flex: 1 }}>สถานะ</Text>
-                            <Text size="xs" fw={700} c="white" w={50} ta="right">จำนวน</Text>
-                        </Group>
-                        {pp30Statuses.map((s, i) => (
-                            <Group key={s.status} px="sm" py={8} onClick={() => setDetailModal({ status: s.status, label: s.label, color: s.color, type: 'vat' })} style={{ background: i % 2 === 0 ? '#fff' : '#fafafa', borderBottom: '1px solid #f5f5f5', cursor: 'pointer', transition: 'background 0.15s' }}>
-                                <Group style={{ flex: 1 }} gap={8}>
-                                    <Box style={{ width: 8, height: 8, borderRadius: 2, background: s.color }} />
-                                    <Text size="sm" c="dark">{s.label}</Text>
-                                </Group>
+                <Paper p={{ base: 'sm', md: 'lg' }} radius={16} className="acct-glass-card">
+                    <Group gap={8} mb="sm"><div className="acct-section-icon">📋</div><Box><Text size="sm" fw={700} c="dark">สถานะงานทั้งหมด</Text><Text size="xs" c="gray.5">ภาษีมูลค่าเพิ่ม (VAT)</Text></Box></Group>
+                    <Stack gap={0}>
+                        {pp30Statuses.map((s) => (
+                            <div key={s.status} className="acct-status-row" onClick={() => setDetailModal({ status: s.status, label: s.label, color: s.color, type: 'vat' })}>
+                                <div className="acct-status-dot" style={{ background: s.color }} />
+                                <Text size="sm" c="dark" fw={500} style={{ flex: 1, marginLeft: 10 }}>{s.label}</Text>
                                 <Badge size="sm" variant="light" color="orange" radius="xl">{s.count} →</Badge>
-                            </Group>
+                            </div>
                         ))}
-                    </Box>
+                    </Stack>
                 </Paper>
             </SimpleGrid>
 
             {/* ═══ Section 5: ตารางพนักงาน ═══ */}
-            <Paper p={{ base: 'sm', md: 'lg' }} radius="md" className="service-section service-card" style={card}>
-                <Group gap={8} mb="sm"><Text size="md">👥</Text><Box><Text size="md" fw={700} c="dark">สถานะงาน WHT และ VAT รายบุคคล</Text><Text size="xs" c="gray.5">สรุปผลงานและการแก้ไขของพนักงานแต่ละคน</Text></Box></Group>
+            <Paper p={{ base: 'sm', md: 'lg' }} radius={16} className="acct-glass-card acct-animate acct-animate-5">
+                <Group gap={8} mb="md"><div className="acct-section-icon">👥</div><Box><Text size="md" fw={700} c="dark">สถานะงาน WHT และ VAT รายบุคคล</Text><Text size="xs" c="gray.5">สรุปผลงานและการแก้ไขของพนักงานแต่ละคน</Text></Box></Group>
                 <ScrollArea>
-                    <Table withColumnBorders style={{ minWidth: 850, borderCollapse: 'separate', borderSpacing: 0, borderRadius: 8, overflow: 'hidden', border: '1px solid #f0f0f0' }}>
-                        <Table.Thead>
-                            <Table.Tr className="emp-table-header">
-                                {(() => {
-                                    const hd = { background: O, color: '#fff', fontSize: 11, fontWeight: 700 as const, textAlign: 'center' as const, padding: '10px 8px' }; return (<>
-                                        <Table.Th style={{ ...hd, textAlign: 'left', padding: '10px 12px' }}>พนักงาน</Table.Th>
-                                        <Table.Th style={hd}>WHT<br />ทั้งหมด</Table.Th>
-                                        <Table.Th style={hd}>WHT<br />เสร็จ</Table.Th>
-                                        <Table.Th style={hd}>% WHT</Table.Th>
-                                        <Table.Th style={hd}>VAT<br />ทั้งหมด</Table.Th>
-                                        <Table.Th style={hd}>VAT<br />เสร็จ</Table.Th>
-                                        <Table.Th style={hd}>% VAT</Table.Th>
-                                        <Table.Th style={hd}>แก้ไข<br />WHT</Table.Th>
-                                        <Table.Th style={hd}>% แก้ไข<br />WHT</Table.Th>
-                                        <Table.Th style={hd}>แก้ไข<br />VAT</Table.Th>
-                                        <Table.Th style={hd}>% แก้ไข<br />VAT</Table.Th>
-                                    </>)
-                                })()}
-                            </Table.Tr>
-                        </Table.Thead>
-                        <Table.Tbody>
-                            {employeeStats.map((emp, idx) => {
-                                const wCl = getCorrLabel(emp.whtCorrPct)
-                                const vCl = getCorrLabel(emp.vatCorrPct)
-                                return (
-                                    <Table.Tr key={emp.id} className="emp-table-row" style={{ background: idx % 2 === 0 ? '#fff' : '#fafafa' }}>
-                                        <Table.Td style={{ padding: '8px 12px' }}>
-                                            <Group gap={6} justify="space-between" wrap="nowrap">
-                                                <Group gap={6} wrap="nowrap">
-                                                    <Box style={{ width: 24, height: 24, borderRadius: '50%', background: O, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                                        <Text size="xs" c="white" fw={700}>{emp.name.charAt(0)}</Text>
-                                                    </Box>
-                                                    <Text size="sm" fw={600} c="dark">{emp.name}</Text>
+                    <div className="acct-table-wrapper">
+                        <Table withColumnBorders style={{ minWidth: 850 }}>
+                            <Table.Thead>
+                                <Table.Tr>
+                                    <Table.Th style={{ textAlign: 'left', padding: '12px' }}>พนักงาน</Table.Th>
+                                    <Table.Th>WHT<br />ทั้งหมด</Table.Th>
+                                    <Table.Th>WHT<br />เสร็จ</Table.Th>
+                                    <Table.Th>% WHT</Table.Th>
+                                    <Table.Th>VAT<br />ทั้งหมด</Table.Th>
+                                    <Table.Th>VAT<br />เสร็จ</Table.Th>
+                                    <Table.Th>% VAT</Table.Th>
+                                    <Table.Th>แก้ไข<br />WHT</Table.Th>
+                                    <Table.Th>% แก้ไข<br />WHT</Table.Th>
+                                    <Table.Th>แก้ไข<br />VAT</Table.Th>
+                                    <Table.Th>% แก้ไข<br />VAT</Table.Th>
+                                </Table.Tr>
+                            </Table.Thead>
+                            <Table.Tbody>
+                                {employeeStats.map((emp, idx) => {
+                                    const wCl = getCorrLabel(emp.whtCorrPct)
+                                    const vCl = getCorrLabel(emp.vatCorrPct)
+                                    return (
+                                        <Table.Tr key={emp.id} style={{ background: idx % 2 === 0 ? '#fff' : '#fafafa' }}>
+                                            <Table.Td style={{ padding: '10px 12px' }}>
+                                                <Group gap={6} justify="space-between" wrap="nowrap">
+                                                    <Group gap={8} wrap="nowrap">
+                                                        <div className="acct-avatar"><span>{emp.name.charAt(0)}</span></div>
+                                                        <Text size="sm" fw={600} c="dark">{emp.name}</Text>
+                                                    </Group>
+                                                    <Badge size="sm" variant="light" color="orange" radius="xl" style={{ cursor: 'pointer', flexShrink: 0 }} onClick={() => setSelectedEmployee(emp.id)}>ดูงาน →</Badge>
                                                 </Group>
-                                                <Badge size="sm" variant="light" color="orange" radius="xl" style={{ cursor: 'pointer', flexShrink: 0 }} onClick={() => setSelectedEmployee(emp.id)}>ดูงานที่รับผิดชอบ →</Badge>
-                                            </Group>
-                                        </Table.Td>
-                                        <Table.Td style={{ textAlign: 'center', padding: '8px 6px' }}><Text size="sm">{emp.whtTotal}</Text></Table.Td>
-                                        <Table.Td style={{ textAlign: 'center', padding: '8px 6px' }}><Text size="sm">{emp.whtDone}</Text></Table.Td>
-                                        <Table.Td style={{ textAlign: 'center', padding: '8px 6px' }}>
-                                            <Badge size="sm" variant="light" color={emp.whtPct >= 80 ? 'green' : emp.whtPct >= 50 ? 'orange' : 'red'} radius="xl">{emp.whtPct}%</Badge>
-                                        </Table.Td>
-                                        <Table.Td style={{ textAlign: 'center', padding: '8px 6px' }}><Text size="sm">{emp.vatTotal}</Text></Table.Td>
-                                        <Table.Td style={{ textAlign: 'center', padding: '8px 6px' }}><Text size="sm">{emp.vatDone}</Text></Table.Td>
-                                        <Table.Td style={{ textAlign: 'center', padding: '8px 6px' }}>
-                                            <Badge size="sm" variant="light" color={emp.vatPct >= 80 ? 'green' : emp.vatPct >= 50 ? 'orange' : 'red'} radius="xl">{emp.vatPct}%</Badge>
-                                        </Table.Td>
-                                        <Table.Td style={{ textAlign: 'center', padding: '8px 6px' }}><Text size="sm">{emp.whtCorr}</Text></Table.Td>
-                                        <Table.Td style={{ textAlign: 'center', padding: '8px 6px', background: getCorrBg(emp.whtCorrPct) + '40' }}>
-                                            <Text size="xs" fw={600} c={wCl.color}>{emp.whtCorrPct}% {wCl.text}</Text>
-                                        </Table.Td>
-                                        <Table.Td style={{ textAlign: 'center', padding: '8px 6px' }}><Text size="sm">{emp.vatCorr}</Text></Table.Td>
-                                        <Table.Td style={{ textAlign: 'center', padding: '8px 6px', background: getCorrBg(emp.vatCorrPct) + '40' }}>
-                                            <Text size="xs" fw={600} c={vCl.color}>{emp.vatCorrPct}% {vCl.text}</Text>
-                                        </Table.Td>
-                                    </Table.Tr>
-                                )
-                            })}
-                        </Table.Tbody>
-                    </Table>
+                                            </Table.Td>
+                                            <Table.Td style={{ textAlign: 'center' }}><Text size="sm">{emp.whtTotal}</Text></Table.Td>
+                                            <Table.Td style={{ textAlign: 'center' }}><Text size="sm">{emp.whtDone}</Text></Table.Td>
+                                            <Table.Td style={{ textAlign: 'center' }}>
+                                                <Badge size="sm" variant="light" color={emp.whtPct >= 80 ? 'green' : emp.whtPct >= 50 ? 'orange' : 'red'} radius="xl">{emp.whtPct}%</Badge>
+                                            </Table.Td>
+                                            <Table.Td style={{ textAlign: 'center' }}><Text size="sm">{emp.vatTotal}</Text></Table.Td>
+                                            <Table.Td style={{ textAlign: 'center' }}><Text size="sm">{emp.vatDone}</Text></Table.Td>
+                                            <Table.Td style={{ textAlign: 'center' }}>
+                                                <Badge size="sm" variant="light" color={emp.vatPct >= 80 ? 'green' : emp.vatPct >= 50 ? 'orange' : 'red'} radius="xl">{emp.vatPct}%</Badge>
+                                            </Table.Td>
+                                            <Table.Td style={{ textAlign: 'center' }}><Text size="sm">{emp.whtCorr}</Text></Table.Td>
+                                            <Table.Td style={{ textAlign: 'center', background: getCorrBg(emp.whtCorrPct) + '40' }}>
+                                                <Text size="xs" fw={600} c={wCl.color}>{emp.whtCorrPct}% {wCl.text}</Text>
+                                            </Table.Td>
+                                            <Table.Td style={{ textAlign: 'center' }}><Text size="sm">{emp.vatCorr}</Text></Table.Td>
+                                            <Table.Td style={{ textAlign: 'center', background: getCorrBg(emp.vatCorrPct) + '40' }}>
+                                                <Text size="xs" fw={600} c={vCl.color}>{emp.vatCorrPct}% {vCl.text}</Text>
+                                            </Table.Td>
+                                        </Table.Tr>
+                                    )
+                                })}
+                            </Table.Tbody>
+                        </Table>
+                    </div>
                 </ScrollArea>
             </Paper>
 
@@ -668,53 +673,56 @@ function ServiceTab({ data }: { data: MonthlyTaxData[] }) {
                 onClose={() => setDetailModal(null)}
                 title={
                     detailModal ? (
-                        <Group gap={8}>
-                            <Box style={{ width: 10, height: 10, borderRadius: 3, background: detailModal.color }} />
-                            <Text fw={700} size="md">{detailModal.label}</Text>
-                            <Badge size="sm" variant="light" color={detailModal.type === 'wht' ? 'orange' : 'yellow'}>{detailModal.type === 'wht' ? 'WHT' : 'VAT'}</Badge>
-                            <Badge size="sm" variant="filled" color="gray">{detailRecords.length} รายการ</Badge>
+                        <Group gap={10}>
+                            <Box style={{ width: 12, height: 12, borderRadius: 4, background: detailModal.color }} />
+                            <Text fw={700} size="lg">{detailModal.label}</Text>
+                            <Badge size="md" variant="light" color={detailModal.type === 'wht' ? 'orange' : 'yellow'}>{detailModal.type === 'wht' ? 'WHT' : 'VAT'}</Badge>
+                            <Badge size="md" variant="filled" color="gray">{detailRecords.length} รายการ</Badge>
                         </Group>
                     ) : null
                 }
-                size={detailModal?.status === 'passed' ? 'xl' : 'lg'}
+                size="90%"
+                styles={{ content: { maxWidth: 1200 }, header: { borderBottom: '1px solid #f0f0f0', paddingBottom: 12 } }}
                 centered
             >
                 {detailRecords.length > 0 ? (
-                    <ScrollArea>
-                        <Table withColumnBorders withTableBorder style={{ minWidth: detailModal?.status === 'passed' ? 700 : 500 }}>
+                    <ScrollArea mt="md">
+                        <Table withColumnBorders withTableBorder style={{ minWidth: 850, borderRadius: 10, overflow: 'hidden', borderCollapse: 'separate', borderSpacing: 0, border: '1px solid #eee' }}>
                             <Table.Thead>
                                 <Table.Tr>
-                                    <Table.Th style={{ background: '#ff6b35', color: '#fff', fontSize: 12, fontWeight: 700, padding: '8px 12px' }}>#</Table.Th>
-                                    <Table.Th style={{ background: '#ff6b35', color: '#fff', fontSize: 12, fontWeight: 700, padding: '8px 12px' }}>Build Code</Table.Th>
-                                    <Table.Th style={{ background: '#ff6b35', color: '#fff', fontSize: 12, fontWeight: 700, padding: '8px 12px' }}>ชื่อบริษัท</Table.Th>
-                                    <Table.Th style={{ background: '#ff6b35', color: '#fff', fontSize: 12, fontWeight: 700, padding: '8px 12px' }}>ผู้รับผิดชอบทำบัญชี</Table.Th>
-                                    {detailModal?.status === 'passed' && <Table.Th style={{ background: '#ff6b35', color: '#fff', fontSize: 12, fontWeight: 700, padding: '8px 12px' }}>ผู้ยื่น WHT</Table.Th>}
-                                    {detailModal?.status === 'passed' && <Table.Th style={{ background: '#ff6b35', color: '#fff', fontSize: 12, fontWeight: 700, padding: '8px 12px' }}>ผู้ยื่น VAT</Table.Th>}
+                                    {(() => {
+                                        const th = { background: '#ff6b35', color: '#fff', fontSize: 13, fontWeight: 700 as const, padding: '12px 16px', textAlign: 'center' as const }; return (<>
+                                            <Table.Th style={{ ...th, width: 50 }}>#</Table.Th>
+                                            <Table.Th style={{ ...th, width: 100 }}>Build Code</Table.Th>
+                                            <Table.Th style={{ ...th, textAlign: 'left' }}>ชื่อบริษัท</Table.Th>
+                                            <Table.Th style={th}>ผู้รับผิดชอบทำบัญชี</Table.Th>
+                                            <Table.Th style={th}>ตรวจภาษี</Table.Th>
+                                            {detailModal?.status === 'passed' && <Table.Th style={th}>ผู้ยื่น WHT</Table.Th>}
+                                            {detailModal?.status === 'passed' && <Table.Th style={th}>ผู้ยื่น VAT</Table.Th>}
+                                        </>)
+                                    })()}
                                 </Table.Tr>
                             </Table.Thead>
                             <Table.Tbody>
                                 {detailRecords.map((rec, idx) => (
-                                    <Table.Tr key={rec.id || idx} style={{ background: idx % 2 === 0 ? '#fff' : '#fafafa' }}>
-                                        <Table.Td style={{ padding: '6px 12px' }}><Text size="sm" c="gray.6">{idx + 1}</Text></Table.Td>
-                                        <Table.Td style={{ padding: '6px 12px' }}><Text size="sm" fw={600} c="dark">{rec.build}</Text></Table.Td>
-                                        <Table.Td style={{ padding: '6px 12px' }}><Text size="sm" c="dark">{rec.company_name || '-'}</Text></Table.Td>
-                                        <Table.Td style={{ padding: '6px 12px' }}>
-                                            <Text size="sm" c="dark">
-                                                {fmtName(rec.accounting_responsible_first_name, rec.accounting_responsible_nick_name)}
-                                            </Text>
+                                    <Table.Tr key={rec.id || idx} style={{ background: idx % 2 === 0 ? '#fff' : '#faf8f6', transition: 'background 0.15s' }}>
+                                        <Table.Td style={{ padding: '12px 16px', textAlign: 'center' }}><Text size="sm" c="gray.5" fw={500}>{idx + 1}</Text></Table.Td>
+                                        <Table.Td style={{ padding: '12px 16px', textAlign: 'center' }}><Badge size="md" variant="light" color="orange" radius="md">{rec.build}</Badge></Table.Td>
+                                        <Table.Td style={{ padding: '12px 16px' }}><Text size="md" fw={500} c="dark">{rec.company_name || '-'}</Text></Table.Td>
+                                        <Table.Td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                                            <Text size="sm" c="dark">{fmtName(rec.accounting_responsible_first_name, rec.accounting_responsible_nick_name)}</Text>
+                                        </Table.Td>
+                                        <Table.Td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                                            <Text size="sm" c="dark">{fmtName(rec.tax_inspection_responsible_first_name, rec.tax_inspection_responsible_nick_name)}</Text>
                                         </Table.Td>
                                         {detailModal?.status === 'passed' && (
-                                            <Table.Td style={{ padding: '6px 12px' }}>
-                                                <Text size="sm" c="dark">
-                                                    {fmtName(rec.wht_filer_employee_first_name, rec.wht_filer_employee_nick_name)}
-                                                </Text>
+                                            <Table.Td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                                                <Text size="sm" c="dark">{fmtName(rec.wht_filer_employee_first_name, rec.wht_filer_employee_nick_name)}</Text>
                                             </Table.Td>
                                         )}
                                         {detailModal?.status === 'passed' && (
-                                            <Table.Td style={{ padding: '6px 12px' }}>
-                                                <Text size="sm" c="dark">
-                                                    {fmtName(rec.vat_filer_employee_first_name, rec.vat_filer_employee_nick_name)}
-                                                </Text>
+                                            <Table.Td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                                                <Text size="sm" c="dark">{fmtName(rec.vat_filer_employee_first_name, rec.vat_filer_employee_nick_name)}</Text>
                                             </Table.Td>
                                         )}
                                     </Table.Tr>
@@ -723,7 +731,7 @@ function ServiceTab({ data }: { data: MonthlyTaxData[] }) {
                         </Table>
                     </ScrollArea>
                 ) : (
-                    <Center h={80}><Text c="gray.4" size="sm">ไม่มีข้อมูล</Text></Center>
+                    <Center h={100}><Text c="gray.4" size="md">ไม่มีข้อมูล</Text></Center>
                 )}
             </Modal>
 
@@ -1012,45 +1020,31 @@ export default function AccountingDashboard() {
     // ────────────────────────────────────────────
 
     return (
-        <Box p="md" style={{ minHeight: '100vh', background: '#f8f9fa' }}>
+        <Box p="md" className="acct-dashboard">
             {/* Header */}
-            <Paper
-                p="md"
-                radius="lg"
-                mb="lg"
-                shadow="sm"
-                style={{
-                    background: '#ffffff',
-                    borderTop: '3px solid #ff6b35',
-                }}
-            >
-                <Group justify="space-between" wrap="wrap">
+            <div className="acct-header acct-animate acct-animate-1">
+                <Group justify="space-between" wrap="wrap" style={{ position: 'relative', zIndex: 1 }}>
                     {/* Tabs */}
-                    <Group gap={0}>
+                    <Group gap={6}>
                         {TAB_CONFIG.map(tab => (
-                            <Box
+                            <div
                                 key={tab.key}
                                 onClick={() => setActiveTab(tab.key)}
-                                style={{
-                                    padding: '8px 20px',
-                                    cursor: 'pointer',
-                                    borderBottom: activeTab === tab.key ? '3px solid #ff6b35' : '3px solid transparent',
-                                    transition: 'all 0.2s ease',
-                                }}
+                                className={`acct-tab-pill ${activeTab === tab.key ? 'acct-tab-pill--active' : ''}`}
                             >
                                 <Text
                                     size="sm"
-                                    fw={activeTab === tab.key ? 700 : 400}
-                                    c={activeTab === tab.key ? '#ff6b35' : 'gray.6'}
+                                    fw={activeTab === tab.key ? 700 : 500}
+                                    c={activeTab === tab.key ? '#ff6b35' : 'white'}
                                 >
                                     {tab.label}
                                 </Text>
-                            </Box>
+                            </div>
                         ))}
                     </Group>
 
                     {/* Filters */}
-                    <Group gap="sm">
+                    <Group gap="sm" className="acct-filter-group">
                         <Select
                             size="xs"
                             w={120}
@@ -1058,7 +1052,7 @@ export default function AccountingDashboard() {
                             onChange={(v) => v && setSelectedMonth(v)}
                             data={monthOptions}
                             styles={{
-                                input: { background: '#fff', borderColor: '#e0e0e0' },
+                                input: { background: 'rgba(255,255,255,0.9)', borderColor: 'rgba(255,255,255,0.3)', borderRadius: 8 },
                                 option: { '&[data-selected]': { background: '#ff6b35' } },
                             }}
                         />
@@ -1069,14 +1063,14 @@ export default function AccountingDashboard() {
                             onChange={(v) => v && setSelectedYear(v)}
                             data={yearOptions}
                             styles={{
-                                input: { background: '#fff', borderColor: '#e0e0e0' },
+                                input: { background: 'rgba(255,255,255,0.9)', borderColor: 'rgba(255,255,255,0.3)', borderRadius: 8 },
                                 option: { '&[data-selected]': { background: '#ff6b35' } },
                             }}
                         />
                         <Tooltip label="รีเฟรช">
                             <ActionIcon
                                 variant="subtle"
-                                color="orange"
+                                color="white"
                                 onClick={handleRefresh}
                                 loading={isLoading}
                             >
@@ -1085,7 +1079,7 @@ export default function AccountingDashboard() {
                         </Tooltip>
                         <Switch
                             size="xs"
-                            label={<Text size="xs" c="gray.6">Auto</Text>}
+                            label={<Text size="xs" c="white">Auto</Text>}
                             checked={autoRefresh}
                             onChange={(e) => setAutoRefresh(e.currentTarget.checked)}
                             color="orange"
@@ -1094,20 +1088,20 @@ export default function AccountingDashboard() {
                 </Group>
 
                 {/* Summary info */}
-                <Group gap="lg" mt="sm">
-                    <Badge size="sm" variant="dot" color="orange">
-                        {THAI_MONTHS[parseInt(selectedMonth) - 1]} {parseInt(selectedYear) + 543}
+                <Group gap="lg" mt="sm" style={{ position: 'relative', zIndex: 1 }}>
+                    <Badge size="sm" variant="filled" color="rgba(255,255,255,0.25)" style={{ color: 'white' }}>
+                        📅 {THAI_MONTHS[parseInt(selectedMonth) - 1]} {parseInt(selectedYear) + 543}
                     </Badge>
-                    <Text size="xs" c="gray.6">
+                    <Text size="xs" c="white" style={{ opacity: 0.9 }}>
                         ข้อมูลทั้งหมด: {records.length} บริษัท
                     </Text>
                     {autoRefresh && (
-                        <Text size="xs" c="gray.5">
+                        <Text size="xs" c="white" style={{ opacity: 0.8 }}>
                             🔄 รีเฟรชอัตโนมัติทุก 30 วินาที
                         </Text>
                     )}
                 </Group>
-            </Paper>
+            </div>
 
             {/* Content */}
             {isLoading ? (

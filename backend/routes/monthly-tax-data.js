@@ -11,6 +11,7 @@ import { authenticateToken, authorize } from '../middleware/auth.js'
 import { generateUUID } from '../utils/leaveHelpers.js'
 import { invalidateCache } from '../middleware/cache.js'
 import { emitMonthlyTaxDataUpdate } from '../services/socketService.js'
+import { logActivity } from '../utils/logActivity.js'
 
 const router = express.Router()
 
@@ -104,9 +105,18 @@ function formatDateForResponse(dateValue, fieldName = '') {
 
 /**
  * Helper function: ตรวจสอบว่าคอลัมน์ pp30_payment_status และ pp30_payment_amount มีอยู่ในตารางหรือไม่
+ * ✅ Performance: Cache ผลลัพธ์ไว้ 1 ชั่วโมง เพื่อไม่ต้อง query INFORMATION_SCHEMA ทุก request
  * @returns {Promise<boolean>} true ถ้าคอลัมน์ทั้งสองมีอยู่, false ถ้าไม่มี
  */
+let _paymentColumnsExistCache = null
+let _paymentColumnsCacheTime = 0
+const PAYMENT_COLUMNS_CACHE_TTL = 60 * 60 * 1000 // 1 hour
+
 async function checkPaymentColumnsExist() {
+  // ✅ Performance: ใช้ cached result ถ้ายังไม่หมดอายุ
+  if (_paymentColumnsExistCache !== null && Date.now() - _paymentColumnsCacheTime < PAYMENT_COLUMNS_CACHE_TTL) {
+    return _paymentColumnsExistCache
+  }
   try {
     const [columnCheck] = await pool.execute(
       `SELECT COUNT(*) as count 
@@ -115,7 +125,9 @@ async function checkPaymentColumnsExist() {
        AND TABLE_NAME = 'monthly_tax_data' 
        AND COLUMN_NAME IN ('pp30_payment_status', 'pp30_payment_amount')`
     )
-    return columnCheck[0].count === 2
+    _paymentColumnsExistCache = columnCheck[0].count === 2
+    _paymentColumnsCacheTime = Date.now()
+    return _paymentColumnsExistCache
   } catch (err) {
     console.warn('⚠️ Could not check for payment columns, assuming they do not exist:', err.message)
     return false
@@ -942,28 +954,31 @@ router.get('/', authenticateToken, async (req, res) => {
     )
 
     // 🔍 Debug: Log query results for troubleshooting
-    console.log('📊 [Backend] GET /api/monthly-tax-data - Query results:', {
-      totalRecords: taxData.length,
-      totalCount: total,
-      builds: taxData.map(r => ({ build: r.build, company_name: r.company_name })),
-      page: pageNum,
-      limit: limitNum,
-      filters: {
-        accounting_responsible,
-        tax_registration_status,
-        year,
-        month,
-      },
-      whereClause,
-      queryParams,
-    })
+    // ✅ Performance: ไม่ log ใน production เพื่อลดการสร้าง response ที่ช้า
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('📊 [Backend] GET /api/monthly-tax-data - Query results:', {
+        totalRecords: taxData.length,
+        totalCount: total,
+        builds: taxData.map(r => ({ build: r.build, company_name: r.company_name })),
+        page: pageNum,
+        limit: limitNum,
+        filters: {
+          accounting_responsible,
+          tax_registration_status,
+          year,
+          month,
+        },
+        whereClause,
+        queryParams,
+      })
+    }
 
     // ⚠️ สำคัญ: ส่ง pp30_form กลับมาด้วยเพื่อให้ frontend ใช้เป็น single source of truth
     // หลัง migration 028, pp30_form เป็น VARCHAR(100) ที่เก็บสถานะโดยตรง
     // ⚠️ Performance: Format dates ใน JavaScript แทน DATE_FORMAT ใน SQL
     const dataWithPp30Status = taxData.map((row) => {
       // 🔍 Debug: Log pp30_form จากฐานข้อมูลก่อนประมวลผล
-      if (row.build === '018') {
+      if (process.env.NODE_ENV !== 'production' && row.build === '018') {
         console.log('🔍 [Backend] GET list - Raw pp30_form from DB for Build 018:', {
           build: row.build,
           id: row.id,
@@ -985,7 +1000,7 @@ router.get('/', authenticateToken, async (req, res) => {
       const finalPp30Status = pp30FormFromDb || derivedStatus
 
       // 🔍 Debug: Log ข้อมูลหลังประมวลผล
-      if (row.build === '018') {
+      if (process.env.NODE_ENV !== 'production' && row.build === '018') {
         console.log('🔍 [Backend] GET list - Processed pp30_form for Build 018:', {
           build: row.build,
           id: row.id,
@@ -1092,182 +1107,118 @@ router.get('/summary', authenticateToken, async (req, res) => {
       ? 'WHERE ' + whereConditions.join(' AND ')
       : ''
 
-    // Build WHERE clause for VAT summary (ต้อง filter เฉพาะบริษัทที่จดภาษีมูลค่าเพิ่ม)
-    // เพิ่ม condition สำหรับ tax_registration_status = 'จดภาษีมูลค่าเพิ่ม'
-    const vatWhereConditions = [...whereConditions]
-    vatWhereConditions.push("c.tax_registration_status = 'จดภาษีมูลค่าเพิ่ม'")
-    const vatWhereClause = 'WHERE ' + vatWhereConditions.join(' AND ')
+    // ✅ Fix #3: vatWhereClause ไม่จำเป็นแล้ว — ใช้ CASE WHEN c.tax_registration_status inline แทน
 
-    // Get WHT summary
-    // สำหรับหน้าตรวจภาษี: นับ "ตรวจแล้ว" จาก pnd_review_returned_date IS NOT NULL
-    // สำหรับหน้าสถานะยื่นภาษี: นับจากสถานะ ภงด. (pnd_status)
-    // สำหรับหน้ายื่นภาษี: นับตาม logic ที่ระบุ
-    // ⚠️ สำคัญ: นับ "รอตรวจ" และ "รอตรวจอีกครั้ง" จาก pnd_status เท่านั้น
     const isTaxInspectionPage = !!tax_inspection_responsible
     const isTaxFilingPage = !!(wht_filer_employee_id || vat_filer_employee_id)
 
-    // สำหรับหน้ายื่นภาษี: นับตาม logic ที่ระบุ
+    // WHT dynamic columns
     let whtDraftReadyCount = '0'
     let whtPassedCount = '0'
     let whtSentToCustomerCount = '0'
 
     if (isTaxFilingPage) {
-      // รอร่างแบบภาษี (WHT) > นับจากสถานะ "ร่างแบบได้" (draft_ready) จาก สถานะ ภงด. (pnd_status)
-      whtDraftReadyCount = 'SUM(CASE WHEN mtd.pnd_status = \'draft_ready\' THEN 1 ELSE 0 END)'
-      // สถานะผ่าน (WHT) > นับจากสถานะ "ผ่าน" (passed) จาก สถานะ ภงด. (pnd_status)
-      whtPassedCount = 'SUM(CASE WHEN mtd.pnd_status = \'passed\' THEN 1 ELSE 0 END)'
-      // ส่งให้ลูกค้าแล้ว (WHT) > นับจากสถานะ "ชำระแล้ว" (paid), "ส่งลูกค้าแล้ว" (sent_to_customer), "รับใบเสร็จ" (received_receipt) จาก สถานะ ภงด. (pnd_status)
-      whtSentToCustomerCount = 'SUM(CASE WHEN mtd.pnd_status IN (\'paid\', \'sent_to_customer\', \'received_receipt\') THEN 1 ELSE 0 END)'
+      whtDraftReadyCount = "SUM(CASE WHEN mtd.pnd_status = 'draft_ready' THEN 1 ELSE 0 END)"
+      whtPassedCount = "SUM(CASE WHEN mtd.pnd_status = 'passed' THEN 1 ELSE 0 END)"
+      whtSentToCustomerCount = "SUM(CASE WHEN mtd.pnd_status IN ('paid', 'sent_to_customer', 'received_receipt') THEN 1 ELSE 0 END)"
     }
 
     const whtCompletedCondition = isTaxInspectionPage
-      ? 'SUM(CASE WHEN mtd.pnd_review_returned_date IS NOT NULL THEN 1 ELSE 0 END) as completed'
-      : 'SUM(CASE WHEN mtd.pnd_status IN (\'paid\', \'sent_to_customer\', \'draft_completed\', \'passed\') THEN 1 ELSE 0 END) as completed'
+      ? "SUM(CASE WHEN mtd.pnd_review_returned_date IS NOT NULL THEN 1 ELSE 0 END) as wht_completed"
+      : "SUM(CASE WHEN mtd.pnd_status IN ('paid', 'sent_to_customer', 'draft_completed', 'passed') THEN 1 ELSE 0 END) as wht_completed"
 
-    const [whtSummary] = await pool.execute(
+    // ✅ Performance Fix #3: รวม 3 SQL queries (WHT, VAT, Impact) เป็น 1 query เดียว
+    // ลดจาก 3 round-trips ไป database เหลือ 1
+    // VAT counts ใช้ conditional: เฉพาะบริษัทที่จดภาษีมูลค่าเพิ่ม (c.tax_registration_status)
+    const [combinedSummary] = await pool.execute(
       `SELECT 
-        COUNT(*) as total,
-        SUM(CASE WHEN mtd.pnd_status IN ('received_receipt', 'paid', 'sent_to_customer', 'not_submitted') THEN 1 ELSE 0 END) as responsible_count,
+        /* === WHT Summary === */
+        COUNT(*) as wht_total,
+        SUM(CASE WHEN mtd.pnd_status IN ('received_receipt', 'paid', 'sent_to_customer', 'not_submitted') THEN 1 ELSE 0 END) as wht_responsible_count,
         ${whtCompletedCondition},
-        SUM(CASE WHEN mtd.pnd_status = 'pending_review' THEN 1 ELSE 0 END) as pending,
-        SUM(CASE WHEN mtd.pnd_status = 'pending_recheck' THEN 1 ELSE 0 END) as recheck,
-        ${whtDraftReadyCount} as draft_ready,
-        ${whtPassedCount} as passed,
-        ${whtSentToCustomerCount} as sent_to_customer
-      FROM monthly_tax_data mtd
-      ${whereClause}`,
-      queryParams
-    )
+        SUM(CASE WHEN mtd.pnd_status = 'pending_review' THEN 1 ELSE 0 END) as wht_pending,
+        SUM(CASE WHEN mtd.pnd_status = 'pending_recheck' THEN 1 ELSE 0 END) as wht_recheck,
+        ${whtDraftReadyCount} as wht_draft_ready,
+        ${whtPassedCount} as wht_passed,
+        ${whtSentToCustomerCount} as wht_sent_to_customer,
 
-    // Get VAT summary
-    // สำหรับหน้าตรวจภาษี: นับ "ตรวจแล้ว" จาก pp30_review_returned_date IS NOT NULL
-    // สำหรับหน้าสถานะยื่นภาษี: นับจากสถานะ ภพ.30 (pp30_status)
-    // สำหรับหน้ายื่นภาษี: นับตาม logic ที่ระบุ
-    // ⚠️ สำคัญ: นับเฉพาะบริษัทที่จดภาษีมูลค่าเพิ่ม (tax_registration_status = 'จดภาษีมูลค่าเพิ่ม')
-    // ⚠️ สำคัญ: นับ "รอตรวจ" และ "รอตรวจอีกครั้ง" จากสถานะที่ derive จาก fields อื่นๆ (pp30_status ไม่มีในฐานข้อมูล)
-    // Derive pp30_status จาก fields อื่นๆ:
-    // - draft_ready: เมื่อมี vat_draft_completed_date แต่ไม่มี pp30_sent_for_review_date และไม่มี pp30_sent_to_customer_date และไม่มี pp30_filing_response
-    // - passed: เมื่อมี pp30_filing_response และไม่มี pp30_sent_to_customer_date (หรือ derive จาก logic อื่น)
-    // - paid/sent_to_customer/received_receipt: เมื่อมี pp30_filing_response หรือ pp30_sent_to_customer_date
-    // - pending_review: เมื่อมี pp30_sent_for_review_date แต่ไม่มี pp30_review_returned_date และไม่มี pp30_sent_to_customer_date และไม่มี pp30_filing_response
-    // - pending_recheck: เมื่อมี pp30_review_returned_date แต่ไม่มี pp30_sent_to_customer_date และไม่มี pp30_filing_response
-
-    // สำหรับหน้ายื่นภาษี: นับตาม logic ที่ระบุ
-    let vatDraftReadyCount = '0'
-    let vatPassedCount = '0'
-    let vatSentToCustomerCount = '0'
-
-    if (isTaxFilingPage) {
-      // รอร่างแบบภาษี (VAT) > นับจากสถานะ "ร่างแบบได้" (draft_ready) จาก สถานะ ภ.พ.30
-      // draft_ready: เมื่อมี vat_draft_completed_date แต่ยังไม่ส่งตรวจและยังไม่ส่งลูกค้า
-      vatDraftReadyCount = `SUM(CASE 
-        WHEN mtd.vat_draft_completed_date IS NOT NULL 
-          AND mtd.pp30_sent_for_review_date IS NULL 
+        /* === VAT Summary (เฉพาะบริษัทจดภาษีมูลค่าเพิ่ม) === */
+        SUM(CASE WHEN c.tax_registration_status = 'จดภาษีมูลค่าเพิ่ม' THEN 1 ELSE 0 END) as vat_total,
+        SUM(CASE WHEN c.tax_registration_status = 'จดภาษีมูลค่าเพิ่ม' AND (
+          mtd.pp30_sent_to_customer_date IS NOT NULL OR mtd.pp30_filing_response IS NOT NULL
+        ) THEN 1 ELSE 0 END) as vat_responsible_count,
+        ${isTaxInspectionPage
+        ? `SUM(CASE WHEN c.tax_registration_status = 'จดภาษีมูลค่าเพิ่ม' AND mtd.pp30_review_returned_date IS NOT NULL THEN 1 ELSE 0 END) as vat_completed`
+        : `SUM(CASE WHEN c.tax_registration_status = 'จดภาษีมูลค่าเพิ่ม' AND (
+              mtd.pp30_filing_response IS NOT NULL OR mtd.pp30_sent_to_customer_date IS NOT NULL
+            ) THEN 1 ELSE 0 END) as vat_completed`
+      },
+        SUM(CASE WHEN c.tax_registration_status = 'จดภาษีมูลค่าเพิ่ม' AND (
+          mtd.pp30_sent_for_review_date IS NOT NULL 
+          AND mtd.pp30_review_returned_date IS NULL 
           AND mtd.pp30_sent_to_customer_date IS NULL 
-          AND mtd.pp30_filing_response IS NULL THEN 1
-        ELSE 0
-      END)`
-      // สถานะผ่าน (VAT) > นับจากสถานะ "ผ่าน" (passed) จาก สถานะ ภ.พ.30
-      // passed: เมื่อมี pp30_filing_response แต่ยังไม่ส่งลูกค้า (หรือ derive จาก logic อื่น)
-      // หมายเหตุ: เนื่องจากไม่มี field pp30_status ในฐานข้อมูล ต้อง derive จาก pp30_filing_response
-      // ถ้ามี pp30_filing_response แสดงว่าผ่านแล้ว แต่ถ้ามี pp30_sent_to_customer_date แสดงว่าส่งลูกค้าแล้ว
-      vatPassedCount = `SUM(CASE 
-        WHEN mtd.pp30_filing_response IS NOT NULL 
-          AND mtd.pp30_sent_to_customer_date IS NULL THEN 1
-        ELSE 0
-      END)`
-      // ส่งให้ลูกค้าแล้ว (VAT) > นับจากสถานะ "ชำระแล้ว" (paid), "ส่งลูกค้าแล้ว" (sent_to_customer), "รับใบเสร็จ" (received_receipt) จาก สถานะ ภ.พ.30
-      // paid: เมื่อมี pp30_filing_response (ชำระแล้ว)
-      // sent_to_customer: เมื่อมี pp30_sent_to_customer_date (ส่งลูกค้าแล้ว)
-      // received_receipt: ไม่มี field ที่ชัดเจน แต่ถ้ามี pp30_sent_to_customer_date อาจถือว่าเป็น received_receipt ด้วย
-      vatSentToCustomerCount = `SUM(CASE 
-        WHEN mtd.pp30_filing_response IS NOT NULL THEN 1
-        WHEN mtd.pp30_sent_to_customer_date IS NOT NULL THEN 1
-        ELSE 0
-      END)`
-    }
+          AND mtd.pp30_filing_response IS NULL
+        ) THEN 1 ELSE 0 END) as vat_pending,
+        SUM(CASE WHEN c.tax_registration_status = 'จดภาษีมูลค่าเพิ่ม' AND (
+          mtd.pp30_review_returned_date IS NOT NULL 
+          AND mtd.pp30_sent_to_customer_date IS NULL 
+          AND mtd.pp30_filing_response IS NULL
+        ) THEN 1 ELSE 0 END) as vat_recheck,
+        ${isTaxFilingPage
+        ? `SUM(CASE WHEN c.tax_registration_status = 'จดภาษีมูลค่าเพิ่ม' AND (
+              mtd.vat_draft_completed_date IS NOT NULL 
+              AND mtd.pp30_sent_for_review_date IS NULL 
+              AND mtd.pp30_sent_to_customer_date IS NULL 
+              AND mtd.pp30_filing_response IS NULL
+            ) THEN 1 ELSE 0 END) as vat_draft_ready,
+            SUM(CASE WHEN c.tax_registration_status = 'จดภาษีมูลค่าเพิ่ม' AND (
+              mtd.pp30_filing_response IS NOT NULL 
+              AND mtd.pp30_sent_to_customer_date IS NULL
+            ) THEN 1 ELSE 0 END) as vat_passed,
+            SUM(CASE WHEN c.tax_registration_status = 'จดภาษีมูลค่าเพิ่ม' AND (
+              mtd.pp30_filing_response IS NOT NULL OR mtd.pp30_sent_to_customer_date IS NOT NULL
+            ) THEN 1 ELSE 0 END) as vat_sent_to_customer`
+        : `0 as vat_draft_ready, 0 as vat_passed, 0 as vat_sent_to_customer`
+      },
 
-    const vatCompletedCondition = isTaxInspectionPage
-      ? 'SUM(CASE WHEN mtd.pp30_review_returned_date IS NOT NULL THEN 1 ELSE 0 END) as completed'
-      : `SUM(CASE 
-          WHEN mtd.pp30_filing_response IS NOT NULL THEN 1
-          WHEN mtd.pp30_sent_to_customer_date IS NOT NULL THEN 1
-          ELSE 0
-        END) as completed`
-
-    const [vatSummary] = await pool.execute(
-      `SELECT 
-        COUNT(*) as total,
-        SUM(CASE 
-          WHEN mtd.pp30_sent_to_customer_date IS NOT NULL THEN 1
-          WHEN mtd.pp30_filing_response IS NOT NULL THEN 1
-          ELSE 0
-        END) as responsible_count,
-        ${vatCompletedCondition},
-        SUM(CASE 
-          WHEN mtd.pp30_sent_for_review_date IS NOT NULL 
-            AND mtd.pp30_review_returned_date IS NULL 
-            AND mtd.pp30_sent_to_customer_date IS NULL 
-            AND mtd.pp30_filing_response IS NULL THEN 1
-          ELSE 0
-        END) as pending,
-        SUM(CASE 
-          WHEN mtd.pp30_review_returned_date IS NOT NULL 
-            AND mtd.pp30_sent_to_customer_date IS NULL 
-            AND mtd.pp30_filing_response IS NULL THEN 1
-          ELSE 0
-        END) as recheck,
-        ${vatDraftReadyCount} as draft_ready,
-        ${vatPassedCount} as passed,
-        ${vatSentToCustomerCount} as sent_to_customer
-      FROM monthly_tax_data mtd
-      LEFT JOIN clients c ON mtd.build = c.build AND c.deleted_at IS NULL
-      ${vatWhereClause}`,
-      queryParams
-    )
-
-    // Get Monthly Tax Impact and Bank Impact counts (for Tax Status page)
-    // เปอร์เซ็นสถานะกระทบภาษี: นับจาก monthly_tax_impact ที่มีค่า (ไม่ใช่ null)
-    // เปอร์เซ็นสถานะกระทบแบงค์: นับจาก bank_impact ที่มีค่า (ไม่ใช่ null)
-    const [impactSummary] = await pool.execute(
-      `SELECT 
-        COUNT(*) as total,
+        /* === Impact Summary === */
         SUM(CASE WHEN mtd.monthly_tax_impact IS NOT NULL AND mtd.monthly_tax_impact != '' THEN 1 ELSE 0 END) as monthly_tax_impact_count,
         SUM(CASE WHEN mtd.bank_impact IS NOT NULL AND mtd.bank_impact != '' THEN 1 ELSE 0 END) as bank_impact_count
       FROM monthly_tax_data mtd
+      LEFT JOIN clients c ON mtd.build = c.build AND c.deleted_at IS NULL
       ${whereClause}`,
       queryParams
     )
+
+    const row = combinedSummary[0]
 
     res.json({
       success: true,
       data: {
         wht: {
-          total: whtSummary[0].total || 0,
-          responsible_count: whtSummary[0].responsible_count || 0, // สำหรับ Tax Status page
-          completed: whtSummary[0].completed || 0,
-          pending: whtSummary[0].pending || 0,
-          recheck: whtSummary[0].recheck || 0,
-          // สำหรับหน้ายื่นภาษี
-          draft_ready: whtSummary[0].draft_ready || 0, // รอร่างแบบภาษี (WHT)
-          passed: whtSummary[0].passed || 0, // สถานะผ่าน (WHT)
-          sent_to_customer: whtSummary[0].sent_to_customer || 0, // ส่งให้ลูกค้าแล้ว (WHT)
+          total: row.wht_total || 0,
+          responsible_count: row.wht_responsible_count || 0,
+          completed: row.wht_completed || 0,
+          pending: row.wht_pending || 0,
+          recheck: row.wht_recheck || 0,
+          draft_ready: row.wht_draft_ready || 0,
+          passed: row.wht_passed || 0,
+          sent_to_customer: row.wht_sent_to_customer || 0,
         },
         vat: {
-          total: vatSummary[0].total || 0,
-          responsible_count: vatSummary[0].responsible_count || 0, // สำหรับ Tax Status page
-          completed: vatSummary[0].completed || 0,
-          pending: vatSummary[0].pending || 0,
-          recheck: vatSummary[0].recheck || 0,
-          // สำหรับหน้ายื่นภาษี
-          draft_ready: vatSummary[0].draft_ready || 0, // รอร่างแบบภาษี (VAT)
-          passed: vatSummary[0].passed || 0, // สถานะผ่าน (VAT)
-          sent_to_customer: vatSummary[0].sent_to_customer || 0, // ส่งให้ลูกค้าแล้ว (VAT)
+          total: row.vat_total || 0,
+          responsible_count: row.vat_responsible_count || 0,
+          completed: row.vat_completed || 0,
+          pending: row.vat_pending || 0,
+          recheck: row.vat_recheck || 0,
+          draft_ready: row.vat_draft_ready || 0,
+          passed: row.vat_passed || 0,
+          sent_to_customer: row.vat_sent_to_customer || 0,
         },
         impacts: {
-          monthly_tax_impact_count: impactSummary[0].monthly_tax_impact_count || 0,
-          bank_impact_count: impactSummary[0].bank_impact_count || 0,
-          total: impactSummary[0].total || 0,
+          monthly_tax_impact_count: row.monthly_tax_impact_count || 0,
+          bank_impact_count: row.bank_impact_count || 0,
+          total: row.wht_total || 0,
         },
       },
     })
@@ -2841,6 +2792,60 @@ router.put('/:id', authenticateToken, async (req, res) => {
       [existing.build]
     )
     const companyName = clientData.length > 0 ? clientData[0].company_name : existing.build
+
+    // ═══ Activity Log ═══
+    const sourcePageMap = {
+      taxInspection: 'tax_inspection',
+      taxFiling: 'tax_filing',
+      taxStatus: 'tax_filing_status',
+    }
+    const logPage = sourcePageMap[sourcePage] || 'tax_filing_status'
+    const existingPndStatusVal = existing.pnd_status || null
+    const existingPp30Status = derivePp30StatusFromRow ? derivePp30StatusFromRow(existing) : (existing.pp30_form || null)
+
+    // Log pnd_status change
+    if (pnd_status && pnd_status !== existingPndStatusVal) {
+      const pndLabel = { pending_review: 'รอตรวจ', passed: 'ผ่าน', needs_correction: 'แก้ไข', draft_completed: 'ร่างแบบเสร็จแล้ว', draft_ready: 'ร่างแบบได้', pending_recheck: 'รอตรวจอีกครั้ง', sent_to_customer: 'ส่งลูกค้าแล้ว', paid: 'ชำระแล้ว', received_receipt: 'รับใบเสร็จ', not_started: 'ยังไม่ดำเนินการ', inquire_customer: 'สอบถามลูกค้าเพิ่มเติม', additional_review: 'ตรวจสอบเพิ่มเติม', not_submitted: 'ไม่มียื่น', edit: 'แก้ไข' }
+      logActivity({
+        userId: req.user.id,
+        employeeId: req.user.employee_id,
+        userName: req.user.name || req.user.username,
+        action: 'status_update',
+        page: logPage,
+        entityType: 'monthly_tax_data',
+        entityId: id,
+        build: existing.build,
+        companyName,
+        description: `อัพเดทสถานะ WHT: ${pndLabel[existingPndStatusVal] || existingPndStatusVal || '-'} → ${pndLabel[pnd_status] || pnd_status}`,
+        fieldChanged: 'pnd_status',
+        oldValue: existingPndStatusVal,
+        newValue: pnd_status,
+        metadata: { month: existing.tax_month, year: existing.tax_year, sourcePage },
+        ipAddress: req.ip,
+      })
+    }
+
+    // Log pp30_status change
+    if (pp30_status && pp30_status !== existingPp30Status) {
+      const pp30Label = { pending_review: 'รอตรวจ', passed: 'ผ่าน', needs_correction: 'แก้ไข', draft_completed: 'ร่างแบบเสร็จแล้ว', draft_ready: 'ร่างแบบได้', pending_recheck: 'รอตรวจอีกครั้ง', sent_to_customer: 'ส่งลูกค้าแล้ว', paid: 'ชำระแล้ว', received_receipt: 'รับใบเสร็จ', not_started: 'ยังไม่ดำเนินการ', inquire_customer: 'สอบถามลูกค้าเพิ่มเติม', additional_review: 'ตรวจสอบเพิ่มเติม', not_submitted: 'ไม่มียื่น', edit: 'แก้ไข' }
+      logActivity({
+        userId: req.user.id,
+        employeeId: req.user.employee_id,
+        userName: req.user.name || req.user.username,
+        action: 'status_update',
+        page: logPage,
+        entityType: 'monthly_tax_data',
+        entityId: id,
+        build: existing.build,
+        companyName,
+        description: `อัพเดทสถานะ VAT: ${pp30Label[existingPp30Status] || existingPp30Status || '-'} → ${pp30Label[pp30_status] || pp30_status}`,
+        fieldChanged: 'pp30_form_status',
+        oldValue: existingPp30Status,
+        newValue: pp30_status,
+        metadata: { month: existing.tax_month, year: existing.tax_year, sourcePage },
+        ipAddress: req.ip,
+      })
+    }
 
     // Create notifications if status changed to "pending_review" or "pending_recheck"
     const existingPndStatus = existing.pnd_status || null

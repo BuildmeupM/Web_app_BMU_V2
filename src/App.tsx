@@ -49,6 +49,7 @@ const LoginActivity = lazy(() => import('./pages/LoginActivity'))
 const EquipmentBorrowing = lazy(() => import('./pages/EquipmentBorrowing'))
 const ErrorReport = lazy(() => import('./pages/ErrorReport'))
 const AccountingDashboard = lazy(() => import('./pages/AccountingDashboard'))
+const ActivityLogDashboard = lazy(() => import('./pages/ActivityLogDashboard'))
 
 function App() {
   const { isAuthenticated, _hasHydrated, setHasHydrated } = useAuthStore()
@@ -302,6 +303,16 @@ function App() {
                 <ProtectedRoute allowedRoles={['admin']}>
                   <Suspense fallback={<LoadingFallback />}>
                     <LoginActivity />
+                  </Suspense>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="activity-logs"
+              element={
+                <ProtectedRoute allowedRoles={['admin', 'audit']}>
+                  <Suspense fallback={<LoadingFallback />}>
+                    <ActivityLogDashboard />
                   </Suspense>
                 </ProtectedRoute>
               }

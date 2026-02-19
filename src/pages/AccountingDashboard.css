@@ -1,12 +1,23 @@
-/* ───────────────────────────────────────────────────
-   AccountingDashboard – Service Tab Animations
-   ─────────────────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════
+   AccountingDashboard — Premium Visual Styles
+   Theme: Orange (#FF6B35) on White
+   ═══════════════════════════════════════════════════ */
 
-/* Fade-in-up animation */
+/* ─── Google Font ─── */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+
+.acct-dashboard {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    min-height: 100vh;
+    background: linear-gradient(135deg, #f8f9fa 0%, #fff5f0 50%, #f8f9fa 100%);
+}
+
+/* ═══ Keyframes ═══ */
+
 @keyframes fadeInUp {
     from {
         opacity: 0;
-        transform: translateY(16px);
+        transform: translateY(24px);
     }
 
     to {
@@ -15,20 +26,6 @@
     }
 }
 
-/* Fade-in scale for hero cards */
-@keyframes fadeInScale {
-    from {
-        opacity: 0;
-        transform: scale(0.95);
-    }
-
-    to {
-        opacity: 1;
-        transform: scale(1);
-    }
-}
-
-/* Shimmer for progress bars */
 @keyframes shimmer {
     0% {
         background-position: -200% 0;
@@ -39,171 +36,468 @@
     }
 }
 
-/* ── Section cards with staggered fade-in ────────── */
-.service-section {
+@keyframes pulseGlow {
+
+    0%,
+    100% {
+        box-shadow: 0 0 0 0 rgba(255, 107, 53, 0.3);
+    }
+
+    50% {
+        box-shadow: 0 0 20px 4px rgba(255, 107, 53, 0.15);
+    }
+}
+
+@keyframes scaleIn {
+    from {
+        opacity: 0;
+        transform: scale(0.92);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+@keyframes countUp {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ─── Staggered fade-in for sections ─── */
+.acct-animate {
     animation: fadeInUp 0.5s ease-out both;
 }
 
-.service-section:nth-child(1) {
-    animation-delay: 0s;
-}
-
-.service-section:nth-child(2) {
-    animation-delay: 0.08s;
-}
-
-.service-section:nth-child(3) {
-    animation-delay: 0.16s;
-}
-
-.service-section:nth-child(4) {
-    animation-delay: 0.24s;
-}
-
-.service-section:nth-child(5) {
-    animation-delay: 0.32s;
-}
-
-/* ── Card hover effects ──────────────────────────── */
-.service-card {
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.service-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.08) !important;
-}
-
-/* ── Hero stat cards ─────────────────────────────── */
-.hero-card {
-    animation: fadeInScale 0.4s ease-out both;
-    transition: transform 0.25s ease, box-shadow 0.25s ease;
-}
-
-.hero-card:nth-child(1) {
-    animation-delay: 0.1s;
-}
-
-.hero-card:nth-child(2) {
-    animation-delay: 0.2s;
-}
-
-.hero-card:nth-child(3) {
-    animation-delay: 0.3s;
-}
-
-.hero-card:hover {
-    transform: translateY(-3px) scale(1.01);
-    box-shadow: 0 8px 28px rgba(255, 107, 53, 0.12) !important;
-}
-
-/* ── Ranking cards ───────────────────────────────── */
-.rank-card {
-    animation: fadeInUp 0.4s ease-out both;
-    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
-}
-
-.rank-card:nth-child(1) {
+.acct-animate-1 {
     animation-delay: 0.05s;
 }
 
-.rank-card:nth-child(2) {
-    animation-delay: 0.12s;
+.acct-animate-2 {
+    animation-delay: 0.10s;
 }
 
-.rank-card:nth-child(3) {
-    animation-delay: 0.19s;
+.acct-animate-3 {
+    animation-delay: 0.15s;
 }
 
-.rank-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.06) !important;
+.acct-animate-4 {
+    animation-delay: 0.20s;
 }
 
-/* ── Status row hover ────────────────────────────── */
-.status-row {
-    transition: background 0.15s ease, padding-left 0.15s ease;
+.acct-animate-5 {
+    animation-delay: 0.25s;
 }
 
-.status-row:hover {
-    background: #fff5f0 !important;
-    padding-left: 20px !important;
+.acct-animate-6 {
+    animation-delay: 0.30s;
 }
 
-/* ── Table row hover effects ─────────────────────── */
-.emp-table-row {
-    transition: background 0.15s ease;
-}
+/* ═══ Header / Banner ═══ */
 
-.emp-table-row:hover {
-    background: #fff5f0 !important;
-}
-
-/* ── Progress bar animation ──────────────────────── */
-.service-section .mantine-Progress-section {
-    transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-/* ── Badge subtle pulse on hover ─────────────────── */
-.service-card .mantine-Badge-root {
-    transition: transform 0.15s ease;
-}
-
-.service-card .mantine-Badge-root:hover {
-    transform: scale(1.05);
-}
-
-/* ── Smooth number count appearance ──────────────── */
-.stat-number {
-    animation: fadeInScale 0.5s ease-out both;
-    animation-delay: 0.3s;
-}
-
-/* ── Table header shimmer on load ────────────────── */
-.emp-table-header th {
+.acct-header {
+    background: linear-gradient(135deg, #FF6B35 0%, #FF8A5C 60%, #FFa070 100%);
+    border-radius: 16px;
+    padding: 20px 24px;
+    margin-bottom: 24px;
+    box-shadow: 0 8px 32px rgba(255, 107, 53, 0.2);
     position: relative;
     overflow: hidden;
 }
 
-.emp-table-header th::after {
+.acct-header::before {
+    content: '';
+    position: absolute;
+    top: -40%;
+    right: -10%;
+    width: 300px;
+    height: 300px;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.12) 0%, transparent 70%);
+    border-radius: 50%;
+    pointer-events: none;
+}
+
+.acct-header::after {
+    content: '';
+    position: absolute;
+    bottom: -30%;
+    left: 5%;
+    width: 200px;
+    height: 200px;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.08) 0%, transparent 70%);
+    border-radius: 50%;
+    pointer-events: none;
+}
+
+/* ─── Tab Pills ─── */
+
+.acct-tab-pill {
+    padding: 8px 20px;
+    border-radius: 24px;
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    user-select: none;
+}
+
+.acct-tab-pill:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: translateY(-1px);
+}
+
+.acct-tab-pill--active {
+    background: rgba(255, 255, 255, 0.95);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+    transform: translateY(-1px);
+}
+
+.acct-tab-pill--active:hover {
+    background: rgba(255, 255, 255, 1);
+}
+
+/* ─── Filter Controls ─── */
+
+.acct-filter-group {
+    background: rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-radius: 12px;
+    padding: 6px 12px;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+/* ═══ Glass Cards ═══ */
+
+.acct-glass-card {
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    border-radius: 16px;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.05);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.acct-glass-card:hover {
+    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.08);
+    transform: translateY(-2px);
+}
+
+/* ═══ Hero Stat Cards ═══ */
+
+.acct-hero-card {
+    background: linear-gradient(135deg, #ffffff 0%, #fff8f5 100%);
+    border-radius: 16px;
+    padding: 20px;
+    border: 1px solid rgba(255, 107, 53, 0.1);
+    box-shadow: 0 4px 20px rgba(255, 107, 53, 0.06);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+.acct-hero-card::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 80px;
+    height: 80px;
+    background: radial-gradient(circle at top right, rgba(255, 107, 53, 0.06) 0%, transparent 70%);
+    pointer-events: none;
+}
+
+.acct-hero-card:hover {
+    box-shadow: 0 8px 32px rgba(255, 107, 53, 0.12);
+    transform: translateY(-3px);
+    border-color: rgba(255, 107, 53, 0.2);
+}
+
+.acct-hero-card--disabled {
+    background: linear-gradient(135deg, #fafafa 0%, #f5f5f5 100%);
+    border-color: #e8e8e8;
+    opacity: 0.6;
+}
+
+.acct-hero-card--disabled:hover {
+    transform: none;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+}
+
+.acct-stat-number {
+    font-size: 32px;
+    font-weight: 800;
+    color: #FF6B35;
+    line-height: 1;
+    animation: countUp 0.6s ease-out both;
+}
+
+/* ═══ Summary Cards (WHT / VAT / Progress) ═══ */
+
+.acct-summary-card {
+    background: #ffffff;
+    border-radius: 16px;
+    padding: 24px;
+    border: none;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.05);
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.acct-summary-card::before {
     content: '';
     position: absolute;
     top: 0;
     left: 0;
     right: 0;
-    bottom: 0;
-    background: linear-gradient(90deg,
-            transparent 0%,
-            rgba(255, 255, 255, 0.15) 50%,
-            transparent 100%);
-    background-size: 200% 100%;
-    animation: shimmer 2s ease-in-out 0.5s 1;
+    height: 4px;
+    background: linear-gradient(90deg, #FF6B35, #FF8A5C);
+    border-radius: 16px 16px 0 0;
+}
+
+.acct-summary-card:hover {
+    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.08);
+    transform: translateY(-2px);
+}
+
+.acct-summary-label {
+    font-size: 13px;
+    color: #888;
+    font-weight: 500;
+    letter-spacing: 0.3px;
+}
+
+.acct-summary-value {
+    font-size: 28px;
+    font-weight: 800;
+    color: #1a1a2e;
+    animation: countUp 0.5s ease-out both;
+}
+
+/* ═══ Ring Progress Section ═══ */
+
+.acct-ring-container {
+    position: relative;
+}
+
+.acct-ring-container::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 130px;
+    height: 130px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255, 107, 53, 0.04) 0%, transparent 70%);
     pointer-events: none;
+    animation: pulseGlow 3s ease-in-out infinite;
 }
 
-/* ── Progress ring animations ────────────────────── */
-.progress-ring {
-    animation: fadeInScale 0.6s ease-out both;
-    animation-delay: 0.2s;
-    transition: transform 0.3s ease;
+/* ═══ Leaderboard / Trophy Cards ═══ */
+
+.acct-trophy-card {
+    border-radius: 14px;
+    padding: 16px;
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
 }
 
-.progress-ring:hover {
-    transform: scale(1.06);
+.acct-trophy-card:hover {
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+    transform: translateY(-2px);
 }
 
-.progress-ring .mantine-RingProgress-root {
-    filter: drop-shadow(0 2px 8px rgba(255, 107, 53, 0.15));
+.acct-trophy-card--gold {
+    background: linear-gradient(135deg, #fff9e6 0%, #fff3cc 100%);
+    border-left: 4px solid #f5a623;
 }
 
-/* ── Mobile responsive adjustments ───────────────── */
+.acct-trophy-card--silver {
+    background: linear-gradient(135deg, #f8f9fa 0%, #eef0f2 100%);
+    border-left: 4px solid #b0b8c1;
+}
+
+.acct-trophy-card--bronze {
+    background: linear-gradient(135deg, #fdf5ee 0%, #f8e8d6 100%);
+    border-left: 4px solid #cd8032;
+}
+
+.acct-trophy-medal {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    flex-shrink: 0;
+}
+
+.acct-trophy-medal--gold {
+    background: linear-gradient(135deg, #ffd700, #ffb347);
+}
+
+.acct-trophy-medal--silver {
+    background: linear-gradient(135deg, #e8e8e8, #c0c0c0);
+}
+
+.acct-trophy-medal--bronze {
+    background: linear-gradient(135deg, #e8a668, #cd8032);
+}
+
+/* ═══ Status Mini-Cards ═══ */
+
+.acct-status-row {
+    display: flex;
+    align-items: center;
+    padding: 10px 14px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: 1px solid transparent;
+    margin-bottom: 6px;
+}
+
+.acct-status-row:last-child {
+    margin-bottom: 0;
+}
+
+.acct-status-row:hover {
+    background: rgba(255, 107, 53, 0.04);
+    border-color: rgba(255, 107, 53, 0.12);
+    transform: translateX(4px);
+}
+
+.acct-status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.04);
+}
+
+/* ═══ Employee Table ═══ */
+
+.acct-table-wrapper {
+    border-radius: 14px;
+    overflow: hidden;
+    border: 1px solid #f0f0f0;
+    box-shadow: 0 2px 16px rgba(0, 0, 0, 0.04);
+}
+
+.acct-table-wrapper table {
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.acct-table-wrapper thead tr th {
+    background: linear-gradient(135deg, #FF6B35, #FF8A5C) !important;
+    color: #fff !important;
+    font-size: 11px;
+    font-weight: 700;
+    text-align: center;
+    padding: 12px 8px;
+    border-bottom: none !important;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    letter-spacing: 0.3px;
+}
+
+.acct-table-wrapper tbody tr {
+    transition: all 0.2s ease;
+}
+
+.acct-table-wrapper tbody tr:hover {
+    background: #fff5f0 !important;
+}
+
+.acct-table-wrapper tbody tr td {
+    padding: 10px 8px;
+    border-bottom: 1px solid #f5f5f5 !important;
+    font-size: 13px;
+}
+
+/* ─── Avatar Circle ─── */
+
+.acct-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #FF6B35, #FF8A5C);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    box-shadow: 0 2px 8px rgba(255, 107, 53, 0.25);
+}
+
+.acct-avatar span {
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+/* ═══ Section Headers ═══ */
+
+.acct-section-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #fff5f0, #ffe8dd);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+}
+
+/* ═══ Progress Bar (animated) ═══ */
+
+.acct-progress-bar {
+    height: 6px;
+    border-radius: 3px;
+    background: #f0f0f0;
+    overflow: hidden;
+}
+
+.acct-progress-fill {
+    height: 100%;
+    border-radius: 3px;
+    background: linear-gradient(90deg, #FF6B35, #FF8A5C);
+    transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ═══ Responsive ═══ */
+
 @media (max-width: 768px) {
+    .acct-header {
+        padding: 16px;
+        border-radius: 12px;
+    }
 
-    .hero-card:hover,
-    .service-card:hover,
-    .rank-card:hover,
-    .progress-ring:hover {
-        transform: none;
-        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04) !important;
+    .acct-hero-card {
+        padding: 16px;
+    }
+
+    .acct-stat-number {
+        font-size: 26px;
+    }
+
+    .acct-trophy-card {
+        padding: 12px;
     }
 }

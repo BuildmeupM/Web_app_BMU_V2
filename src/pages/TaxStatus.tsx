@@ -137,24 +137,11 @@ export default function TaxStatus() {
         })
       }
 
-      // ⚠️ สำคัญ: Sequential refetch เพื่อหลีกเลี่ยง 429 (Too Many Requests) errors
-      // Refetch list ก่อน รอเสร็จ แล้วค่อย refetch summary (ลด burst requests)
-
-      // Step 1: Invalidate list queries ก่อน (ไม่ refetch ทันที)
-      queryClient.invalidateQueries({ queryKey: ['monthly-tax-data', 'tax-status'], exact: false }, { refetchType: 'active' })
-
-      // Step 2: รอ 1000ms เพื่อให้ backend มีเวลาประมวลผลและหลีกเลี่ยง rate limit
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-
-      // Step 3: Refetch list queries
-      await queryClient.refetchQueries({ queryKey: ['monthly-tax-data', 'tax-status'], exact: false, type: 'active' })
-
-      // Step 4: รออีก 1000ms ก่อน refetch summary
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-
-      // Step 5: Invalidate และ refetch summary queries
-      queryClient.invalidateQueries({ queryKey: ['monthly-tax-data-summary', 'tax-status'], exact: false }, { refetchType: 'active' })
-      await queryClient.refetchQueries({ queryKey: ['monthly-tax-data-summary', 'tax-status'], exact: false, type: 'active' })
+      // ✅ Performance: invalidateQueries กับ refetchActive: true จะ trigger refetch อัตโนมัติ
+      // ไม่ต้องเรียก refetchQueries ซ้ำ และไม่ต้อง delay
+      // ✅ ใช้ react-query v3 syntax (ไม่ใช้ object-based v5 syntax)
+      await queryClient.invalidateQueries(['monthly-tax-data', 'tax-status'], { exact: false, refetchActive: true })
+      await queryClient.invalidateQueries(['monthly-tax-data-summary', 'tax-status'], { exact: false, refetchActive: true })
 
       if (import.meta.env.DEV) {
         const listQueriesAfter = queryClient.getQueriesData({ queryKey: ['monthly-tax-data', 'tax-status'], exact: false })
@@ -246,7 +233,7 @@ export default function TaxStatus() {
         autoRefreshTriggeredRef.current = true
         handleRefreshRef.current()
       }
-    }, 1000)
+    }, 10000) // ✅ Performance: อัพเดททุก 10 วินาที (แทน 1 วินาที) ลด re-render 90%
 
     // ✅ BUG-167: Cleanup function เพื่อ clear interval เมื่อ component unmount
     return () => {

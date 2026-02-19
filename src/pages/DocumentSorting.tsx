@@ -68,8 +68,8 @@ export default function DocumentSorting() {
     },
     {
       enabled: !!selectedBuild,
-      staleTime: 0, // ⚠️ ไม่ใช้ cache เพื่อป้องกันข้อมูลสลับกันระหว่างบริษัท
-      cacheTime: 0, // ⚠️ ไม่เก็บ cache เพื่อให้ fetch ข้อมูลใหม่ทุกครั้งที่เปลี่ยนบริษัท
+      staleTime: 10 * 1000, // ✅ Performance: 10s cache - query key มี selectedBuild จึงเปลี่ยนบริษัทก็ fetch ใหม่อัตโนมัติ
+      cacheTime: 30 * 1000, // ✅ Performance: เก็บ cache 30 วินาที เพื่อลด API calls เมื่อสลับบริษัทกลับมา
       refetchOnWindowFocus: false, // ป้องกันการ refetch เมื่อ window focus กลับมา
       refetchOnReconnect: false, // ป้องกันการ refetch เมื่อ reconnect
       onSuccess: (data) => {

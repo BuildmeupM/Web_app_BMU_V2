@@ -40,6 +40,7 @@ import {
   TbChartPie,
   TbAlertTriangle,
   TbChartBar,
+  TbClipboardCheck,
 } from 'react-icons/tb'
 import { useAuthStore, UserRole } from '../../store/authStore'
 import { hasPermission } from '../../utils/rolePermissions'
@@ -65,6 +66,7 @@ const iconMap: Record<string, React.ComponentType<any>> = {
   '/equipment': TbDeviceLaptop,
   '/error-reports': TbAlertTriangle,
   '/accounting-dashboard': TbChartBar,
+  '/activity-logs': TbClipboardCheck,
 }
 
 interface MenuItem {
@@ -81,11 +83,12 @@ interface MenuGroup {
 // กลุ่มเมนูตามหัวข้อ
 const menuGroups: MenuGroup[] = [
   {
-    title: 'ประกาศบริษัท',
+    title: 'ข้อมูล Dashboard',
     icon: TbDashboard,
     items: [
-      { path: '/dashboard', label: 'ประกาศบริษัท' },
       { path: '/client-dashboard', label: 'Dashboard ลูกค้า' },
+      { path: '/accounting-dashboard', label: 'Dashboard งานบัญชี' },
+      { path: '/activity-logs', label: 'Dashboard - Log' },
     ],
   },
   {
@@ -104,7 +107,6 @@ const menuGroups: MenuGroup[] = [
     title: 'งานบัญชี',
     icon: TbBriefcase,
     items: [
-      { path: '/accounting-dashboard', label: 'Dashboard งานบัญชี' },
       { path: '/clients', label: 'ข้อมูลลูกค้า' },
       { path: '/work-assignment', label: 'จัดงานรายเดือน' },
       { path: '/document-sorting', label: 'คัดแยกเอกสาร' },
@@ -339,6 +341,26 @@ export default function Sidebar({ expanded, onToggle, isMobile = false }: Sideba
 
           <Divider w="100%" my={4} color="gray.2" />
 
+          {/* Dashboard — standalone icon */}
+          <Tooltip label="ประกาศบริษัท" position="right" withArrow>
+            <ActionIcon
+              component={NavLink}
+              to="/dashboard"
+              variant="subtle"
+              size="lg"
+              radius="lg"
+              style={{
+                backgroundColor: isDashboardActive ? 'rgba(255, 154, 86, 0.15)' : 'transparent',
+                color: isDashboardActive ? '#e65100' : '#666',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <TbDashboard size={20} />
+            </ActionIcon>
+          </Tooltip>
+
+          <Divider w="100%" my={4} color="gray.2" />
+
           {/* Groups — icon only */}
           {menuGroups.map((group, index) => (
             <Box key={group.title} w="100%">
@@ -385,6 +407,33 @@ export default function Sidebar({ expanded, onToggle, isMobile = false }: Sideba
           BMU System
         </Text>
 
+
+        {/* Dashboard — standalone link */}
+        <MantineNavLink
+          component={NavLink}
+          to="/dashboard"
+          end
+          label="ประกาศบริษัท"
+          leftSection={<TbDashboard size={20} />}
+          variant="subtle"
+          active={isDashboardActive}
+          styles={() => ({
+            root: {
+              borderRadius: 12,
+              fontWeight: isDashboardActive ? 600 : 400,
+              backgroundColor: isDashboardActive ? 'rgba(255, 154, 86, 0.12)' : 'transparent',
+              color: isDashboardActive ? '#e65100' : undefined,
+              '&:hover': {
+                backgroundColor: isDashboardActive
+                  ? 'rgba(255, 154, 86, 0.18)'
+                  : 'rgba(255, 154, 86, 0.06)',
+              },
+            },
+            label: {
+              color: isDashboardActive ? '#e65100' : undefined,
+            },
+          })}
+        />
 
         {/* Groups — Pill Header style */}
         {menuGroups.map((group, index) => (

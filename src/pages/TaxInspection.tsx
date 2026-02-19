@@ -159,16 +159,10 @@ export default function TaxInspection() {
     })
 
     try {
-      // ⚠️ สำคัญ: Invalidate cache ทั้งหมดที่เกี่ยวข้องกับ tax-inspection เพื่อบังคับให้ refetch แม้ว่า cache จะยังไม่ stale
-      // ใช้ exact: false เพื่อ invalidate ทุก queries ที่ขึ้นต้นด้วย ['monthly-tax-data', 'tax-inspection']
+      // ✅ Performance: invalidateQueries กับ refetchActive: true จะ trigger refetch อัตโนมัติ
+      // ไม่ต้องเรียก refetchQueries ซ้ำ
       await queryClient.invalidateQueries(['monthly-tax-data', 'tax-inspection'], { exact: false, refetchActive: true })
       await queryClient.invalidateQueries(['monthly-tax-data-summary', 'tax-inspection'], { exact: false, refetchActive: true })
-
-      // ⚠️ สำคัญ: Refetch queries ทั้งหมดที่ active เพื่อให้ได้ข้อมูลล่าสุดจาก server
-      await Promise.all([
-        queryClient.refetchQueries(['monthly-tax-data', 'tax-inspection'], { exact: false }),
-        queryClient.refetchQueries(['monthly-tax-data-summary', 'tax-inspection'], { exact: false }),
-      ])
 
       // ⏱️ Reset last update time after successful refresh
       const newUpdateTime = new Date()
@@ -232,7 +226,7 @@ export default function TaxInspection() {
         autoRefreshTriggeredRef.current = true
         handleRefresh()
       }
-    }, 1000)
+    }, 10000) // ✅ Performance: อัพเดททุก 10 วินาที (แทน 1 วินาที) ลด re-render 90%
 
     return () => clearInterval(interval)
   }, [lastUpdateTime, handleRefresh])

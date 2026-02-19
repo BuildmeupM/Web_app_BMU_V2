@@ -40,6 +40,7 @@ import salaryAdvanceRoutes from './routes/salary-advance.js'
 import documentRequestsRoutes from './routes/document-requests.js'
 import companyFeedRoutes from './routes/company-feed.js'
 import errorReportsRoutes from './routes/error-reports.js'
+import activityLogsRoutes from './routes/activity-logs.js'
 import { apiRateLimiter } from './middleware/rateLimiter.js'
 import cacheMiddleware, { invalidateCache } from './middleware/cache.js'
 import performanceLogger from './middleware/performanceLogger.js'
@@ -293,6 +294,7 @@ app.use('/api/salary-advance', salaryAdvanceRoutes)
 app.use('/api/document-requests', documentRequestsRoutes)
 app.use('/api/company-feed', companyFeedRoutes)
 app.use('/api/error-reports', errorReportsRoutes)
+app.use('/api/activity-logs', activityLogsRoutes)
 
 // ✅ SPA Fallback: Serve React frontend in production
 // When deployed, serve the built React app and handle client-side routing
