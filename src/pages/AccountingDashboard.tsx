@@ -73,8 +73,8 @@ const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
     not_started: { label: 'ยังไม่ดำเนินการ', color: '#808080' },
 }
 
-const WHT_COMPLETED_STATUSES = ['sent_to_customer', 'paid', 'received_receipt']
-const VAT_COMPLETED_STATUSES = ['sent_to_customer', 'paid', 'received_receipt']
+const WHT_COMPLETED_STATUSES = ['sent_to_customer', 'paid', 'received_receipt', 'not_submitted']
+const VAT_COMPLETED_STATUSES = ['sent_to_customer', 'paid', 'received_receipt', 'not_submitted']
 const CORRECTION_STATUSES = ['needs_correction', 'edit', 'pending_recheck']
 
 type TabKey = 'service' | 'audit' | 'sendTax' | 'dataEntry'
@@ -322,14 +322,14 @@ function ServiceTab({ data }: { data: MonthlyTaxData[] }) {
     // Employee detail modal state
     const [selectedEmployee, setSelectedEmployee] = useState<string | null>(null)
 
-    // WHT calculations
-    const whtTotal = data.filter(d => d.pnd_status && d.pnd_status !== 'not_submitted').length
+    // WHT calculations — นับทุกรายการ, not_submitted นับเป็นเสร็จ
+    const whtTotal = data.length
     const whtCompleted = data.filter(d => WHT_COMPLETED_STATUSES.includes(d.pnd_status || '')).length
     const whtRemaining = whtTotal - whtCompleted
     const whtPct = whtTotal > 0 ? Math.round((whtCompleted / whtTotal) * 1000) / 10 : 0
 
-    // VAT calculations
-    const vatTotal = data.filter(d => d.pp30_form && d.pp30_form !== 'not_started' && d.pp30_form !== 'not_submitted').length
+    // VAT calculations — นับทุกรายการ, not_submitted นับเป็นเสร็จ
+    const vatTotal = data.length
     const vatCompleted = data.filter(d => VAT_COMPLETED_STATUSES.includes(d.pp30_form || '')).length
     const vatRemaining = vatTotal - vatCompleted
     const vatPct = vatTotal > 0 ? Math.round((vatCompleted / vatTotal) * 1000) / 10 : 0
@@ -352,10 +352,10 @@ function ServiceTab({ data }: { data: MonthlyTaxData[] }) {
             map.get(id)!.items.push(d)
         })
         return Array.from(map.values()).map(emp => {
-            const wi = emp.items.filter(d => d.pnd_status && d.pnd_status !== 'not_submitted')
+            const wi = emp.items // นับทุกรายการ
             const wd = wi.filter(d => WHT_COMPLETED_STATUSES.includes(d.pnd_status || '')).length
             const wc = wi.filter(d => CORRECTION_STATUSES.includes(d.pnd_status || '')).length
-            const vi = emp.items.filter(d => d.pp30_form && d.pp30_form !== 'not_started' && d.pp30_form !== 'not_submitted')
+            const vi = emp.items // นับทุกรายการ
             const vd = vi.filter(d => VAT_COMPLETED_STATUSES.includes(d.pp30_form || '')).length
             const vc = vi.filter(d => CORRECTION_STATUSES.includes(d.pp30_form || '')).length
             return {
@@ -620,9 +620,11 @@ function ServiceTab({ data }: { data: MonthlyTaxData[] }) {
                                     <Table.Th style={{ textAlign: 'left', padding: '12px' }}>พนักงาน</Table.Th>
                                     <Table.Th>WHT<br />ทั้งหมด</Table.Th>
                                     <Table.Th>WHT<br />เสร็จ</Table.Th>
+                                    <Table.Th>WHT<br />คงเหลือ</Table.Th>
                                     <Table.Th>% WHT</Table.Th>
                                     <Table.Th>VAT<br />ทั้งหมด</Table.Th>
                                     <Table.Th>VAT<br />เสร็จ</Table.Th>
+                                    <Table.Th>VAT<br />คงเหลือ</Table.Th>
                                     <Table.Th>% VAT</Table.Th>
                                     <Table.Th>แก้ไข<br />WHT</Table.Th>
                                     <Table.Th>% แก้ไข<br />WHT</Table.Th>
@@ -648,10 +650,16 @@ function ServiceTab({ data }: { data: MonthlyTaxData[] }) {
                                             <Table.Td style={{ textAlign: 'center' }}><Text size="sm">{emp.whtTotal}</Text></Table.Td>
                                             <Table.Td style={{ textAlign: 'center' }}><Text size="sm">{emp.whtDone}</Text></Table.Td>
                                             <Table.Td style={{ textAlign: 'center' }}>
+                                                <Text size="sm" fw={600} c={emp.whtTotal - emp.whtDone > 0 ? '#f44336' : '#4caf50'}>{emp.whtTotal - emp.whtDone}</Text>
+                                            </Table.Td>
+                                            <Table.Td style={{ textAlign: 'center' }}>
                                                 <Badge size="sm" variant="light" color={emp.whtPct >= 80 ? 'green' : emp.whtPct >= 50 ? 'orange' : 'red'} radius="xl">{emp.whtPct}%</Badge>
                                             </Table.Td>
                                             <Table.Td style={{ textAlign: 'center' }}><Text size="sm">{emp.vatTotal}</Text></Table.Td>
                                             <Table.Td style={{ textAlign: 'center' }}><Text size="sm">{emp.vatDone}</Text></Table.Td>
+                                            <Table.Td style={{ textAlign: 'center' }}>
+                                                <Text size="sm" fw={600} c={emp.vatTotal - emp.vatDone > 0 ? '#f44336' : '#4caf50'}>{emp.vatTotal - emp.vatDone}</Text>
+                                            </Table.Td>
                                             <Table.Td style={{ textAlign: 'center' }}>
                                                 <Badge size="sm" variant="light" color={emp.vatPct >= 80 ? 'green' : emp.vatPct >= 50 ? 'orange' : 'red'} radius="xl">{emp.vatPct}%</Badge>
                                             </Table.Td>
@@ -794,6 +802,7 @@ function ServiceTab({ data }: { data: MonthlyTaxData[] }) {
                                                 <Table.Th style={{ ...hd, width: 40 }}>#</Table.Th>
                                                 <Table.Th style={{ ...hd, textAlign: 'left', padding: '8px 12px' }}>Build</Table.Th>
                                                 <Table.Th style={{ ...hd, textAlign: 'left', padding: '8px 12px' }}>ชื่อบริษัท</Table.Th>
+                                                <Table.Th style={hd}>สถานะจดทะเบียนภาษี</Table.Th>
                                                 <Table.Th style={hd}>สถานะ WHT</Table.Th>
                                                 <Table.Th style={hd}>สถานะ VAT</Table.Th>
                                             </>)
@@ -811,6 +820,13 @@ function ServiceTab({ data }: { data: MonthlyTaxData[] }) {
                                                 <Table.Td style={{ textAlign: 'center', padding: '6px 8px' }}><Text size="sm" c="gray.6">{idx + 1}</Text></Table.Td>
                                                 <Table.Td style={{ padding: '6px 12px' }}><Text size="sm" fw={600} c="dark">{rec.build}</Text></Table.Td>
                                                 <Table.Td style={{ padding: '6px 12px' }}><Text size="sm" c="dark" lineClamp={1}>{rec.company_name || '-'}</Text></Table.Td>
+                                                <Table.Td style={{ textAlign: 'center', padding: '6px 8px' }}>
+                                                    <Badge size="sm" variant="light" radius="xl"
+                                                        color={rec.tax_registration_status === 'จดภาษีมูลค่าเพิ่ม' ? 'teal' : rec.tax_registration_status === 'ยังไม่จดภาษีมูลค่าเพิ่ม' ? 'red' : 'gray'}
+                                                    >
+                                                        {rec.tax_registration_status === 'จดภาษีมูลค่าเพิ่ม' ? 'จดทะเบียนภาษีมูลค่าเพิ่ม' : rec.tax_registration_status === 'ยังไม่จดภาษีมูลค่าเพิ่ม' ? 'ยังไม่จดทะเบียนภาษีมูลค่าเพิ่ม' : '-'}
+                                                    </Badge>
+                                                </Table.Td>
                                                 <Table.Td style={{ textAlign: 'center', padding: '6px 8px' }}>
                                                     <Badge size="sm" variant="light" radius="xl" style={{ backgroundColor: whtCfg.color + '20', color: whtCfg.color, borderColor: whtCfg.color + '40' }}>{whtCfg.label}</Badge>
                                                 </Table.Td>

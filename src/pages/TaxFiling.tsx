@@ -271,6 +271,11 @@ export default function TaxFiling() {
         <FilterSection onFilterChange={(newFilters: FilterValues) => {
           setFilters(newFilters)
           setCurrentPage(1)
+          // Reset sort when switching to date filter (date sorting conflicts with column sort)
+          if (newFilters.filterType === 'date') {
+            setSortBy('build')
+            setSortOrder('asc')
+          }
         }} onRefresh={handleRefresh} isRefreshing={isRefreshing} />
 
         {/* Table */}
@@ -300,6 +305,7 @@ export default function TaxFiling() {
             }
             setCurrentPage(1)
           }}
+          isDateFilterActive={filters.filterType === 'date'}
         />
 
 

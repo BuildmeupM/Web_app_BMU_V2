@@ -148,6 +148,7 @@ interface TaxFilingTableProps {
   sortBy?: string
   sortOrder?: 'asc' | 'desc'
   onSortChange?: (field: string) => void
+  isDateFilterActive?: boolean
 }
 
 // สีสำหรับแต่ละสถานะ
@@ -235,6 +236,7 @@ const TaxFilingTable = memo(function TaxFilingTable({
   sortBy = 'build',
   sortOrder = 'asc',
   onSortChange,
+  isDateFilterActive = false,
 }: TaxFilingTableProps) {
   const { user, _hasHydrated } = useAuthStore()
   // Use provided wht_filer_employee_id or vat_filer_employee_id, or fallback to current user's employee_id
@@ -559,14 +561,14 @@ const TaxFilingTable = memo(function TaxFilingTable({
                   borderRight: '1px solid #dee2e6',
                   minWidth: 120,
                   width: 120,
-                  cursor: 'pointer',
+                  cursor: !isDateFilterActive ? 'pointer' : 'default',
                   userSelect: 'none',
                 }}
-                onClick={() => onSortChange?.('build')}
+                onClick={() => !isDateFilterActive && onSortChange?.('build')}
               >
                 <Group gap={4} wrap="nowrap">
                   Build
-                  {sortBy === 'build' && (
+                  {!isDateFilterActive && sortBy === 'build' && (
                     <Text size="xs" c="orange" fw={700}>{sortOrder === 'asc' ? '▲' : '▼'}</Text>
                   )}
                 </Group>
@@ -579,54 +581,54 @@ const TaxFilingTable = memo(function TaxFilingTable({
                   backgroundColor: '#fff',
                   borderRight: '1px solid #dee2e6',
                   minWidth: 200,
-                  cursor: 'pointer',
+                  cursor: !isDateFilterActive ? 'pointer' : 'default',
                   userSelect: 'none',
                 }}
-                onClick={() => onSortChange?.('company_name')}
+                onClick={() => !isDateFilterActive && onSortChange?.('company_name')}
               >
                 <Group gap={4} wrap="nowrap">
                   ชื่อบริษัท
-                  {sortBy === 'company_name' && (
+                  {!isDateFilterActive && sortBy === 'company_name' && (
                     <Text size="xs" c="orange" fw={700}>{sortOrder === 'asc' ? '▲' : '▼'}</Text>
                   )}
                 </Group>
               </Table.Th>
-              <Table.Th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => onSortChange?.('pnd_sent_for_review_date')}>
+              <Table.Th style={{ cursor: !isDateFilterActive ? 'pointer' : 'default', userSelect: 'none' }} onClick={() => !isDateFilterActive && onSortChange?.('pnd_sent_for_review_date')}>
                 <Group gap={4} wrap="nowrap">
                   วันที่ส่งตรวจคืน ภ.ง.ด.
-                  {sortBy === 'pnd_sent_for_review_date' && (
+                  {!isDateFilterActive && sortBy === 'pnd_sent_for_review_date' && (
                     <Text size="xs" c="orange" fw={700}>{sortOrder === 'asc' ? '▲' : '▼'}</Text>
                   )}
                 </Group>
               </Table.Th>
-              <Table.Th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => onSortChange?.('pnd_status')}>
+              <Table.Th style={{ cursor: !isDateFilterActive ? 'pointer' : 'default', userSelect: 'none' }} onClick={() => !isDateFilterActive && onSortChange?.('pnd_status')}>
                 <Group gap={4} wrap="nowrap">
                   สถานะ ภ.ง.ด.
-                  {sortBy === 'pnd_status' && (
+                  {!isDateFilterActive && sortBy === 'pnd_status' && (
                     <Text size="xs" c="orange" fw={700}>{sortOrder === 'asc' ? '▲' : '▼'}</Text>
                   )}
                 </Group>
               </Table.Th>
-              <Table.Th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => onSortChange?.('pp30_sent_for_review_date')}>
+              <Table.Th style={{ cursor: !isDateFilterActive ? 'pointer' : 'default', userSelect: 'none' }} onClick={() => !isDateFilterActive && onSortChange?.('pp30_sent_for_review_date')}>
                 <Group gap={4} wrap="nowrap">
                   วันที่ส่งตรวจคืน ภ.พ. 30
-                  {sortBy === 'pp30_sent_for_review_date' && (
+                  {!isDateFilterActive && sortBy === 'pp30_sent_for_review_date' && (
                     <Text size="xs" c="orange" fw={700}>{sortOrder === 'asc' ? '▲' : '▼'}</Text>
                   )}
                 </Group>
               </Table.Th>
-              <Table.Th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => onSortChange?.('pp30_form')}>
+              <Table.Th style={{ cursor: !isDateFilterActive ? 'pointer' : 'default', userSelect: 'none' }} onClick={() => !isDateFilterActive && onSortChange?.('pp30_form')}>
                 <Group gap={4} wrap="nowrap">
                   สถานะ ภ.พ.30
-                  {sortBy === 'pp30_form' && (
+                  {!isDateFilterActive && sortBy === 'pp30_form' && (
                     <Text size="xs" c="orange" fw={700}>{sortOrder === 'asc' ? '▲' : '▼'}</Text>
                   )}
                 </Group>
               </Table.Th>
-              <Table.Th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => onSortChange?.('pp30_payment_status')}>
+              <Table.Th style={{ cursor: !isDateFilterActive ? 'pointer' : 'default', userSelect: 'none' }} onClick={() => !isDateFilterActive && onSortChange?.('pp30_payment_status')}>
                 <Group gap={4} wrap="nowrap">
                   สถานะยอดชำระ ภ.พ.30
-                  {sortBy === 'pp30_payment_status' && (
+                  {!isDateFilterActive && sortBy === 'pp30_payment_status' && (
                     <Text size="xs" c="orange" fw={700}>{sortOrder === 'asc' ? '▲' : '▼'}</Text>
                   )}
                 </Group>

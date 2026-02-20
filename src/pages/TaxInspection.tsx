@@ -147,6 +147,11 @@ export default function TaxInspection() {
   const handleFilterChange = (newFilters: FilterValues) => {
     setFilters(newFilters)
     setCurrentPage(1) // Reset to first page when filters change
+    // Reset sort when switching to date filter (date sorting conflicts with column sort)
+    if (newFilters.filterType === 'date') {
+      setSortBy('build')
+      setSortOrder('asc')
+    }
   }
 
   const handleSortChange = (field: string) => {
@@ -327,6 +332,7 @@ export default function TaxInspection() {
           sortBy={sortBy}
           sortOrder={sortOrder}
           onSortChange={handleSortChange}
+          isDateFilterActive={filters.filterType === 'date'}
         />
 
         {/* Pagination */}

@@ -867,8 +867,14 @@ router.get('/', authenticateToken, async (req, res) => {
       'company_name', 'pnd_sent_for_review_date', 'pnd_status',
       'pp30_sent_for_review_date', 'pp30_form', 'pp30_payment_status',
     ]
-    // Map company_name to c.company_name for SQL (it's in the clients table)
-    const sortFieldMap = { company_name: 'c.company_name' }
+    // Map sort fields to their SQL expressions
+    // Date fields need CAST to DATETIME to ensure proper chronological sorting (date + time)
+    const sortFieldMap = {
+      company_name: 'c.company_name',
+      created_at: 'CAST(mtd.created_at AS DATETIME)',
+      pnd_sent_for_review_date: 'CAST(mtd.pnd_sent_for_review_date AS DATETIME)',
+      pp30_sent_for_review_date: 'CAST(mtd.pp30_sent_for_review_date AS DATETIME)',
+    }
     const rawSortField = allowedSortFields.includes(sortBy) ? sortBy : 'build'
     const sortField = sortFieldMap[rawSortField] || `mtd.${rawSortField}`
     const sortDirection = sortOrder.toLowerCase() === 'asc' ? 'ASC' : 'DESC'
@@ -975,6 +981,7 @@ router.get('/', authenticateToken, async (req, res) => {
         e7.full_name as document_entry_responsible_name,
         e7.first_name as document_entry_responsible_first_name,
         e7.nick_name as document_entry_responsible_nick_name,
+        c.tax_registration_status,
         mtd.created_at,
         mtd.updated_at
       FROM monthly_tax_data mtd
@@ -1162,13 +1169,16 @@ router.get('/summary', authenticateToken, async (req, res) => {
       whtSentToCustomerCount = "SUM(CASE WHEN mtd.pnd_status IN ('paid', 'sent_to_customer', 'received_receipt') THEN 1 ELSE 0 END)"
     }
 
+    // ✅ FIX: WHT completed สำหรับหน้าตรวจภาษี = ผู้ตรวจส่งคืนแล้ว (วันที่ส่งคืน IS NOT NULL)
+    // ตัด pending_recheck ออกเพื่อไม่ให้นับซ้ำกับช่อง "รอตรวจอีกครั้ง"
     const whtCompletedCondition = isTaxInspectionPage
-      ? "SUM(CASE WHEN mtd.pnd_review_returned_date IS NOT NULL THEN 1 ELSE 0 END) as wht_completed"
+      ? "SUM(CASE WHEN mtd.pnd_review_returned_date IS NOT NULL AND mtd.pnd_status != 'pending_recheck' THEN 1 ELSE 0 END) as wht_completed"
       : "SUM(CASE WHEN mtd.pnd_status IN ('paid', 'sent_to_customer', 'draft_completed', 'passed') THEN 1 ELSE 0 END) as wht_completed"
 
     // ✅ Performance Fix #3: รวม 3 SQL queries (WHT, VAT, Impact) เป็น 1 query เดียว
     // ลดจาก 3 round-trips ไป database เหลือ 1
-    // VAT counts ใช้ conditional: เฉพาะบริษัทที่จดภาษีมูลค่าเพิ่ม (c.tax_registration_status)
+    // ✅ FIX: VAT counts ใช้ pp30_form (status column) แทน date fields
+    // เพื่อให้ตรงกับวิธีที่ตาราง filter (ใช้ mtd.pp30_form column)
     const [combinedSummary] = await pool.execute(
       `SELECT 
         /* === WHT Summary === */
@@ -1182,41 +1192,35 @@ router.get('/summary', authenticateToken, async (req, res) => {
         ${whtSentToCustomerCount} as wht_sent_to_customer,
 
         /* === VAT Summary (เฉพาะบริษัทจดภาษีมูลค่าเพิ่ม) === */
+        /* ✅ FIX: ใช้ pp30_form (status column) แทน date fields ทั้งหมด */
         SUM(CASE WHEN c.tax_registration_status = 'จดภาษีมูลค่าเพิ่ม' THEN 1 ELSE 0 END) as vat_total,
-        SUM(CASE WHEN c.tax_registration_status = 'จดภาษีมูลค่าเพิ่ม' AND (
-          mtd.pp30_sent_to_customer_date IS NOT NULL OR mtd.pp30_filing_response IS NOT NULL
-        ) THEN 1 ELSE 0 END) as vat_responsible_count,
+        SUM(CASE WHEN c.tax_registration_status = 'จดภาษีมูลค่าเพิ่ม' AND 
+          mtd.pp30_form IN ('sent_to_customer', 'paid', 'received_receipt', 'not_submitted')
+        THEN 1 ELSE 0 END) as vat_responsible_count,
         ${isTaxInspectionPage
-        ? `SUM(CASE WHEN c.tax_registration_status = 'จดภาษีมูลค่าเพิ่ม' AND mtd.pp30_review_returned_date IS NOT NULL THEN 1 ELSE 0 END) as vat_completed`
-        : `SUM(CASE WHEN c.tax_registration_status = 'จดภาษีมูลค่าเพิ่ม' AND (
-              mtd.pp30_filing_response IS NOT NULL OR mtd.pp30_sent_to_customer_date IS NOT NULL
-            ) THEN 1 ELSE 0 END) as vat_completed`
+        ? `SUM(CASE WHEN c.tax_registration_status = 'จดภาษีมูลค่าเพิ่ม' AND 
+              mtd.pp30_review_returned_date IS NOT NULL AND mtd.pp30_form != 'pending_recheck'
+           THEN 1 ELSE 0 END) as vat_completed`
+        : `SUM(CASE WHEN c.tax_registration_status = 'จดภาษีมูลค่าเพิ่ม' AND 
+              mtd.pp30_form IN ('sent_to_customer', 'paid', 'received_receipt', 'passed', 'draft_completed')
+           THEN 1 ELSE 0 END) as vat_completed`
       },
-        SUM(CASE WHEN c.tax_registration_status = 'จดภาษีมูลค่าเพิ่ม' AND (
-          mtd.pp30_sent_for_review_date IS NOT NULL 
-          AND mtd.pp30_review_returned_date IS NULL 
-          AND mtd.pp30_sent_to_customer_date IS NULL 
-          AND mtd.pp30_filing_response IS NULL
-        ) THEN 1 ELSE 0 END) as vat_pending,
-        SUM(CASE WHEN c.tax_registration_status = 'จดภาษีมูลค่าเพิ่ม' AND (
-          mtd.pp30_review_returned_date IS NOT NULL 
-          AND mtd.pp30_sent_to_customer_date IS NULL 
-          AND mtd.pp30_filing_response IS NULL
-        ) THEN 1 ELSE 0 END) as vat_recheck,
+        SUM(CASE WHEN c.tax_registration_status = 'จดภาษีมูลค่าเพิ่ม' AND 
+          mtd.pp30_form = 'pending_review'
+        THEN 1 ELSE 0 END) as vat_pending,
+        SUM(CASE WHEN c.tax_registration_status = 'จดภาษีมูลค่าเพิ่ม' AND 
+          mtd.pp30_form = 'pending_recheck'
+        THEN 1 ELSE 0 END) as vat_recheck,
         ${isTaxFilingPage
-        ? `SUM(CASE WHEN c.tax_registration_status = 'จดภาษีมูลค่าเพิ่ม' AND (
-              mtd.vat_draft_completed_date IS NOT NULL 
-              AND mtd.pp30_sent_for_review_date IS NULL 
-              AND mtd.pp30_sent_to_customer_date IS NULL 
-              AND mtd.pp30_filing_response IS NULL
-            ) THEN 1 ELSE 0 END) as vat_draft_ready,
-            SUM(CASE WHEN c.tax_registration_status = 'จดภาษีมูลค่าเพิ่ม' AND (
-              mtd.pp30_filing_response IS NOT NULL 
-              AND mtd.pp30_sent_to_customer_date IS NULL
-            ) THEN 1 ELSE 0 END) as vat_passed,
-            SUM(CASE WHEN c.tax_registration_status = 'จดภาษีมูลค่าเพิ่ม' AND (
-              mtd.pp30_filing_response IS NOT NULL OR mtd.pp30_sent_to_customer_date IS NOT NULL
-            ) THEN 1 ELSE 0 END) as vat_sent_to_customer`
+        ? `SUM(CASE WHEN c.tax_registration_status = 'จดภาษีมูลค่าเพิ่ม' AND 
+              mtd.pp30_form IN ('draft_ready', 'draft_completed')
+           THEN 1 ELSE 0 END) as vat_draft_ready,
+           SUM(CASE WHEN c.tax_registration_status = 'จดภาษีมูลค่าเพิ่ม' AND 
+              mtd.pp30_form = 'passed'
+           THEN 1 ELSE 0 END) as vat_passed,
+           SUM(CASE WHEN c.tax_registration_status = 'จดภาษีมูลค่าเพิ่ม' AND 
+              mtd.pp30_form IN ('sent_to_customer', 'paid', 'received_receipt')
+           THEN 1 ELSE 0 END) as vat_sent_to_customer`
         : `0 as vat_draft_ready, 0 as vat_passed, 0 as vat_sent_to_customer`
       },
 

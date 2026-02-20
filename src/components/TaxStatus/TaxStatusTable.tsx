@@ -170,6 +170,7 @@ interface TaxStatusTableProps {
   sortBy?: string
   sortOrder?: 'asc' | 'desc'
   onSortChange?: (field: string) => void
+  isDateFilterActive?: boolean
 }
 
 // สีสำหรับแต่ละสถานะ
@@ -256,6 +257,7 @@ const TaxStatusTable = memo(function TaxStatusTable({
   sortBy = 'build',
   sortOrder = 'asc',
   onSortChange,
+  isDateFilterActive = false,
 }: TaxStatusTableProps) {
   const { user, _hasHydrated } = useAuthStore()
   const employeeId = accounting_responsible || user?.employee_id || null
@@ -738,23 +740,9 @@ const TaxStatusTable = memo(function TaxStatusTable({
     onSelectCompany(record)
   }, [onSelectCompany])
 
-  // ลด re-renders เมื่อ table data ไม่เปลี่ยน
-  const TableRow = memo(({
-    record,
-    buildColumnWidth,
-    onSelectCompanyClick,
-    getPndStatusBadge,
-    getPp30StatusBadge,
-    filterMode,
-  }: {
-    record: TaxStatusRecord
-    buildColumnWidth: number
-    onSelectCompanyClick: (record: TaxStatusRecord) => void
-    getPndStatusBadge: (status: TaxStatusRecord['pndStatus']) => React.ReactNode
-    getPp30StatusBadge: (status: TaxStatusRecord['pp30Status']) => React.ReactNode
-    filterMode?: 'all' | 'wht' | 'vat'
-  }) => {
-    // สร้างข้อความแสดงวันที่สถานะ ภ.ง.ด.
+  // ✅ FIX: ใช้ render function แทน memo component ที่สร้างภายใน function body
+  // (การใช้ memo() ภายใน function body เป็น anti-pattern ที่ทำให้ React สร้าง component ใหม่ทุกครั้ง)
+  const renderTableRow = (record: TaxStatusRecord) => {
     const pndDates: string[] = []
     if (record.pndSentForReviewDate) {
       pndDates.push(`วันที่ส่งตรวจ ภ.ง.ด.: ${record.pndSentForReviewDate}`)
@@ -767,7 +755,6 @@ const TaxStatusTable = memo(function TaxStatusTable({
     }
     const pndDatesText = pndDates.length > 0 ? pndDates.join('\n') : '-'
 
-    // สร้างข้อความแสดงวันที่สถานะ ภ.พ.30
     const pp30Dates: string[] = []
     if (record.pp30SentForReviewDate) {
       pp30Dates.push(`วันที่ส่งตรวจ ภ.พ.30: ${record.pp30SentForReviewDate}`)
@@ -779,9 +766,10 @@ const TaxStatusTable = memo(function TaxStatusTable({
       pp30Dates.push(`วันที่ส่งลูกค้า ภ.พ.30: ${record.pp30SentToCustomerDate}`)
     }
     const pp30DatesText = pp30Dates.length > 0 ? pp30Dates.join('\n') : '-'
+    const filterMode = filters?.filterMode
 
     return (
-      <Table.Tr>
+      <Table.Tr key={record.id}>
         <Table.Td
           style={{
             position: 'sticky',
@@ -806,7 +794,6 @@ const TaxStatusTable = memo(function TaxStatusTable({
         >
           {record.companyName}
         </Table.Td>
-        {/* คอลัมน์ ภ.ง.ด. - แสดงเมื่อ filterMode ไม่ใช่ 'vat' */}
         {filterMode !== 'vat' && (
           <Table.Td style={{ minWidth: 200, whiteSpace: 'nowrap' }}>
             {pndDatesText === '-' ? (
@@ -819,7 +806,6 @@ const TaxStatusTable = memo(function TaxStatusTable({
         {filterMode !== 'vat' && (
           <Table.Td style={{ minWidth: 120, whiteSpace: 'nowrap' }}>{getPndStatusBadge(record.pndStatus)}</Table.Td>
         )}
-        {/* คอลัมน์ ภ.พ.30 - แสดงเมื่อ filterMode ไม่ใช่ 'wht' */}
         {filterMode !== 'wht' && (
           <Table.Td style={{ minWidth: 200, whiteSpace: 'nowrap' }}>
             {pp30DatesText === '-' ? (
@@ -850,7 +836,7 @@ const TaxStatusTable = memo(function TaxStatusTable({
             formatTextWithHighlight(record.performer)
           )}
         </Table.Td>
-        <Table.Td style={{ position: 'relative', zIndex: 20 }}>
+        <Table.Td>
           <Button
             size="xs"
             variant="filled"
@@ -859,16 +845,9 @@ const TaxStatusTable = memo(function TaxStatusTable({
             radius="lg"
             onClick={(e) => {
               e.stopPropagation()
-              if (record.build && onSelectCompanyClick) onSelectCompanyClick(record)
+              handleSelectCompanyClick(record)
             }}
-            style={{
-              backgroundColor: '#ff6b35',
-              color: 'white',
-              cursor: 'pointer',
-              pointerEvents: 'auto',
-              position: 'relative',
-              zIndex: 100,
-            }}
+            style={{ backgroundColor: '#ff6b35', color: 'white' }}
             disabled={!record.build}
           >
             เลือกบริษัทนี้
@@ -876,7 +855,7 @@ const TaxStatusTable = memo(function TaxStatusTable({
         </Table.Td>
       </Table.Tr>
     )
-  })
+  }
 
   if (isLoading) {
     return (
@@ -1028,14 +1007,14 @@ const TaxStatusTable = memo(function TaxStatusTable({
                   borderRight: '1px solid #dee2e6',
                   minWidth: 120,
                   width: 120,
-                  cursor: 'pointer',
+                  cursor: !isDateFilterActive ? 'pointer' : 'default',
                   userSelect: 'none',
                 }}
-                onClick={() => onSortChange?.('build')}
+                onClick={() => !isDateFilterActive && onSortChange?.('build')}
               >
                 <Group gap={4} wrap="nowrap">
                   Build
-                  {sortBy === 'build' && (
+                  {!isDateFilterActive && sortBy === 'build' && (
                     <Text size="xs" c="orange" fw={700}>{sortOrder === 'asc' ? '▲' : '▼'}</Text>
                   )}
                 </Group>
@@ -1048,63 +1027,63 @@ const TaxStatusTable = memo(function TaxStatusTable({
                   backgroundColor: '#fff',
                   borderRight: '1px solid #dee2e6',
                   minWidth: 200,
-                  cursor: 'pointer',
+                  cursor: !isDateFilterActive ? 'pointer' : 'default',
                   userSelect: 'none',
                 }}
-                onClick={() => onSortChange?.('company_name')}
+                onClick={() => !isDateFilterActive && onSortChange?.('company_name')}
               >
                 <Group gap={4} wrap="nowrap">
                   ชื่อบริษัท
-                  {sortBy === 'company_name' && (
+                  {!isDateFilterActive && sortBy === 'company_name' && (
                     <Text size="xs" c="orange" fw={700}>{sortOrder === 'asc' ? '▲' : '▼'}</Text>
                   )}
                 </Group>
               </Table.Th>
               {filters?.filterMode !== 'vat' && (
-                <Table.Th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => onSortChange?.('pnd_sent_for_review_date')}>
+                <Table.Th style={{ cursor: !isDateFilterActive ? 'pointer' : 'default', userSelect: 'none' }} onClick={() => !isDateFilterActive && onSortChange?.('pnd_sent_for_review_date')}>
                   <Group gap={4} wrap="nowrap">
                     วันที่สถานะ ภ.ง.ด.
-                    {sortBy === 'pnd_sent_for_review_date' && (
+                    {!isDateFilterActive && sortBy === 'pnd_sent_for_review_date' && (
                       <Text size="xs" c="orange" fw={700}>{sortOrder === 'asc' ? '▲' : '▼'}</Text>
                     )}
                   </Group>
                 </Table.Th>
               )}
               {filters?.filterMode !== 'vat' && (
-                <Table.Th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => onSortChange?.('pnd_status')}>
+                <Table.Th style={{ cursor: !isDateFilterActive ? 'pointer' : 'default', userSelect: 'none' }} onClick={() => !isDateFilterActive && onSortChange?.('pnd_status')}>
                   <Group gap={4} wrap="nowrap">
                     สถานะ ภ.ง.ด.
-                    {sortBy === 'pnd_status' && (
+                    {!isDateFilterActive && sortBy === 'pnd_status' && (
                       <Text size="xs" c="orange" fw={700}>{sortOrder === 'asc' ? '▲' : '▼'}</Text>
                     )}
                   </Group>
                 </Table.Th>
               )}
               {filters?.filterMode !== 'wht' && (
-                <Table.Th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => onSortChange?.('pp30_sent_for_review_date')}>
+                <Table.Th style={{ cursor: !isDateFilterActive ? 'pointer' : 'default', userSelect: 'none' }} onClick={() => !isDateFilterActive && onSortChange?.('pp30_sent_for_review_date')}>
                   <Group gap={4} wrap="nowrap">
                     วันที่สถานะ ภ.พ.30
-                    {sortBy === 'pp30_sent_for_review_date' && (
+                    {!isDateFilterActive && sortBy === 'pp30_sent_for_review_date' && (
                       <Text size="xs" c="orange" fw={700}>{sortOrder === 'asc' ? '▲' : '▼'}</Text>
                     )}
                   </Group>
                 </Table.Th>
               )}
               {filters?.filterMode !== 'wht' && (
-                <Table.Th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => onSortChange?.('pp30_form')}>
+                <Table.Th style={{ cursor: !isDateFilterActive ? 'pointer' : 'default', userSelect: 'none' }} onClick={() => !isDateFilterActive && onSortChange?.('pp30_form')}>
                   <Group gap={4} wrap="nowrap">
                     สถานะ ภ.พ.30
-                    {sortBy === 'pp30_form' && (
+                    {!isDateFilterActive && sortBy === 'pp30_form' && (
                       <Text size="xs" c="orange" fw={700}>{sortOrder === 'asc' ? '▲' : '▼'}</Text>
                     )}
                   </Group>
                 </Table.Th>
               )}
               {filters?.filterMode !== 'wht' && (
-                <Table.Th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => onSortChange?.('pp30_payment_status')}>
+                <Table.Th style={{ cursor: !isDateFilterActive ? 'pointer' : 'default', userSelect: 'none' }} onClick={() => !isDateFilterActive && onSortChange?.('pp30_payment_status')}>
                   <Group gap={4} wrap="nowrap">
                     สถานะยอดชำระ ภ.พ.30
-                    {sortBy === 'pp30_payment_status' && (
+                    {!isDateFilterActive && sortBy === 'pp30_payment_status' && (
                       <Text size="xs" c="orange" fw={700}>{sortOrder === 'asc' ? '▲' : '▼'}</Text>
                     )}
                   </Group>
@@ -1115,17 +1094,7 @@ const TaxStatusTable = memo(function TaxStatusTable({
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
-            {tableData.map((record) => (
-              <TableRow
-                key={record.id}
-                record={record}
-                buildColumnWidth={buildColumnWidth}
-                onSelectCompanyClick={handleSelectCompanyClick}
-                getPndStatusBadge={getPndStatusBadge}
-                getPp30StatusBadge={getPp30StatusBadge}
-                filterMode={filters?.filterMode}
-              />
-            ))}
+            {tableData.map((record) => renderTableRow(record))}
           </Table.Tbody>
         </Table>
       </Table.ScrollContainer>
