@@ -49,6 +49,8 @@ export default function TaxStatus() {
   const [totalItems, setTotalItems] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [sortBy, setSortBy] = useState<string>('build')
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
   const [filters, setFilters] = useState<FilterValues>({
     filterType: 'build',
     filterMode: 'all',
@@ -302,7 +304,10 @@ export default function TaxStatus() {
         <SummaryCard />
 
         {/* Filter Section */}
-        <FilterSection onFilterChange={setFilters} onRefresh={handleRefresh} isRefreshing={isRefreshing} />
+        <FilterSection onFilterChange={(newFilters: FilterValues) => {
+          setFilters(newFilters)
+          setCurrentPage(1)
+        }} onRefresh={handleRefresh} isRefreshing={isRefreshing} />
 
         {/* Table */}
         {/* ✅ BUG-167: เพิ่ม key prop เพื่อ force re-render เมื่อ route เปลี่ยน */}
@@ -314,6 +319,17 @@ export default function TaxStatus() {
           limit={itemsPerPage}
           onPaginationChange={handlePaginationChange}
           filters={filters}
+          sortBy={sortBy}
+          sortOrder={sortOrder}
+          onSortChange={(field: string) => {
+            if (sortBy === field) {
+              setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')
+            } else {
+              setSortBy(field)
+              setSortOrder('asc')
+            }
+            setCurrentPage(1)
+          }}
         />
 
         {/* Pagination */}

@@ -1,0 +1,29 @@
+/* Column resize handles for LoginActivity table */
+.ald-resize-handle {
+    position: absolute;
+    right: 0;
+    top: 20%;
+    bottom: 20%;
+    width: 3px;
+    cursor: col-resize;
+    background: rgba(255, 255, 255, 0.35);
+    border-radius: 2px;
+    transition: all 0.15s ease;
+    z-index: 3;
+}
+
+.ald-resize-handle:hover,
+.ald-resize-handle:active {
+    top: 10%;
+    bottom: 10%;
+    width: 4px;
+    background: rgba(255, 255, 255, 0.7);
+    box-shadow: 0 0 4px rgba(255, 255, 255, 0.3);
+}
+
+/* Ensure table cells truncate long text */
+table[style*="table-layout: fixed"] tbody tr td {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}

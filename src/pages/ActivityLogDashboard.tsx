@@ -4,7 +4,7 @@
  * Mantine components + white-orange theme
  */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import {
     Box,
     Paper,
@@ -91,11 +91,46 @@ export default function ActivityLogDashboard() {
     const [chartDays, setChartDays] = useState(7)
 
     const [page, setPage] = useState(1)
+    const [limit, setLimit] = useState(20)
     const [totalPages, setTotalPages] = useState(1)
     const [total, setTotal] = useState(0)
     const [search, setSearch] = useState('')
     const [filterPage, setFilterPage] = useState<string | null>(null)
     const [filterAction, setFilterAction] = useState<string | null>(null)
+
+    // ─── Column resize ───
+    const tableRef = useRef<HTMLTableElement>(null)
+    const resizingCol = useRef<{ idx: number; startX: number; startW: number } | null>(null)
+
+    const onResizeMouseDown = (e: React.MouseEvent, colIdx: number) => {
+        e.preventDefault()
+        const th = (e.target as HTMLElement).closest('th') as HTMLTableCellElement
+        if (!th) return
+        resizingCol.current = { idx: colIdx, startX: e.clientX, startW: th.offsetWidth }
+
+        const onMove = (ev: MouseEvent) => {
+            if (!resizingCol.current || !tableRef.current) return
+            const delta = ev.clientX - resizingCol.current.startX
+            const newW = Math.max(60, resizingCol.current.startW + delta)
+            const ths = tableRef.current.querySelectorAll('thead th')
+            const target = ths[resizingCol.current.idx] as HTMLElement
+            if (target) {
+                target.style.width = `${newW}px`
+                target.style.minWidth = `${newW}px`
+            }
+        }
+        const onUp = () => {
+            resizingCol.current = null
+            document.removeEventListener('mousemove', onMove)
+            document.removeEventListener('mouseup', onUp)
+            document.body.style.cursor = ''
+            document.body.style.userSelect = ''
+        }
+        document.body.style.cursor = 'col-resize'
+        document.body.style.userSelect = 'none'
+        document.addEventListener('mousemove', onMove)
+        document.addEventListener('mouseup', onUp)
+    }
 
     // ─── Fetch all dashboard data ───
     const fetchAll = useCallback(async () => {
@@ -115,7 +150,7 @@ export default function ActivityLogDashboard() {
     const fetchLogs = useCallback(async () => {
         try {
             const res = await activityLogsService.getList({
-                page, limit: 15,
+                page, limit,
                 search: search || undefined,
                 pageName: filterPage || undefined,
                 action: filterAction || undefined,
@@ -124,7 +159,7 @@ export default function ActivityLogDashboard() {
             setTotalPages(res.pagination.totalPages)
             setTotal(res.pagination.total)
         } catch (err) { console.error('Log list fetch error:', err) }
-    }, [page, search, filterPage, filterAction])
+    }, [page, limit, search, filterPage, filterAction])
 
     useEffect(() => { fetchAll() }, [fetchAll])
     useEffect(() => { fetchLogs() }, [fetchLogs])
@@ -390,18 +425,41 @@ export default function ActivityLogDashboard() {
                     />
                 </Group>
 
+                {/* Page size selector */}
+                <Group gap="sm" mb="md" justify="flex-end">
+                    <Group gap={6} align="center">
+                        <Text size="xs" c="dimmed">แสดง</Text>
+                        <Select
+                            value={String(limit)}
+                            onChange={(v) => { setLimit(Number(v)); setPage(1) }}
+                            data={[
+                                { value: '20', label: '20 รายการ' },
+                                { value: '50', label: '50 รายการ' },
+                                { value: '100', label: '100 รายการ' },
+                            ]}
+                            size="xs"
+                            radius="md"
+                            style={{ width: 130 }}
+                            allowDeselect={false}
+                        />
+                    </Group>
+                </Group>
+
                 {/* Table */}
                 <ScrollArea>
                     <div className="ald-table-wrap">
-                        <Table verticalSpacing="xs" horizontalSpacing="sm" striped={false}>
+                        <Table verticalSpacing="xs" horizontalSpacing="sm" striped={false} ref={tableRef} style={{ tableLayout: 'fixed' }}>
                             <Table.Thead>
                                 <Table.Tr>
-                                    <Table.Th>เวลา</Table.Th>
-                                    <Table.Th>ผู้ใช้</Table.Th>
-                                    <Table.Th>การกระทำ</Table.Th>
-                                    <Table.Th>หน้า</Table.Th>
-                                    <Table.Th>Build</Table.Th>
-                                    <Table.Th>รายละเอียด</Table.Th>
+                                    {['เวลา', 'ผู้ใช้', 'การกระทำ', 'หน้า', 'Build', 'ชื่อบริษัท', 'รายละเอียด'].map((h, i) => (
+                                        <Table.Th key={h} style={{ position: 'relative' }}>
+                                            {h}
+                                            <span
+                                                className="ald-resize-handle"
+                                                onMouseDown={(e) => onResizeMouseDown(e, i)}
+                                            />
+                                        </Table.Th>
+                                    ))}
                                 </Table.Tr>
                             </Table.Thead>
                             <Table.Tbody>
@@ -430,13 +488,16 @@ export default function ActivityLogDashboard() {
                                                 <Text size="xs" ff="monospace" c="dimmed">{log.build || '-'}</Text>
                                             </Table.Td>
                                             <Table.Td>
-                                                <Text size="xs" lineClamp={1} style={{ maxWidth: 260 }}>{log.description || '-'}</Text>
+                                                <Text size="xs" style={{ wordBreak: 'break-word' }}>{log.company_name || '-'}</Text>
+                                            </Table.Td>
+                                            <Table.Td>
+                                                <Text size="xs" style={{ wordBreak: 'break-word' }}>{log.description || '-'}</Text>
                                             </Table.Td>
                                         </Table.Tr>
                                     )
                                 }) : (
                                     <Table.Tr>
-                                        <Table.Td colSpan={6}>
+                                        <Table.Td colSpan={7}>
                                             <Center py={40}>
                                                 <Stack align="center" gap="xs">
                                                     <Text size="2rem">📋</Text>
@@ -452,24 +513,29 @@ export default function ActivityLogDashboard() {
                 </ScrollArea>
 
                 {/* Pagination */}
-                {totalPages > 1 && (
-                    <div className="ald-pager">
-                        <button className="ald-pager-btn" disabled={page <= 1} onClick={() => setPage(page - 1)}>‹</button>
-                        {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
-                            const start = Math.max(1, Math.min(page - 2, totalPages - 4))
-                            const num = start + i
-                            if (num > totalPages) return null
-                            return (
-                                <button
-                                    key={num}
-                                    className={`ald-pager-btn ${num === page ? 'active' : ''}`}
-                                    onClick={() => setPage(num)}
-                                >{num}</button>
-                            )
-                        })}
-                        <Text size="xs" c="dimmed" mx={4}>/ {totalPages}</Text>
-                        <button className="ald-pager-btn" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>›</button>
-                    </div>
+                {totalPages >= 1 && (
+                    <Group justify="space-between" align="center" mt="md" wrap="wrap">
+                        <Text size="xs" c="dimmed">
+                            แสดง {((page - 1) * limit) + 1}–{Math.min(page * limit, total)} จาก {total} รายการ
+                        </Text>
+                        <div className="ald-pager">
+                            <button className="ald-pager-btn" disabled={page <= 1} onClick={() => setPage(page - 1)}>‹</button>
+                            {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                                const start = Math.max(1, Math.min(page - 2, totalPages - 4))
+                                const num = start + i
+                                if (num > totalPages) return null
+                                return (
+                                    <button
+                                        key={num}
+                                        className={`ald-pager-btn ${num === page ? 'active' : ''}`}
+                                        onClick={() => setPage(num)}
+                                    >{num}</button>
+                                )
+                            })}
+                            <Text size="xs" c="dimmed" mx={4}>/ {totalPages}</Text>
+                            <button className="ald-pager-btn" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>›</button>
+                        </div>
+                    </Group>
                 )}
             </Paper>
         </div>

@@ -334,7 +334,7 @@ router.get('/session-history', async (req, res) => {
        FROM user_sessions us
        LEFT JOIN users u ON us.user_id = u.id
        WHERE DATE(us.login_at) = ?
-       ORDER BY us.username, us.login_at ASC`,
+       ORDER BY us.username, us.login_at DESC`,
       [date]
     )
 

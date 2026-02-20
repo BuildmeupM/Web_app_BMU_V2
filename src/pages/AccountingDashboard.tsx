@@ -39,6 +39,11 @@ import {
 import monthlyTaxDataService from '../services/monthlyTaxDataService'
 import type { MonthlyTaxData } from '../services/monthlyTaxDataService'
 import { getCurrentTaxMonth } from '../utils/taxMonthUtils'
+import {
+    BuildingIcon, ClipboardIcon, ChartIcon, TrophyIcon,
+    UsersIcon, GoldMedalIcon, SilverMedalIcon, BronzeMedalIcon,
+    PieChartIcon
+} from '../components/AccountingIcons'
 import './AccountingDashboard.css'
 
 // ═══════════════════════════════════════════════════
@@ -178,7 +183,7 @@ function StatusBarChart({ data, title }: { data: StatusCount[]; title: string })
             className="acct-glass-card"
         >
             <Group gap={8} mb="md">
-                <div className="acct-section-icon">📊</div>
+                <div className="acct-section-icon"><ChartIcon /></div>
                 <Text size="sm" fw={700} c="dark">{title}</Text>
             </Group>
             <ResponsiveContainer width="100%" height={Math.max(data.length * 38, 200)}>
@@ -388,7 +393,7 @@ function ServiceTab({ data }: { data: MonthlyTaxData[] }) {
         return { text: 'ควรปรับปรุง', color: '#f44336' }
     }
     const getCorrBg = (p: number) => p <= 25 ? '#e8f5e9' : p <= 50 ? '#fff3e0' : '#ffebee'
-    const medals = ['🥇', '🥈', '🥉']
+    const medals = [<GoldMedalIcon key="gold" />, <SilverMedalIcon key="silver" />, <BronzeMedalIcon key="bronze" />]
 
     // Unified orange/white theme
     const O = '#ff6b35' // primary orange
@@ -397,7 +402,7 @@ function ServiceTab({ data }: { data: MonthlyTaxData[] }) {
         <Stack gap="lg">
             {/* ═══ Section 1: สถานะลูกค้า ═══ */}
             <Paper p={{ base: 'sm', md: 'lg' }} radius={16} className="acct-glass-card acct-animate acct-animate-1">
-                <Group gap={8} mb="md"><div className="acct-section-icon">🏢</div><Text size="md" fw={700} c="dark">สถานะลูกค้าทั้งหมด (รายเดือน)</Text></Group>
+                <Group gap={8} mb="md"><div className="acct-section-icon"><BuildingIcon /></div><Text size="md" fw={700} c="dark">สถานะลูกค้าทั้งหมด (รายเดือน)</Text></Group>
                 <SimpleGrid cols={{ base: 1, sm: 3 }}>
                     <div className="acct-hero-card">
                         <Text size="xs" c="gray.6" fw={500}>รายเดือน</Text>
@@ -420,7 +425,7 @@ function ServiceTab({ data }: { data: MonthlyTaxData[] }) {
             {/* ═══ Section 2: สรุป WHT + VAT + ความคืบหน้า ═══ */}
             <SimpleGrid cols={{ base: 1, md: 3 }} className="acct-animate acct-animate-2">
                 <div className="acct-summary-card">
-                    <Group gap={8} mb="sm"><div className="acct-section-icon">📋</div><Text size="md" fw={700} c={O}>สรุป WHT</Text></Group>
+                    <Group gap={8} mb="sm"><div className="acct-section-icon"><ClipboardIcon /></div><Text size="md" fw={700} c={O}>สรุป WHT</Text></Group>
                     <Stack gap="xs">
                         <Group justify="space-between"><Text size="sm" c="gray.7" fw={500}>งานทั้งหมด</Text><Text size="lg" fw={800} c="dark">{whtTotal}</Text></Group>
                         <Divider />
@@ -430,7 +435,7 @@ function ServiceTab({ data }: { data: MonthlyTaxData[] }) {
                     </Stack>
                 </div>
                 <div className="acct-summary-card">
-                    <Group gap={8} mb="sm"><div className="acct-section-icon">📈</div><Text size="md" fw={700} c={O}>สรุป VAT</Text></Group>
+                    <Group gap={8} mb="sm"><div className="acct-section-icon"><ChartIcon /></div><Text size="md" fw={700} c={O}>สรุป VAT</Text></Group>
                     <Stack gap="xs">
                         <Group justify="space-between"><Text size="sm" c="gray.7" fw={500}>งานทั้งหมด</Text><Text size="lg" fw={800} c="dark">{vatTotal}</Text></Group>
                         <Divider />
@@ -440,7 +445,7 @@ function ServiceTab({ data }: { data: MonthlyTaxData[] }) {
                     </Stack>
                 </div>
                 <div className="acct-summary-card">
-                    <Group gap={8} mb="md"><div className="acct-section-icon">📊</div><Text size="md" fw={700} c={O}>ความคืบหน้า</Text></Group>
+                    <Group gap={8} mb="md"><div className="acct-section-icon"><PieChartIcon /></div><Text size="md" fw={700} c={O}>ความคืบหน้า</Text></Group>
 
                     {/* Dual ring progress */}
                     <Group justify="center" gap="xl" mb="md" wrap="wrap">
@@ -510,7 +515,7 @@ function ServiceTab({ data }: { data: MonthlyTaxData[] }) {
             {/* ═══ Section 3: 3 อันดับแรก WHT + VAT ═══ */}
             <SimpleGrid cols={{ base: 1, md: 2 }} className="acct-animate acct-animate-3">
                 <Paper p={{ base: 'sm', md: 'lg' }} radius={16} className="acct-glass-card">
-                    <Group gap={8} mb="sm"><div className="acct-section-icon">🏆</div><Text size="md" fw={700} c="dark">3 อันดับแรกของ WHT</Text></Group>
+                    <Group gap={8} mb="sm"><div className="acct-section-icon"><TrophyIcon /></div><Text size="md" fw={700} c="dark">3 อันดับแรกของ WHT</Text></Group>
                     <Stack gap="sm">
                         {top3Wht.map((emp, i) => {
                             const rank = getRank(emp.whtPct, emp.whtCorrPct)
@@ -543,7 +548,7 @@ function ServiceTab({ data }: { data: MonthlyTaxData[] }) {
                 </Paper>
 
                 <Paper p={{ base: 'sm', md: 'lg' }} radius={16} className="acct-glass-card">
-                    <Group gap={8} mb="sm"><div className="acct-section-icon">🏆</div><Text size="md" fw={700} c="dark">3 อันดับแรกของ VAT</Text></Group>
+                    <Group gap={8} mb="sm"><div className="acct-section-icon"><TrophyIcon /></div><Text size="md" fw={700} c="dark">3 อันดับแรกของ VAT</Text></Group>
                     <Stack gap="sm">
                         {top3Vat.map((emp, i) => {
                             const rank = getRank(emp.vatPct, emp.vatCorrPct)
@@ -579,7 +584,7 @@ function ServiceTab({ data }: { data: MonthlyTaxData[] }) {
             {/* ═══ Section 4: สถานะงาน WHT + VAT ═══ */}
             <SimpleGrid cols={{ base: 1, md: 2 }} className="acct-animate acct-animate-4">
                 <Paper p={{ base: 'sm', md: 'lg' }} radius={16} className="acct-glass-card">
-                    <Group gap={8} mb="sm"><div className="acct-section-icon">📋</div><Box><Text size="sm" fw={700} c="dark">สถานะงานทั้งหมด</Text><Text size="xs" c="gray.5">ภาษีหัก ณ ที่จ่าย (WHT)</Text></Box></Group>
+                    <Group gap={8} mb="sm"><div className="acct-section-icon"><ClipboardIcon /></div><Box><Text size="sm" fw={700} c="dark">สถานะงานทั้งหมด</Text><Text size="xs" c="gray.5">ภาษีหัก ณ ที่จ่าย (WHT)</Text></Box></Group>
                     <Stack gap={0}>
                         {pndStatuses.map((s) => (
                             <div key={s.status} className="acct-status-row" onClick={() => setDetailModal({ status: s.status, label: s.label, color: s.color, type: 'wht' })}>
@@ -591,7 +596,7 @@ function ServiceTab({ data }: { data: MonthlyTaxData[] }) {
                     </Stack>
                 </Paper>
                 <Paper p={{ base: 'sm', md: 'lg' }} radius={16} className="acct-glass-card">
-                    <Group gap={8} mb="sm"><div className="acct-section-icon">📋</div><Box><Text size="sm" fw={700} c="dark">สถานะงานทั้งหมด</Text><Text size="xs" c="gray.5">ภาษีมูลค่าเพิ่ม (VAT)</Text></Box></Group>
+                    <Group gap={8} mb="sm"><div className="acct-section-icon"><ClipboardIcon /></div><Box><Text size="sm" fw={700} c="dark">สถานะงานทั้งหมด</Text><Text size="xs" c="gray.5">ภาษีมูลค่าเพิ่ม (VAT)</Text></Box></Group>
                     <Stack gap={0}>
                         {pp30Statuses.map((s) => (
                             <div key={s.status} className="acct-status-row" onClick={() => setDetailModal({ status: s.status, label: s.label, color: s.color, type: 'vat' })}>
@@ -606,7 +611,7 @@ function ServiceTab({ data }: { data: MonthlyTaxData[] }) {
 
             {/* ═══ Section 5: ตารางพนักงาน ═══ */}
             <Paper p={{ base: 'sm', md: 'lg' }} radius={16} className="acct-glass-card acct-animate acct-animate-5">
-                <Group gap={8} mb="md"><div className="acct-section-icon">👥</div><Box><Text size="md" fw={700} c="dark">สถานะงาน WHT และ VAT รายบุคคล</Text><Text size="xs" c="gray.5">สรุปผลงานและการแก้ไขของพนักงานแต่ละคน</Text></Box></Group>
+                <Group gap={8} mb="md"><div className="acct-section-icon"><UsersIcon /></div><Box><Text size="md" fw={700} c="dark">สถานะงาน WHT และ VAT รายบุคคล</Text><Text size="xs" c="gray.5">สรุปผลงานและการแก้ไขของพนักงานแต่ละคน</Text></Box></Group>
                 <ScrollArea>
                     <div className="acct-table-wrapper">
                         <Table withColumnBorders style={{ minWidth: 850 }}>

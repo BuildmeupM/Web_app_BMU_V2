@@ -49,6 +49,7 @@ import {
     type SessionSummary,
     type SessionHistoryUser,
 } from '../services/loginActivityService'
+import './LoginActivity.css'
 
 /* ─────────────── Failure Reason Labels ─────────────── */
 const failureReasonLabels: Record<string, string> = {
@@ -712,6 +713,41 @@ export default function LoginActivity() {
     const [deleting, setDeleting] = useState(false)
     const [externalIpModalOpen, setExternalIpModalOpen] = useState(false)
     const [externalIpAlerted, setExternalIpAlerted] = useState(false)
+
+    // ─── Column resize ───
+    const tableRef = useRef<HTMLTableElement>(null)
+    const resizingCol = useRef<{ idx: number; startX: number; startW: number } | null>(null)
+
+    const onResizeMouseDown = (e: React.MouseEvent, colIdx: number) => {
+        e.preventDefault()
+        const th = (e.target as HTMLElement).closest('th') as HTMLTableCellElement
+        if (!th) return
+        resizingCol.current = { idx: colIdx, startX: e.clientX, startW: th.offsetWidth }
+
+        const onMove = (ev: MouseEvent) => {
+            if (!resizingCol.current || !tableRef.current) return
+            const delta = ev.clientX - resizingCol.current.startX
+            const newW = Math.max(60, resizingCol.current.startW + delta)
+            const ths = tableRef.current.querySelectorAll('thead th')
+            const target = ths[resizingCol.current.idx] as HTMLElement
+            if (target) {
+                target.style.width = `${newW}px`
+                target.style.minWidth = `${newW}px`
+            }
+        }
+        const onUp = () => {
+            resizingCol.current = null
+            document.removeEventListener('mousemove', onMove)
+            document.removeEventListener('mouseup', onUp)
+            document.body.style.cursor = ''
+            document.body.style.userSelect = ''
+        }
+        document.body.style.cursor = 'col-resize'
+        document.body.style.userSelect = 'none'
+        document.addEventListener('mousemove', onMove)
+        document.addEventListener('mouseup', onUp)
+    }
+
     const [limit, setLimit] = useState(15)
     const [sortBy, setSortBy] = useState<string>('attempted_at')
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
@@ -1292,10 +1328,10 @@ export default function LoginActivity() {
                             </Stack>
                         ) : (
                             <>
-                                <Table striped highlightOnHover>
+                                <Table striped highlightOnHover ref={tableRef} style={{ tableLayout: 'fixed' }}>
                                     <Table.Thead>
                                         <Table.Tr>
-                                            <Table.Th style={{ width: 40 }}>
+                                            <Table.Th style={{ width: 40, position: 'relative' }}>
                                                 <Checkbox
                                                     size="xs"
                                                     checked={!!isAllSelected}
@@ -1307,9 +1343,10 @@ export default function LoginActivity() {
                                                     onChange={toggleSelectAll}
                                                     aria-label="เลือกทั้งหมด"
                                                 />
+                                                <span className="ald-resize-handle" onMouseDown={(e) => onResizeMouseDown(e, 0)} />
                                             </Table.Th>
                                             <Table.Th
-                                                style={{ cursor: 'pointer', userSelect: 'none' }}
+                                                style={{ cursor: 'pointer', userSelect: 'none', position: 'relative' }}
                                                 onClick={() => handleSort('attempted_at')}
                                             >
                                                 <Group gap={4} wrap="nowrap">
@@ -1320,9 +1357,10 @@ export default function LoginActivity() {
                                                         <TbArrowsSort size={14} color="gray" />
                                                     )}
                                                 </Group>
+                                                <span className="ald-resize-handle" onMouseDown={(e) => onResizeMouseDown(e, 1)} />
                                             </Table.Th>
                                             <Table.Th
-                                                style={{ cursor: 'pointer', userSelect: 'none' }}
+                                                style={{ cursor: 'pointer', userSelect: 'none', position: 'relative' }}
                                                 onClick={() => handleSort('username')}
                                             >
                                                 <Group gap={4} wrap="nowrap">
@@ -1333,9 +1371,10 @@ export default function LoginActivity() {
                                                         <TbArrowsSort size={14} color="gray" />
                                                     )}
                                                 </Group>
+                                                <span className="ald-resize-handle" onMouseDown={(e) => onResizeMouseDown(e, 2)} />
                                             </Table.Th>
                                             <Table.Th
-                                                style={{ cursor: 'pointer', userSelect: 'none' }}
+                                                style={{ cursor: 'pointer', userSelect: 'none', position: 'relative' }}
                                                 onClick={() => handleSort('ip_address')}
                                             >
                                                 <Group gap={4} wrap="nowrap">
@@ -1346,9 +1385,10 @@ export default function LoginActivity() {
                                                         <TbArrowsSort size={14} color="gray" />
                                                     )}
                                                 </Group>
+                                                <span className="ald-resize-handle" onMouseDown={(e) => onResizeMouseDown(e, 3)} />
                                             </Table.Th>
                                             <Table.Th
-                                                style={{ cursor: 'pointer', userSelect: 'none' }}
+                                                style={{ cursor: 'pointer', userSelect: 'none', position: 'relative' }}
                                                 onClick={() => handleSort('success')}
                                             >
                                                 <Group gap={4} wrap="nowrap">
@@ -1359,8 +1399,12 @@ export default function LoginActivity() {
                                                         <TbArrowsSort size={14} color="gray" />
                                                     )}
                                                 </Group>
+                                                <span className="ald-resize-handle" onMouseDown={(e) => onResizeMouseDown(e, 4)} />
                                             </Table.Th>
-                                            <Table.Th>สาเหตุ</Table.Th>
+                                            <Table.Th style={{ position: 'relative' }}>
+                                                สาเหตุ
+                                                <span className="ald-resize-handle" onMouseDown={(e) => onResizeMouseDown(e, 5)} />
+                                            </Table.Th>
                                             <Table.Th style={{ width: 50 }}></Table.Th>
                                         </Table.Tr>
                                     </Table.Thead>
@@ -1392,33 +1436,33 @@ export default function LoginActivity() {
                                                         />
                                                     </Table.Td>
                                                     <Table.Td>
-                                                        <Text size="xs">{formatDateTime(attempt.attempted_at)}</Text>
+                                                        <Text size="xs" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{formatDateTime(attempt.attempted_at)}</Text>
                                                     </Table.Td>
-                                                    <Table.Td>
-                                                        <Group gap="xs">
-                                                            <Avatar size="xs" radius="xl" color="orange">
+                                                    <Table.Td style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                        <Group gap="xs" wrap="nowrap">
+                                                            <Avatar size="xs" radius="xl" color="orange" style={{ flexShrink: 0 }}>
                                                                 {attempt.username.charAt(0).toUpperCase()}
                                                             </Avatar>
-                                                            <div>
-                                                                <Text size="sm" fw={500}>
+                                                            <div style={{ minWidth: 0 }}>
+                                                                <Text size="sm" fw={500} truncate>
                                                                     {attempt.nick_name || attempt.user_name || attempt.username}
                                                                 </Text>
                                                                 {(attempt.nick_name || attempt.user_name) && (
-                                                                    <Text size="xs" c="dimmed">
+                                                                    <Text size="xs" c="dimmed" truncate>
                                                                         @{attempt.username}
                                                                     </Text>
                                                                 )}
                                                             </div>
                                                         </Group>
                                                     </Table.Td>
-                                                    <Table.Td>
+                                                    <Table.Td style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                                         {attempt.ip_address ? (
                                                             isInternalIP(attempt.ip_address) ? (
-                                                                <Group gap={4}>
-                                                                    <Text size="xs" c="dimmed">
+                                                                <Group gap={4} wrap="nowrap">
+                                                                    <Text size="xs" c="dimmed" truncate>
                                                                         {attempt.ip_address}
                                                                     </Text>
-                                                                    <Badge size="xs" variant="light" color="green">
+                                                                    <Badge size="xs" variant="light" color="green" style={{ flexShrink: 0 }}>
                                                                         ภายใน
                                                                     </Badge>
                                                                 </Group>
@@ -1429,13 +1473,14 @@ export default function LoginActivity() {
                                                                     style={{
                                                                         backgroundColor: 'var(--mantine-color-red-0)',
                                                                         border: '1px solid var(--mantine-color-red-3)',
+                                                                        overflow: 'hidden'
                                                                     }}
                                                                 >
-                                                                    <Group gap={4}>
-                                                                        <Text size="xs" c="red" fw={600}>
+                                                                    <Group gap={4} wrap="nowrap">
+                                                                        <Text size="xs" c="red" fw={600} truncate>
                                                                             {attempt.ip_address}
                                                                         </Text>
-                                                                        <Badge size="xs" variant="filled" color="red">
+                                                                        <Badge size="xs" variant="filled" color="red" style={{ flexShrink: 0 }}>
                                                                             ภายนอก
                                                                         </Badge>
                                                                     </Group>
@@ -1467,8 +1512,8 @@ export default function LoginActivity() {
                                                             </Badge>
                                                         )}
                                                     </Table.Td>
-                                                    <Table.Td>
-                                                        <Text size="xs" c="dimmed">
+                                                    <Table.Td style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                        <Text size="xs" c="dimmed" style={{ wordBreak: 'break-word' }}>
                                                             {attempt.failure_reason
                                                                 ? failureReasonLabels[attempt.failure_reason] ||
                                                                 attempt.failure_reason

@@ -36,6 +36,8 @@ export default function TaxInspection() {
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(20)
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [sortBy, setSortBy] = useState<string>('build')
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
   const [filters, setFilters] = useState<FilterValues>({
     filterType: 'build',
     filterMode: 'all',
@@ -75,16 +77,22 @@ export default function TaxInspection() {
 
   // Fetch data for pagination - filter by tax_inspection_responsible and tax month
   const { data: taxDataResponse, isLoading, error } = useQuery(
-    ['monthly-tax-data', 'tax-inspection', currentPage, itemsPerPage, filters, employeeId, currentTaxMonth.year, currentTaxMonth.month],
+    ['monthly-tax-data', 'tax-inspection', currentPage, itemsPerPage, filters, employeeId, currentTaxMonth.year, currentTaxMonth.month, sortBy, sortOrder],
     () =>
       monthlyTaxDataService.getList({
         page: currentPage,
         limit: itemsPerPage,
         build: filters.filterType === 'build' && filters.searchValue ? filters.searchValue : undefined,
         search: filters.filterType === 'build' && filters.searchValue ? filters.searchValue : undefined,
-        year: currentTaxMonth.year.toString(), // Filter by tax month year
-        month: currentTaxMonth.month.toString(), // Filter by tax month (ย้อนหลัง 1 เดือน)
-        tax_inspection_responsible: employeeId || undefined, // Filter by logged-in user's employee_id
+        year: currentTaxMonth.year.toString(),
+        month: currentTaxMonth.month.toString(),
+        tax_inspection_responsible: employeeId || undefined,
+        // ✅ Server-side status filtering (fixes pagination + filter bug)
+        pnd_status: filters.whtStatus?.length > 0 ? filters.whtStatus.join(',') : undefined,
+        pp30_status: filters.pp30Status?.length > 0 ? filters.pp30Status.join(',') : undefined,
+        pp30_payment_status: filters.pp30PaymentStatus?.length > 0 ? filters.pp30PaymentStatus.join(',') : undefined,
+        sortBy,
+        sortOrder,
       }),
     {
       keepPreviousData: true,
@@ -139,6 +147,16 @@ export default function TaxInspection() {
   const handleFilterChange = (newFilters: FilterValues) => {
     setFilters(newFilters)
     setCurrentPage(1) // Reset to first page when filters change
+  }
+
+  const handleSortChange = (field: string) => {
+    if (sortBy === field) {
+      setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortBy(field)
+      setSortOrder('asc')
+    }
+    setCurrentPage(1) // Reset to first page when sort changes
   }
 
   // Handle refresh from FilterSection - ใช้ queryClient.refetchQueries โดยตรง
@@ -306,6 +324,9 @@ export default function TaxInspection() {
           }}
           page={currentPage}
           limit={itemsPerPage}
+          sortBy={sortBy}
+          sortOrder={sortOrder}
+          onSortChange={handleSortChange}
         />
 
         {/* Pagination */}

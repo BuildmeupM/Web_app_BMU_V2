@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
   TextInput,
   PasswordInput,
@@ -55,6 +55,28 @@ const keyframesCSS = `
   25%      { transform: translateY(-6px) rotateY(90deg); }
   50%      { transform: translateY(-12px) rotateY(180deg); }
   75%      { transform: translateY(-6px) rotateY(270deg); }
+}
+/* ── Minimal Draw SVG Notification ── */
+@keyframes svgDraw {
+  to { stroke-dashoffset: 0; }
+}
+@keyframes svgShake {
+  10%,90% { transform: translateX(-3px); }
+  20%,80% { transform: translateX(5px); }
+  30%,50%,70% { transform: translateX(-7px); }
+  40%,60% { transform: translateX(7px); }
+}
+@keyframes svgOverlayIn {
+  0% { opacity:0; transform: translate(-50%,-50%) scale(.7); }
+  100% { opacity:1; transform: translate(-50%,-50%) scale(1); }
+}
+@keyframes svgOverlayOut {
+  0% { opacity:1; transform: translate(-50%,-50%) scale(1); }
+  100% { opacity:0; transform: translate(-50%,-50%) scale(.85); }
+}
+@keyframes svgMsgIn {
+  0% { opacity:0; transform: translateY(8px); }
+  100% { opacity:1; transform: translateY(0); }
 }
 `
 
@@ -505,6 +527,8 @@ export default function Login() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [loginStatus, setLoginStatus] = useState<'ok' | 'err' | null>(null)
+  const [loginMessage, setLoginMessage] = useState('')
   const { login, isAuthenticated } = useAuthStore()
   const navigate = useNavigate()
 
@@ -515,35 +539,51 @@ export default function Login() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+    setLoginStatus(null)
     setLoading(true)
 
     if (!username || !password) {
       setError('กรุณากรอกชื่อผู้ใช้และรหัสผ่าน')
+      setLoginStatus('err')
+      setLoginMessage('กรุณากรอกชื่อผู้ใช้และรหัสผ่าน')
       setLoading(false)
+      setTimeout(() => setLoginStatus(null), 3000)
       return
     }
 
     try {
       const response = await authService.login({ username, password })
       if (response.data?.user && response.data?.token) {
+        setLoginStatus('ok')
+        setLoginMessage('เข้าสู่ระบบสำเร็จ')
         login(response.data.user, response.data.token, response.data.sessionId)
-        navigate('/dashboard', { replace: true })
+        setTimeout(() => {
+          navigate('/dashboard', { replace: true })
+        }, 1500)
       } else {
         setError('เกิดข้อผิดพลาด: ไม่ได้รับข้อมูล user หรือ token')
+        setLoginStatus('err')
+        setLoginMessage('เกิดข้อผิดพลาด: ไม่ได้รับข้อมูล user หรือ token')
+        setTimeout(() => setLoginStatus(null), 3000)
       }
     } catch (err: any) {
       console.error('Login error:', err)
+      let msg = 'เกิดข้อผิดพลาด'
       if (err.code === 'ECONNREFUSED' || err.message?.includes('Network Error')) {
-        setError('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้')
+        msg = 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้'
       } else if (err.response?.status === 423) {
-        setError(err.response?.data?.message || 'บัญชีถูกล็อคชั่วคราว')
+        msg = err.response?.data?.message || 'บัญชีถูกล็อคชั่วคราว'
       } else if (err.response?.status === 401 || err.response?.status === 403) {
-        setError(err.response?.data?.message || 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง')
+        msg = err.response?.data?.message || 'ชื่อผู้ใช้งานหรือรหัสผ่านไม่ถูกต้อง'
       } else if (err.response?.status === 400) {
-        setError(err.response?.data?.message || 'ข้อมูลไม่ถูกต้อง')
+        msg = err.response?.data?.message || 'ข้อมูลไม่ถูกต้อง'
       } else {
-        setError(err.response?.data?.message || 'เกิดข้อผิดพลาด')
+        msg = err.response?.data?.message || 'เกิดข้อผิดพลาด'
       }
+      setError(msg)
+      setLoginStatus('err')
+      setLoginMessage(msg)
+      setTimeout(() => setLoginStatus(null), 3000)
     } finally {
       setLoading(false)
     }
@@ -644,7 +684,7 @@ export default function Login() {
 
           <form onSubmit={handleSubmit}>
             <Stack gap="md">
-              {error && (
+              {error && !loginStatus && (
                 <Alert icon={<TbAlertCircle size={18} />} color="red" radius="lg" variant="light">
                   {error}
                 </Alert>
@@ -699,6 +739,104 @@ export default function Login() {
           </Text>
         </div>
       </div>
+
+      {/* ── Minimal Draw SVG Notification Overlay ── */}
+      {loginStatus && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'rgba(0,0,0,0.35)',
+            backdropFilter: 'blur(4px)',
+            WebkitBackdropFilter: 'blur(4px)',
+          }}
+          onClick={() => loginStatus === 'err' && setLoginStatus(null)}
+        >
+          <div
+            style={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%,-50%)',
+              background: '#fff',
+              borderRadius: 24,
+              padding: '40px 48px 32px',
+              boxShadow: '0 25px 60px rgba(0,0,0,0.15)',
+              textAlign: 'center',
+              animation: 'svgOverlayIn .4s cubic-bezier(.175,.885,.32,1.275) forwards',
+              minWidth: 260,
+            }}
+          >
+            {/* SVG Animation */}
+            <svg
+              width="90"
+              height="90"
+              viewBox="0 0 100 100"
+              style={{
+                margin: '0 auto 16px',
+                display: 'block',
+                animation: loginStatus === 'err' ? 'svgShake .45s .65s both' : undefined,
+              }}
+            >
+              {/* Ring */}
+              <circle
+                cx="50" cy="50" r="42"
+                fill="none"
+                stroke={loginStatus === 'ok' ? '#20c997' : '#ff6b6b'}
+                strokeWidth="3.5"
+                strokeLinecap="round"
+                strokeDasharray="260"
+                strokeDashoffset="260"
+                style={{ animation: 'svgDraw .7s ease-out forwards' }}
+              />
+              {/* Check or X mark */}
+              {loginStatus === 'ok' ? (
+                <path
+                  d="M32 52 L44 64 L68 38"
+                  fill="none"
+                  stroke="#20c997"
+                  strokeWidth="5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeDasharray="60"
+                  strokeDashoffset="60"
+                  style={{ animation: 'svgDraw .4s .5s ease-out forwards' }}
+                />
+              ) : (
+                <path
+                  d="M38 38 L62 62 M62 38 L38 62"
+                  fill="none"
+                  stroke="#ff6b6b"
+                  strokeWidth="5"
+                  strokeLinecap="round"
+                  strokeDasharray="60"
+                  strokeDashoffset="60"
+                  style={{ animation: 'svgDraw .4s .5s ease-out forwards' }}
+                />
+              )}
+            </svg>
+
+            {/* Message */}
+            <p
+              style={{
+                margin: 0,
+                fontSize: 16,
+                fontWeight: 500,
+                color: loginStatus === 'ok' ? '#20c997' : '#ff6b6b',
+                opacity: 0,
+                animation: 'svgMsgIn .4s .7s ease-out forwards',
+                fontFamily: "'Kanit', sans-serif",
+              }}
+            >
+              {loginMessage}
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

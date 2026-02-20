@@ -180,6 +180,10 @@ const monthlyTaxDataService = {
     document_entry_responsible?: string
     // Filter by tax registration status
     tax_registration_status?: string
+    // Filter by tax status fields
+    pnd_status?: string
+    pp30_status?: string
+    pp30_payment_status?: string
   }): Promise<MonthlyTaxDataListResponse> {
     const response = await api.get<MonthlyTaxDataListResponse>('/monthly-tax-data', { params })
     return response.data

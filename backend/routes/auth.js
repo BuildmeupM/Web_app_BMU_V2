@@ -110,7 +110,7 @@ router.post('/login', loginRateLimiter, async (req, res) => {
       })
       return res.status(401).json({
         success: false,
-        message: 'Invalid username or password',
+        message: 'ชื่อผู้ใช้งานหรือรหัสผ่านไม่ถูกต้อง',
       })
     }
 
@@ -128,7 +128,7 @@ router.post('/login', loginRateLimiter, async (req, res) => {
       })
       return res.status(403).json({
         success: false,
-        message: 'User account is inactive',
+        message: 'บัญชีผู้ใช้ถูกระงับการใช้งาน',
       })
     }
 
@@ -147,7 +147,7 @@ router.post('/login', loginRateLimiter, async (req, res) => {
       })
       return res.status(401).json({
         success: false,
-        message: 'Invalid username or password',
+        message: 'ชื่อผู้ใช้งานหรือรหัสผ่านไม่ถูกต้อง',
       })
     }
 
@@ -211,7 +211,7 @@ router.post('/login', loginRateLimiter, async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Login successful',
+      message: 'เข้าสู่ระบบสำเร็จ',
       data: {
         user: userResponse,
         token,
@@ -222,7 +222,7 @@ router.post('/login', loginRateLimiter, async (req, res) => {
     console.error('Login error:', error)
     res.status(500).json({
       success: false,
-      message: 'Internal server error',
+      message: 'เกิดข้อผิดพลาดภายในระบบ',
     })
   }
 })
@@ -264,13 +264,13 @@ router.post('/logout', authenticateToken, async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Logout successful',
+      message: 'ออกจากระบบสำเร็จ',
     })
   } catch (error) {
     console.error('Logout error:', error)
     res.status(500).json({
       success: false,
-      message: 'Internal server error',
+      message: 'เกิดข้อผิดพลาดภายในระบบ',
     })
   }
 })
@@ -300,7 +300,7 @@ router.get('/me', authenticateToken, async (req, res) => {
     console.error('Get current user error:', error)
     res.status(500).json({
       success: false,
-      message: 'Internal server error',
+      message: 'เกิดข้อผิดพลาดภายในระบบ',
     })
   }
 })
@@ -319,14 +319,14 @@ router.post('/change-password', authenticateToken, async (req, res) => {
     if (!current_password || !new_password) {
       return res.status(400).json({
         success: false,
-        message: 'Current password and new password are required',
+        message: 'กรุณากรอกรหัสผ่านปัจจุบันและรหัสผ่านใหม่',
       })
     }
 
     if (new_password.length < 6) {
       return res.status(400).json({
         success: false,
-        message: 'Password must be at least 6 characters',
+        message: 'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร',
       })
     }
 
@@ -339,7 +339,7 @@ router.post('/change-password', authenticateToken, async (req, res) => {
     if (users.length === 0) {
       return res.status(404).json({
         success: false,
-        message: 'User not found',
+        message: 'ไม่พบผู้ใช้งาน',
       })
     }
 
@@ -351,7 +351,7 @@ router.post('/change-password', authenticateToken, async (req, res) => {
     if (!isPasswordValid) {
       return res.status(401).json({
         success: false,
-        message: 'Current password is incorrect',
+        message: 'รหัสผ่านปัจจุบันไม่ถูกต้อง',
       })
     }
 
@@ -401,7 +401,7 @@ router.post('/change-password', authenticateToken, async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Password changed successfully',
+      message: 'เปลี่ยนรหัสผ่านสำเร็จ',
     })
   } catch (error) {
     console.error('Error changing password:', error)

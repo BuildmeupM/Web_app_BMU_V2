@@ -167,6 +167,9 @@ interface TaxStatusTableProps {
   limit?: number
   onPaginationChange?: (pagination: { total: number; totalPages: number; page: number; limit: number }) => void
   filters?: FilterValues
+  sortBy?: string
+  sortOrder?: 'asc' | 'desc'
+  onSortChange?: (field: string) => void
 }
 
 // สีสำหรับแต่ละสถานะ
@@ -250,6 +253,9 @@ const TaxStatusTable = memo(function TaxStatusTable({
   limit = 20,
   onPaginationChange,
   filters,
+  sortBy = 'build',
+  sortOrder = 'asc',
+  onSortChange,
 }: TaxStatusTableProps) {
   const { user, _hasHydrated } = useAuthStore()
   const employeeId = accounting_responsible || user?.employee_id || null
@@ -284,15 +290,21 @@ const TaxStatusTable = memo(function TaxStatusTable({
     isLoading,
     error,
   } = useQuery(
-    ['monthly-tax-data', 'tax-status', page, limit, employeeId, currentTaxMonth.year, currentTaxMonth.month, filters?.filterMode, filters?.whtStatus, filters?.pp30Status, filters?.pp30PaymentStatus],
+    ['monthly-tax-data', 'tax-status', page, limit, employeeId, currentTaxMonth.year, currentTaxMonth.month, filters?.filterMode, filters?.whtStatus, filters?.pp30Status, filters?.pp30PaymentStatus, sortBy, sortOrder],
     () =>
       monthlyTaxDataService.getList({
         page,
         limit,
-        year: currentTaxMonth.year.toString(), // Filter by tax month year
-        month: currentTaxMonth.month.toString(), // Filter by tax month (ย้อนหลัง 1 เดือน)
-        accounting_responsible: employeeId || undefined, // Filter by logged-in user's employee_id
-        tax_registration_status: taxRegistrationStatus, // Filter by tax registration status if filterMode is 'vat'
+        year: currentTaxMonth.year.toString(),
+        month: currentTaxMonth.month.toString(),
+        accounting_responsible: employeeId || undefined,
+        tax_registration_status: taxRegistrationStatus,
+        // ✅ Server-side status filtering
+        pnd_status: filters?.whtStatus?.length ? filters.whtStatus.join(',') : undefined,
+        pp30_status: filters?.pp30Status?.length ? filters.pp30Status.join(',') : undefined,
+        pp30_payment_status: filters?.pp30PaymentStatus?.length ? filters.pp30PaymentStatus.join(',') : undefined,
+        sortBy,
+        sortOrder,
       }),
     {
       keepPreviousData: true,
@@ -690,26 +702,8 @@ const TaxStatusTable = memo(function TaxStatusTable({
     }) || []
   }, [taxDataResponse?.data])
 
-  // ✅ Performance: Memoize filtered data to avoid unnecessary recalculations
-  const tableData = useMemo(() => {
-    let filtered = allTableData
-    if (filters?.whtStatus && filters.whtStatus.length > 0) {
-      filtered = filtered.filter((item) =>
-        item.pndStatus && filters.whtStatus?.includes(item.pndStatus)
-      )
-    }
-    if (filters?.pp30Status && filters.pp30Status.length > 0) {
-      filtered = filtered.filter((item) =>
-        item.pp30Status && filters.pp30Status?.includes(item.pp30Status)
-      )
-    }
-    if (filters?.pp30PaymentStatus && filters.pp30PaymentStatus.length > 0) {
-      filtered = filtered.filter((item) =>
-        item.pp30PaymentStatus && filters.pp30PaymentStatus?.includes(item.pp30PaymentStatus)
-      )
-    }
-    return filtered
-  }, [allTableData, filters?.whtStatus, filters?.pp30Status, filters?.pp30PaymentStatus])
+  // ✅ Status filtering is now done server-side (via API query params)
+  const tableData = allTableData
   // ✅ Performance: Memoize status badge function
   const getStatusBadge = useCallback((status: string | null) => {
     if (!status) return <Text c="dimmed">-</Text>
@@ -1034,9 +1028,17 @@ const TaxStatusTable = memo(function TaxStatusTable({
                   borderRight: '1px solid #dee2e6',
                   minWidth: 120,
                   width: 120,
+                  cursor: 'pointer',
+                  userSelect: 'none',
                 }}
+                onClick={() => onSortChange?.('build')}
               >
-                Build
+                <Group gap={4} wrap="nowrap">
+                  Build
+                  {sortBy === 'build' && (
+                    <Text size="xs" c="orange" fw={700}>{sortOrder === 'asc' ? '▲' : '▼'}</Text>
+                  )}
+                </Group>
               </Table.Th>
               <Table.Th
                 style={{
@@ -1046,15 +1048,68 @@ const TaxStatusTable = memo(function TaxStatusTable({
                   backgroundColor: '#fff',
                   borderRight: '1px solid #dee2e6',
                   minWidth: 200,
+                  cursor: 'pointer',
+                  userSelect: 'none',
                 }}
+                onClick={() => onSortChange?.('company_name')}
               >
-                ชื่อบริษัท
+                <Group gap={4} wrap="nowrap">
+                  ชื่อบริษัท
+                  {sortBy === 'company_name' && (
+                    <Text size="xs" c="orange" fw={700}>{sortOrder === 'asc' ? '▲' : '▼'}</Text>
+                  )}
+                </Group>
               </Table.Th>
-              {filters?.filterMode !== 'vat' && <Table.Th>วันที่สถานะ ภ.ง.ด.</Table.Th>}
-              {filters?.filterMode !== 'vat' && <Table.Th>สถานะ ภ.ง.ด.</Table.Th>}
-              {filters?.filterMode !== 'wht' && <Table.Th>วันที่สถานะ ภ.พ.30</Table.Th>}
-              {filters?.filterMode !== 'wht' && <Table.Th>สถานะ ภ.พ.30</Table.Th>}
-              {filters?.filterMode !== 'wht' && <Table.Th>สถานะยอดชำระ ภ.พ.30</Table.Th>}
+              {filters?.filterMode !== 'vat' && (
+                <Table.Th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => onSortChange?.('pnd_sent_for_review_date')}>
+                  <Group gap={4} wrap="nowrap">
+                    วันที่สถานะ ภ.ง.ด.
+                    {sortBy === 'pnd_sent_for_review_date' && (
+                      <Text size="xs" c="orange" fw={700}>{sortOrder === 'asc' ? '▲' : '▼'}</Text>
+                    )}
+                  </Group>
+                </Table.Th>
+              )}
+              {filters?.filterMode !== 'vat' && (
+                <Table.Th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => onSortChange?.('pnd_status')}>
+                  <Group gap={4} wrap="nowrap">
+                    สถานะ ภ.ง.ด.
+                    {sortBy === 'pnd_status' && (
+                      <Text size="xs" c="orange" fw={700}>{sortOrder === 'asc' ? '▲' : '▼'}</Text>
+                    )}
+                  </Group>
+                </Table.Th>
+              )}
+              {filters?.filterMode !== 'wht' && (
+                <Table.Th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => onSortChange?.('pp30_sent_for_review_date')}>
+                  <Group gap={4} wrap="nowrap">
+                    วันที่สถานะ ภ.พ.30
+                    {sortBy === 'pp30_sent_for_review_date' && (
+                      <Text size="xs" c="orange" fw={700}>{sortOrder === 'asc' ? '▲' : '▼'}</Text>
+                    )}
+                  </Group>
+                </Table.Th>
+              )}
+              {filters?.filterMode !== 'wht' && (
+                <Table.Th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => onSortChange?.('pp30_form')}>
+                  <Group gap={4} wrap="nowrap">
+                    สถานะ ภ.พ.30
+                    {sortBy === 'pp30_form' && (
+                      <Text size="xs" c="orange" fw={700}>{sortOrder === 'asc' ? '▲' : '▼'}</Text>
+                    )}
+                  </Group>
+                </Table.Th>
+              )}
+              {filters?.filterMode !== 'wht' && (
+                <Table.Th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => onSortChange?.('pp30_payment_status')}>
+                  <Group gap={4} wrap="nowrap">
+                    สถานะยอดชำระ ภ.พ.30
+                    {sortBy === 'pp30_payment_status' && (
+                      <Text size="xs" c="orange" fw={700}>{sortOrder === 'asc' ? '▲' : '▼'}</Text>
+                    )}
+                  </Group>
+                </Table.Th>
+              )}
               <Table.Th>ข้อมูลผู้รับผิดชอบ</Table.Th>
               <Table.Th>จัดการ</Table.Th>
             </Table.Tr>

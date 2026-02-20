@@ -743,6 +743,10 @@ router.get('/', authenticateToken, async (req, res) => {
       document_entry_responsible = '',
       // Filter by tax registration status
       tax_registration_status = '',
+      // Filter by tax status fields
+      pnd_status = '',
+      pp30_status = '',
+      pp30_payment_status = '',
     } = req.query
 
     const pageNum = parseInt(page)
@@ -825,13 +829,48 @@ router.get('/', authenticateToken, async (req, res) => {
       queryParams.push(tax_registration_status)
     }
 
+    // Filter by pnd_status (สถานะ ภ.ง.ด.) - supports comma-separated values for multi-status filtering
+    if (pnd_status) {
+      const statuses = pnd_status.split(',').map(s => s.trim()).filter(Boolean)
+      if (statuses.length > 0) {
+        whereConditions.push(`mtd.pnd_status IN (${statuses.map(() => '?').join(',')})`)
+        queryParams.push(...statuses)
+      }
+    }
+
+    // Filter by pp30_status (สถานะ ภ.พ.30) - supports comma-separated values
+    // ⚠️ pp30_status stored in pp30_form column (after migration 028)
+    if (pp30_status) {
+      const statuses = pp30_status.split(',').map(s => s.trim()).filter(Boolean)
+      if (statuses.length > 0) {
+        whereConditions.push(`mtd.pp30_form IN (${statuses.map(() => '?').join(',')})`)
+        queryParams.push(...statuses)
+      }
+    }
+
+    // Filter by pp30_payment_status (สถานะยอดชำระ ภ.พ.30) - supports comma-separated values
+    if (pp30_payment_status) {
+      const statuses = pp30_payment_status.split(',').map(s => s.trim()).filter(Boolean)
+      if (statuses.length > 0) {
+        whereConditions.push(`mtd.pp30_payment_status IN (${statuses.map(() => '?').join(',')})`)
+        queryParams.push(...statuses)
+      }
+    }
+
     const whereClause = whereConditions.length > 0
       ? 'WHERE ' + whereConditions.join(' AND ')
       : ''
 
     // Validate sortBy
-    const allowedSortFields = ['tax_year', 'tax_month', 'build', 'created_at']
-    const sortField = allowedSortFields.includes(sortBy) ? sortBy : 'tax_year'
+    const allowedSortFields = [
+      'tax_year', 'tax_month', 'build', 'created_at',
+      'company_name', 'pnd_sent_for_review_date', 'pnd_status',
+      'pp30_sent_for_review_date', 'pp30_form', 'pp30_payment_status',
+    ]
+    // Map company_name to c.company_name for SQL (it's in the clients table)
+    const sortFieldMap = { company_name: 'c.company_name' }
+    const rawSortField = allowedSortFields.includes(sortBy) ? sortBy : 'build'
+    const sortField = sortFieldMap[rawSortField] || `mtd.${rawSortField}`
     const sortDirection = sortOrder.toLowerCase() === 'asc' ? 'ASC' : 'DESC'
 
     // Get total count
@@ -948,7 +987,7 @@ router.get('/', authenticateToken, async (req, res) => {
       LEFT JOIN employees e6 ON mtd.vat_filer_current_employee_id = e6.employee_id
       LEFT JOIN employees e7 ON mtd.document_entry_responsible = e7.employee_id
       ${whereClause}
-      ORDER BY mtd.${sortField} ${sortDirection}, mtd.tax_month ${sortDirection}
+      ORDER BY ${sortField} ${sortDirection}, mtd.tax_month ${sortDirection}
       LIMIT ? OFFSET ?`,
       [...queryParams, limitNum, offset]
     )

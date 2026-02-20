@@ -501,3 +501,101 @@
         padding: 12px;
     }
 }
+
+/* ═══ SVG Icon Animations ═══ */
+
+/* Float animation for Medals */
+@keyframes acctFloat {
+
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(-3px);
+    }
+}
+
+.acct-icon-float {
+    animation: acctFloat 3s ease-in-out infinite;
+}
+
+/* Draw animation for Clipboard checkmark */
+@keyframes acctDraw {
+    0% {
+        stroke-dasharray: 20;
+        stroke-dashoffset: 20;
+        opacity: 0;
+    }
+
+    20% {
+        opacity: 1;
+    }
+
+    80% {
+        stroke-dasharray: 20;
+        stroke-dashoffset: 0;
+        opacity: 1;
+    }
+
+    100% {
+        stroke-dasharray: 20;
+        stroke-dashoffset: 0;
+        opacity: 1;
+    }
+}
+
+.acct-icon-draw {
+    stroke-dasharray: 20;
+    stroke-dashoffset: 20;
+    animation: acctDraw 2.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+/* Bounce animation for Chart bars */
+@keyframes acctBounceBar {
+
+    0%,
+    100% {
+        transform: scaleY(1);
+        transform-origin: 50% 100%;
+    }
+
+    50% {
+        transform: scaleY(0.4);
+        transform-origin: 50% 100%;
+    }
+}
+
+.acct-icon-bounce {
+    animation: acctBounceBar 1.5s ease-in-out infinite;
+}
+
+.acct-icon-bounce-delay {
+    animation: acctBounceBar 1.5s ease-in-out infinite;
+    animation-delay: 0.3s;
+}
+
+.acct-icon-bounce-delay-2 {
+    animation: acctBounceBar 1.5s ease-in-out infinite;
+    animation-delay: 0.6s;
+}
+
+/* Pulse animation for Pie Chart */
+@keyframes acctPulseSlice {
+
+    0%,
+    100% {
+        transform: scale(1);
+        transform-origin: center;
+    }
+
+    50% {
+        transform: scale(1.15);
+        transform-origin: center;
+    }
+}
+
+.acct-icon-pulse {
+    animation: acctPulseSlice 2s ease-in-out infinite;
+}

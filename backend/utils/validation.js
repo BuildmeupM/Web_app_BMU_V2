@@ -12,7 +12,7 @@ import validator from 'validator'
  */
 export function validateUsername(username) {
   if (!username || typeof username !== 'string') {
-    return { valid: false, message: 'Username is required' }
+    return { valid: false, message: 'กรุณากรอกชื่อผู้ใช้งาน' }
   }
 
   // Trim whitespace
@@ -20,18 +20,18 @@ export function validateUsername(username) {
 
   // Check length
   if (trimmed.length < 3) {
-    return { valid: false, message: 'Username must be at least 3 characters' }
+    return { valid: false, message: 'ชื่อผู้ใช้งานต้องมีอย่างน้อย 3 ตัวอักษร' }
   }
 
   if (trimmed.length > 50) {
-    return { valid: false, message: 'Username must be less than 50 characters' }
+    return { valid: false, message: 'ชื่อผู้ใช้งานต้องไม่เกิน 50 ตัวอักษร' }
   }
 
   // Check format (alphanumeric, underscore, dot, hyphen)
   if (!/^[a-zA-Z0-9._-]+$/.test(trimmed)) {
     return {
       valid: false,
-      message: 'Username can only contain letters, numbers, dots, underscores, and hyphens',
+      message: 'ชื่อผู้ใช้งานสามารถประกอบด้วยตัวอักษร ตัวเลข จุด ขีดล่าง และขีดกลางเท่านั้น',
     }
   }
 
@@ -46,16 +46,16 @@ export function validateUsername(username) {
  */
 export function validatePassword(password, strict = false) {
   if (!password || typeof password !== 'string') {
-    return { valid: false, message: 'Password is required' }
+    return { valid: false, message: 'กรุณากรอกรหัสผ่าน' }
   }
 
   // Check length
   if (password.length < 8) {
-    return { valid: false, message: 'Password must be at least 8 characters' }
+    return { valid: false, message: 'รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร' }
   }
 
   if (password.length > 128) {
-    return { valid: false, message: 'Password must be less than 128 characters' }
+    return { valid: false, message: 'รหัสผ่านต้องไม่เกิน 128 ตัวอักษร' }
   }
 
   // Strict validation (for registration/password change)
@@ -66,21 +66,21 @@ export function validatePassword(password, strict = false) {
     const hasSpecialChar = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)
 
     if (!hasUpperCase) {
-      return { valid: false, message: 'Password must contain at least one uppercase letter' }
+      return { valid: false, message: 'รหัสผ่านต้องมีตัวพิมพ์ใหญ่อย่างน้อย 1 ตัว' }
     }
 
     if (!hasLowerCase) {
-      return { valid: false, message: 'Password must contain at least one lowercase letter' }
+      return { valid: false, message: 'รหัสผ่านต้องมีตัวพิมพ์เล็กอย่างน้อย 1 ตัว' }
     }
 
     if (!hasNumber) {
-      return { valid: false, message: 'Password must contain at least one number' }
+      return { valid: false, message: 'รหัสผ่านต้องมีตัวเลขอย่างน้อย 1 ตัว' }
     }
 
     if (!hasSpecialChar) {
       return {
         valid: false,
-        message: 'Password must contain at least one special character',
+        message: 'รหัสผ่านต้องมีอักขระพิเศษอย่างน้อย 1 ตัว',
       }
     }
   }
@@ -117,17 +117,17 @@ export function sanitizeString(input) {
  */
 export function validateEmail(email) {
   if (!email || typeof email !== 'string') {
-    return { valid: false, message: 'Email is required' }
+    return { valid: false, message: 'กรุณากรอกอีเมล' }
   }
 
   const trimmed = email.trim().toLowerCase()
 
   if (!validator.isEmail(trimmed)) {
-    return { valid: false, message: 'Invalid email format' }
+    return { valid: false, message: 'รูปแบบอีเมลไม่ถูกต้อง' }
   }
 
   if (trimmed.length > 100) {
-    return { valid: false, message: 'Email must be less than 100 characters' }
+    return { valid: false, message: 'อีเมลต้องไม่เกิน 100 ตัวอักษร' }
   }
 
   return { valid: true, email: trimmed }
