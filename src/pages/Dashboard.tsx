@@ -8,13 +8,13 @@ import { useState, useMemo, useCallback } from 'react'
 import {
   Container, Card, Group, Stack, Text, Title, Badge, Avatar,
   Button, Textarea, ActionIcon, Tooltip, Paper, Divider, Collapse,
-  Select, Loader, Center, Modal, TextInput, SegmentedControl, Menu, Tabs,
-  Switch, ColorSwatch
+  Select, Loader, Center, Modal, TextInput, SegmentedControl, Tabs,
+  Switch
 } from '@mantine/core'
 import { useDisclosure } from '@mantine/hooks'
 import {
-  TbSend, TbHeart, TbHeartFilled, TbMessageCircle, TbPin, TbPinFilled,
-  TbTrash, TbDotsVertical, TbSpeakerphone, TbNews, TbMapPin,
+  TbSend, TbMessageCircle,
+  TbTrash, TbSpeakerphone, TbMapPin,
   TbMessage2, TbPlus, TbChevronLeft, TbChevronRight,
   TbCalendarEvent, TbClock, TbX, TbRefresh
 } from 'react-icons/tb'
@@ -23,59 +23,12 @@ import { useAuthStore } from '../store/authStore'
 import { companyFeedService, type Post, type Comment, type CompanyEvent } from '../services/companyFeedService'
 import { getHolidays } from '../services/holidayService'
 import type { Holiday } from '../services/holidayService'
+import {
+  EVENT_TYPE_MAP, THAI_MONTHS_FULL, THAI_DAYS, THAI_DAYS_FULL,
+  timeAgo, getInitials, getAvatarColor, getCalendarDays,
+  FeedPostCard,
+} from '../components/Dashboard'
 
-// ─── Helpers ────────────────────────────────────────
-const CATEGORY_MAP: Record<string, { label: string; color: string; icon: typeof TbSpeakerphone }> = {
-  announcement: { label: 'ประกาศ', color: 'red', icon: TbSpeakerphone },
-  news: { label: 'ข่าวสาร', color: 'blue', icon: TbNews },
-  discussion: { label: 'สนทนา', color: 'grape', icon: TbMessage2 },
-}
-
-const EVENT_TYPE_MAP: Record<string, { label: string; emoji: string; color: string }> = {
-  meeting: { label: 'ประชุม', emoji: '🤝', color: '#4263eb' },
-  holiday: { label: 'เกี่ยวกับภาษี', emoji: '🧾', color: '#e03131' },
-  deadline: { label: 'กำหนดส่ง', emoji: '⏰', color: '#f59f00' },
-  other: { label: 'อื่นๆ', emoji: '📌', color: '#868e96' },
-}
-
-function timeAgo(dateStr: string): string {
-  const now = new Date()
-  const then = new Date(dateStr.replace(' ', 'T') + '+07:00')
-  const diffMs = now.getTime() - then.getTime()
-  const mins = Math.floor(diffMs / 60000)
-  if (mins < 1) return 'เมื่อสักครู่'
-  if (mins < 60) return `${mins} นาทีที่แล้ว`
-  const hrs = Math.floor(mins / 60)
-  if (hrs < 24) return `${hrs} ชั่วโมงที่แล้ว`
-  const days = Math.floor(hrs / 24)
-  if (days < 7) return `${days} วันที่แล้ว`
-  return dateStr.split(' ')[0]
-}
-
-function getInitials(name: string): string {
-  return name?.slice(0, 2) || '??'
-}
-
-const AVATAR_COLORS = ['blue', 'cyan', 'teal', 'green', 'lime', 'yellow', 'orange', 'red', 'pink', 'grape', 'violet', 'indigo']
-function getAvatarColor(name: string): string {
-  let hash = 0
-  for (let i = 0; i < (name?.length || 0); i++) hash = name.charCodeAt(i) + ((hash << 5) - hash)
-  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length]
-}
-
-// ─── Calendar Helpers ──────────────────────────────
-const THAI_MONTHS_FULL = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม']
-const THAI_DAYS = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส']
-const THAI_DAYS_FULL = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์']
-
-function getCalendarDays(year: number, month: number): (number | null)[] {
-  const firstDay = new Date(year, month, 1).getDay()
-  const daysInMonth = new Date(year, month + 1, 0).getDate()
-  const days: (number | null)[] = Array(firstDay).fill(null)
-  for (let d = 1; d <= daysInMonth; d++) days.push(d)
-  while (days.length % 7 !== 0) days.push(null)
-  return days
-}
 
 // ═══════════════════════════════════════════════════════
 //  Main Component
@@ -181,7 +134,7 @@ export default function Dashboard() {
     () => companyFeedService.getPosts({ category: categoryFilter !== 'all' ? categoryFilter : undefined, limit: 50 }),
     { staleTime: 0 }
   )
-  const posts = postsData?.posts || []
+  const posts = useMemo(() => postsData?.posts || [], [postsData?.posts])
   const pinnedPosts = useMemo(() => posts.filter(p => p.is_pinned), [posts])
   const regularPosts = useMemo(() => posts.filter(p => !p.is_pinned), [posts])
 
@@ -211,7 +164,7 @@ export default function Dashboard() {
         event_end_date: newData.event_end_date || null,
         start_time: newData.start_time || null, end_time: newData.end_time || null,
         is_all_day: newData.is_all_day ?? true, location: newData.location || null,
-        event_type: (newData.event_type as any) || 'other', color: newData.color || '#4263eb',
+        event_type: (newData.event_type as CompanyEvent['event_type']) || 'other', color: newData.color || '#4263eb',
         created_by: user?.id || '', created_by_name: user?.name || '',
       }
       queryClient.setQueryData<CompanyEvent[]>(qKey, old => [...(old || []), optimistic])
@@ -241,13 +194,13 @@ export default function Dashboard() {
       const qKey = ['company-feed', 'posts', categoryFilter]
       const prev = queryClient.getQueryData(qKey)
       const optimisticPost: Post = {
-        id: `temp-${Date.now()}`, author_id: user?.id || '', category: (newData.category as any) || 'discussion',
+        id: `temp-${Date.now()}`, author_id: user?.id || '', category: (newData.category as Post['category']) || 'discussion',
         title: newData.title || null, content: newData.content, is_pinned: 0,
         created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
         author_name: user?.name || '', author_role: user?.role || '',
         comment_count: 0, reaction_count: 0, user_reacted: 0,
       }
-      queryClient.setQueryData(qKey, (old: any) => ({
+      queryClient.setQueryData(qKey, (old: { posts?: Post[] } | undefined) => ({
         ...old, posts: [optimisticPost, ...(old?.posts || [])],
       }))
       setNewPostContent(''); setNewPostTitle(''); setNewPostCategory('discussion'); setIsCreating(false)
@@ -262,7 +215,7 @@ export default function Dashboard() {
       await queryClient.cancelQueries(['company-feed', 'posts'])
       const qKey = ['company-feed', 'posts', categoryFilter]
       const prev = queryClient.getQueryData(qKey)
-      queryClient.setQueryData(qKey, (old: any) => ({
+      queryClient.setQueryData(qKey, (old: { posts?: Post[] } | undefined) => ({
         ...old, posts: (old?.posts || []).filter((p: Post) => p.id !== id),
       }))
       if (selectedPost?.id === id) setSelectedPost(null)
@@ -279,7 +232,7 @@ export default function Dashboard() {
         await queryClient.cancelQueries(['company-feed', 'posts'])
         const qKey = ['company-feed', 'posts', categoryFilter]
         const prev = queryClient.getQueryData(qKey)
-        queryClient.setQueryData(qKey, (old: any) => ({
+        queryClient.setQueryData(qKey, (old: { posts?: Post[] } | undefined) => ({
           ...old, posts: (old?.posts || []).map((p: Post) => p.id === id ? { ...p, is_pinned: pin ? 1 : 0 } : p),
         }))
         return { prev, qKey }
@@ -294,7 +247,7 @@ export default function Dashboard() {
       await queryClient.cancelQueries(['company-feed', 'posts'])
       const qKey = ['company-feed', 'posts', categoryFilter]
       const prev = queryClient.getQueryData(qKey)
-      queryClient.setQueryData(qKey, (old: any) => ({
+      queryClient.setQueryData(qKey, (old: { posts?: Post[] } | undefined) => ({
         ...old, posts: (old?.posts || []).map((p: Post) => p.id === postId ? {
           ...p,
           user_reacted: p.user_reacted ? 0 : 1,
@@ -322,11 +275,11 @@ export default function Dashboard() {
           content, created_at: new Date().toISOString(),
           author_name: user?.name || '', author_role: user?.role || '',
         }
-        queryClient.setQueryData(cKey, (old: any) => [...(old || []), optimisticComment])
+        queryClient.setQueryData(cKey, (old: Comment[] | undefined) => [...(old || []), optimisticComment])
         // Also update comment count in posts
         const pKey = ['company-feed', 'posts', categoryFilter]
         const prevPosts = queryClient.getQueryData(pKey)
-        queryClient.setQueryData(pKey, (old: any) => ({
+        queryClient.setQueryData(pKey, (old: { posts?: Post[] } | undefined) => ({
           ...old, posts: (old?.posts || []).map((p: Post) => p.id === postId ? { ...p, comment_count: p.comment_count + 1 } : p),
         }))
         setCommentInput('')
@@ -352,10 +305,10 @@ export default function Dashboard() {
         await queryClient.cancelQueries(['company-feed', 'comments', postId])
         const cKey = ['company-feed', 'comments', postId]
         const prevComments = queryClient.getQueryData(cKey)
-        queryClient.setQueryData(cKey, (old: any) => (old || []).filter((c: Comment) => c.id !== commentId))
+        queryClient.setQueryData(cKey, (old: Comment[] | undefined) => (old || []).filter((c: Comment) => c.id !== commentId))
         const pKey = ['company-feed', 'posts', categoryFilter]
         const prevPosts = queryClient.getQueryData(pKey)
-        queryClient.setQueryData(pKey, (old: any) => ({
+        queryClient.setQueryData(pKey, (old: { posts?: Post[] } | undefined) => ({
           ...old, posts: (old?.posts || []).map((p: Post) => p.id === postId ? { ...p, comment_count: Math.max(0, p.comment_count - 1) } : p),
         }))
         return { prevComments, cKey, prevPosts, pKey }
@@ -1098,100 +1051,5 @@ export default function Dashboard() {
         </Stack>
       </Modal>
     </Container>
-  )
-}
-
-// ═══════════════════════════════════════════════════════
-//  Feed Post Card — compact card in feed list
-// ═══════════════════════════════════════════════════════
-interface FeedPostCardProps {
-  post: Post
-  currentUserId: string
-  isAdmin: boolean
-  isPinned: boolean
-  isActive: boolean
-  onSelect: () => void
-  onDelete: (id: string) => void
-  onPin: (id: string, pin: boolean) => void
-  onReact: (id: string) => void
-}
-
-function FeedPostCard({
-  post, currentUserId, isAdmin, isPinned, isActive,
-  onSelect, onDelete, onPin, onReact
-}: FeedPostCardProps) {
-  const cat = CATEGORY_MAP[post.category] || CATEGORY_MAP.discussion
-  const isOwn = post.author_id === currentUserId
-
-  return (
-    <Card
-      padding="lg" radius="lg" withBorder
-      style={{
-        borderColor: isActive
-          ? 'var(--mantine-color-blue-4)'
-          : isPinned ? 'var(--mantine-color-yellow-4)' : undefined,
-        background: isActive
-          ? 'linear-gradient(135deg, rgba(66, 99, 235, 0.04), rgba(255, 255, 255, 1))'
-          : isPinned ? 'linear-gradient(135deg, rgba(255,244,230,0.5), rgba(255,255,255,1))' : undefined,
-        boxShadow: isActive ? '0 0 0 1px var(--mantine-color-blue-3)' : undefined,
-        transition: 'all 0.15s ease',
-      }}
-    >
-      {/* Header */}
-      <Group justify="space-between" mb="sm" wrap="nowrap">
-        <Group gap="sm" wrap="nowrap" style={{ flex: 1, minWidth: 0 }}>
-          <Avatar size={40} radius="xl" color={getAvatarColor(post.author_name)}>
-            {getInitials(post.author_name)}
-          </Avatar>
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <Group gap={6} wrap="nowrap">
-              <Text fw={600} size="sm" lineClamp={1}>{post.author_name}</Text>
-              <Badge size="xs" variant="light" color={cat.color}>{cat.label}</Badge>
-              {isPinned && <TbPinFilled size={14} color="var(--mantine-color-yellow-6)" />}
-            </Group>
-            <Text size="xs" c="dimmed">{timeAgo(post.created_at)}</Text>
-          </div>
-        </Group>
-
-        {(isOwn || isAdmin) && (
-          <Menu position="bottom-end" withArrow shadow="md">
-            <Menu.Target>
-              <ActionIcon variant="subtle" color="gray" size="sm"><TbDotsVertical size={16} /></ActionIcon>
-            </Menu.Target>
-            <Menu.Dropdown>
-              {isAdmin && (
-                <Menu.Item leftSection={isPinned ? <TbPin size={14} /> : <TbPinFilled size={14} />} onClick={() => onPin(post.id, !isPinned)}>
-                  {isPinned ? 'ยกเลิกปักหมุด' : 'ปักหมุด'}
-                </Menu.Item>
-              )}
-              <Menu.Item leftSection={<TbTrash size={14} />} color="red" onClick={() => onDelete(post.id)}>ลบ</Menu.Item>
-            </Menu.Dropdown>
-          </Menu>
-        )}
-      </Group>
-
-      {/* Content */}
-      {post.title && <Text fw={600} mb={4}>{post.title}</Text>}
-      <Text size="sm" mb="sm" style={{ whiteSpace: 'pre-wrap' }}>{post.content}</Text>
-      <Divider mb="xs" />
-
-      {/* Actions */}
-      <Group gap="lg">
-        <Tooltip label={post.user_reacted ? 'ยกเลิกถูกใจ' : 'ถูกใจ'}>
-          <Group gap={4} style={{ cursor: 'pointer' }} onClick={() => onReact(post.id)}>
-            {post.user_reacted ? <TbHeartFilled size={18} color="var(--mantine-color-red-6)" /> : <TbHeart size={18} />}
-            <Text size="xs" c={post.user_reacted ? 'red' : 'dimmed'}>{post.reaction_count || ''}</Text>
-          </Group>
-        </Tooltip>
-        <Tooltip label="ความคิดเห็น">
-          <Group gap={4} style={{ cursor: 'pointer' }} onClick={onSelect}>
-            <TbMessageCircle size={18} color={isActive ? 'var(--mantine-color-blue-6)' : undefined} />
-            <Text size="xs" c={isActive ? 'blue' : 'dimmed'} fw={isActive ? 600 : undefined}>
-              {post.comment_count || ''} {isActive ? '' : ''}
-            </Text>
-          </Group>
-        </Tooltip>
-      </Group>
-    </Card>
   )
 }

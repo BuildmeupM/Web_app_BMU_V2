@@ -6,11 +6,11 @@
 import { useState, useMemo } from 'react'
 import {
     Modal, Text, Group, Box, Stack, Card, Badge, TextInput, Button,
-    Progress, ActionIcon, Tooltip, ScrollArea, Textarea, Divider,
+    Progress, Tooltip, ScrollArea, Divider,
 } from '@mantine/core'
 import { DatePickerInput } from '@mantine/dates'
 import {
-    TbBuilding, TbUser, TbClock, TbSend, TbCalendarCheck,
+    TbBuilding, TbUser, TbClock, TbCalendarCheck,
     TbLink, TbCheck, TbDeviceFloppy, TbMessageCircle,
 } from 'react-icons/tb'
 import { useQuery, useMutation, useQueryClient } from 'react-query'
@@ -21,15 +21,8 @@ import {
     type TaskComment,
 } from '../../services/registrationTaskService'
 import { notifications } from '@mantine/notifications'
-
-// Step definitions
-const STEPS = [
-    { key: 'step_1' as const, label: 'ประสานงานขอเอกสาร', pct: 20 },
-    { key: 'step_2' as const, label: 'เตรียมข้อมูล', pct: 40 },
-    { key: 'step_3' as const, label: 'รอลูกค้าเตรียมเอกสาร', pct: 60 },
-    { key: 'step_4' as const, label: 'รอวิ่งแมส', pct: 80 },
-    { key: 'step_5' as const, label: 'ส่งมอบงาน', pct: 100 },
-]
+import { STEPS } from './utils/taskConstants'
+import { formatThaiDate, formatTime } from './utils/taskFormatters'
 
 interface TaskStatusModalProps {
     opened: boolean
@@ -65,7 +58,7 @@ export default function TaskStatusModal({ opened, onClose, task, onUpdated }: Ta
     }
 
     // Fetch comments
-    const { data: comments = [], isLoading: commentsLoading } = useQuery(
+    const { data: comments = [] } = useQuery(
         `task-comments-${task?.id}`,
         () => task ? registrationTaskService.getComments(task.id) : Promise.resolve([]),
         { enabled: !!task && opened },
@@ -174,20 +167,7 @@ export default function TaskStatusModal({ opened, onClose, task, onUpdated }: Ta
         addCommentMutation.mutate(commentText.trim())
     }
 
-    // Format date for display
-    const formatThaiDate = (dateStr: string) => {
-        try {
-            const d = new Date(dateStr)
-            return d.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' })
-        } catch { return dateStr }
-    }
-
-    const formatTime = (dateStr: string) => {
-        try {
-            const d = new Date(dateStr)
-            return d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
-        } catch { return '' }
-    }
+    // formatThaiDate and formatTime are now imported from ./utils/taskFormatters
 
     if (!task) return null
 

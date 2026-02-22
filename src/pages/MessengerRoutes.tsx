@@ -10,18 +10,17 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import 'leaflet/dist/leaflet.css'
 import {
     Container, Stack, Card, Group, Text, Badge, Box, Title, Button,
-    Loader, Table, ThemeIcon, ActionIcon, Tooltip, Modal, TextInput,
-    Textarea, NumberInput, Select, Divider, SimpleGrid, Progress,
-    Combobox, useCombobox, InputBase, Input, Tabs, Checkbox,
-    RingProgress, SegmentedControl
+    Loader, ThemeIcon, Modal, TextInput,
+    Divider, SimpleGrid,
+    Tabs,
+    SegmentedControl
 } from '@mantine/core'
 import { DateInput } from '@mantine/dates'
 import { notifications } from '@mantine/notifications'
 import {
-    TbTruckDelivery, TbPlus, TbTrash, TbEye, TbArrowUp, TbArrowDown,
-    TbCheck, TbX, TbMapPin, TbRoute, TbClock, TbNotes, TbAlertTriangle,
-    TbCalculator, TbCurrentLocation, TbSearch, TbMotorbike, TbClipboardList, TbHistory,
-    TbChartBar, TbRoad, TbCalendar
+    TbTruckDelivery, TbPlus, TbTrash,
+    TbCheck, TbMapPin, TbCurrentLocation, TbMotorbike, TbClipboardList, TbHistory,
+    TbChartBar, TbRoad
 } from 'react-icons/tb'
 import {
     MessengerRoute, CreateRouteData, MessengerLocation, MessengerPendingTask,
@@ -30,144 +29,12 @@ import {
     getLocations, createLocation, incrementLocationUsage,
     getMessengerPendingTasks
 } from '../services/messengerRouteService'
-import RouteMap from '../components/Messenger/RouteMap'
+import {
+    LocationSelect, statusConfig, stopStatusConfig, type FormStop,
+    ActiveRoutesTab, PendingTasksTab, HistoryTab, DashboardTab,
+    CreateRouteModal, RouteDetailModal
+} from '../components/MessengerRoutes'
 
-// Status config
-const statusConfig: Record<string, { label: string; color: string }> = {
-    planned: { label: 'วางแผน', color: 'orange' },
-    in_progress: { label: 'กำลังดำเนินการ', color: 'orange' },
-    completed: { label: 'เสร็จสิ้น', color: 'green' },
-}
-
-const stopStatusConfig: Record<string, { label: string; color: string; icon: React.ComponentType<any> }> = {
-    pending: { label: 'รอดำเนินการ', color: 'gray', icon: TbClock },
-    completed: { label: 'สำเร็จ', color: 'green', icon: TbCheck },
-    failed: { label: 'ไม่สำเร็จ', color: 'red', icon: TbX },
-}
-
-// Form stop type
-interface FormStop {
-    location_name: string
-    location_id: string | null
-    tasks: string[]
-    distance_km: number
-    estimated_time: string
-    notes: string
-    lat: number | null
-    lng: number | null
-}
-
-// ============================================================
-// Location Select Component — Searchable + Creatable
-// ============================================================
-function LocationSelect({
-    locations,
-    value,
-    onChange,
-    onCreateNew,
-    label,
-    placeholder,
-    size = 'sm',
-}: {
-    locations: MessengerLocation[]
-    value: string
-    onChange: (name: string, loc: MessengerLocation | null) => void
-    onCreateNew: (name: string) => void
-    label?: string
-    placeholder?: string
-    size?: string
-}) {
-    const combobox = useCombobox({
-        onDropdownClose: () => combobox.resetSelectedOption(),
-    })
-
-    const [search, setSearch] = useState(value)
-
-    useEffect(() => {
-        setSearch(value)
-    }, [value])
-
-    const filteredLocations = locations.filter(loc =>
-        loc.name.toLowerCase().includes(search.toLowerCase().trim())
-    )
-
-    const exactMatch = locations.some(loc => loc.name.toLowerCase() === search.toLowerCase().trim())
-
-    const options = filteredLocations.map((loc) => {
-        return (
-            <Combobox.Option value={loc.id} key={loc.id}>
-                <Group gap="xs">
-                    <TbMapPin size={14} color="#666" />
-                    <div>
-                        <Text size="sm" fw={500}>{loc.name}</Text>
-                        {loc.address && <Text size="xs" c="dimmed">{loc.address}</Text>}
-                    </div>
-                    {loc.category && (
-                        <Badge size="xs" variant="light" color="gray" ml="auto">{loc.category}</Badge>
-                    )}
-                    {loc.latitude && loc.longitude && (
-                        <Badge size="xs" variant="light" color="green">📍</Badge>
-                    )}
-                </Group>
-            </Combobox.Option>
-        )
-    })
-
-    return (
-        <Combobox
-            store={combobox}
-            onOptionSubmit={(val) => {
-                if (val === '__create__') {
-                    onCreateNew(search.trim())
-                } else {
-                    const loc = locations.find(l => l.id === val)
-                    if (loc) {
-                        onChange(loc.name, loc)
-                        setSearch(loc.name)
-                    }
-                }
-                combobox.closeDropdown()
-            }}
-        >
-            <Combobox.Target>
-                <InputBase
-                    label={label}
-                    placeholder={placeholder}
-                    size={size as any}
-                    leftSection={<TbMapPin size={14} />}
-                    rightSection={<Combobox.Chevron />}
-                    rightSectionPointerEvents="none"
-                    value={search}
-                    onChange={(e) => {
-                        setSearch(e.currentTarget.value)
-                        onChange(e.currentTarget.value, null)
-                        combobox.openDropdown()
-                        combobox.updateSelectedOptionIndex()
-                    }}
-                    onClick={() => combobox.openDropdown()}
-                    onFocus={() => combobox.openDropdown()}
-                    onBlur={() => combobox.closeDropdown()}
-                />
-            </Combobox.Target>
-
-            <Combobox.Dropdown>
-                <Combobox.Options>
-                    {options.length > 0 ? options : (
-                        <Combobox.Empty>ไม่พบสถานที่</Combobox.Empty>
-                    )}
-                    {search.trim() && !exactMatch && (
-                        <Combobox.Option value="__create__" style={{ borderTop: '1px solid #eee' }}>
-                            <Group gap="xs">
-                                <TbPlus size={14} color="#228be6" />
-                                <Text size="sm" c="blue">เพิ่ม "{search.trim()}" เป็นสถานที่ใหม่</Text>
-                            </Group>
-                        </Combobox.Option>
-                    )}
-                </Combobox.Options>
-            </Combobox.Dropdown>
-        </Combobox>
-    )
-}
 
 // ============================================================
 // Main Component
@@ -986,852 +853,95 @@ export default function MessengerRoutes() {
 
                             {/* ===== TAB: กำลังวิ่ง ===== */}
                             <Tabs.Panel value="active" p="md">
-                                {activeRoutes.length === 0 ? (
-                                    <Stack align="center" gap="md" py="xl">
-                                        <TbMotorbike size={48} color="#ccc" />
-                                        <Text c="dimmed" ta="center">ยังไม่มีเส้นทางที่กำลังวิ่ง</Text>
-                                    </Stack>
-                                ) : (
-                                    <Stack gap="sm">
-                                        {activeRoutes.map(route => {
-                                            const st = statusConfig[route.status] || statusConfig.planned
-                                            const totalStops = Number(route.total_stops) || 0
-                                            const completedStops = Number(route.completed_stops) || 0
-                                            const failedStops = Number(route.failed_stops) || 0
-                                            const progressPct = totalStops > 0 ? Math.round((completedStops / totalStops) * 100) : 0
-                                            return (
-                                                <Card key={route.id} withBorder radius="md" p="md" style={{ cursor: 'pointer', transition: 'all 0.2s' }}
-                                                    onClick={() => viewDetail(route.id)}
-                                                    className="route-card-hover"
-                                                >
-                                                    <Group justify="space-between" mb="xs">
-                                                        <Group gap="sm">
-                                                            <Text fw={600}>
-                                                                📅 {new Date(route.route_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })}
-                                                            </Text>
-                                                            <Badge size="sm" variant="light" color={st.color}>{st.label}</Badge>
-                                                        </Group>
-                                                        <Group gap={4}>
-                                                            <Tooltip label="ดูรายละเอียด">
-                                                                <ActionIcon size="sm" variant="subtle" color="blue" onClick={(e) => { e.stopPropagation(); viewDetail(route.id) }}>
-                                                                    <TbSearch size={16} />
-                                                                </ActionIcon>
-                                                            </Tooltip>
-                                                            <Tooltip label="ลบ">
-                                                                <ActionIcon size="sm" variant="subtle" color="red" onClick={(e) => { e.stopPropagation(); handleDelete(route.id) }}>
-                                                                    <TbTrash size={16} />
-                                                                </ActionIcon>
-                                                            </Tooltip>
-                                                        </Group>
-                                                    </Group>
-                                                    <Group gap="lg" mb="xs">
-                                                        <Text size="sm" c="dimmed">📍 จุดแวะ: <Text span fw={600} c="dark">{totalStops}</Text></Text>
-                                                        <Text size="sm" c="dimmed">📏 ระยะทาง: <Text span fw={600} c="dark">{Number(route.total_distance).toFixed(1)} km</Text></Text>
-                                                        <Text size="sm" c="dimmed">✅ สำเร็จ: <Text span fw={600} c={failedStops > 0 ? 'red' : 'green'}>{completedStops}/{totalStops}</Text></Text>
-                                                    </Group>
-                                                    <Progress value={progressPct} size="sm" radius="xl" color={route.status === 'in_progress' ? 'blue' : 'orange'} mb="xs" />
-                                                    {route.stops && route.stops.length > 0 && (
-                                                        <Group gap={4}>
-                                                            {route.stops.slice(0, 3).map((s, i) => (
-                                                                <Badge key={i} size="xs" variant="light" color="gray">📍 {s.location_name}</Badge>
-                                                            ))}
-                                                            {route.stops.length > 3 && <Badge size="xs" variant="light" color="gray">+{route.stops.length - 3}</Badge>}
-                                                        </Group>
-                                                    )}
-                                                </Card>
-                                            )
-                                        })}
-                                    </Stack>
-                                )}
+                                <ActiveRoutesTab
+                                    routes={activeRoutes}
+                                    onViewDetail={viewDetail}
+                                    onDelete={handleDelete}
+                                />
                             </Tabs.Panel>
 
                             {/* ===== TAB: รอวิ่งแมส ===== */}
                             <Tabs.Panel value="pending" p="md">
-                                {pendingLoading ? (
-                                    <Box ta="center" py="xl"><Loader size="md" /></Box>
-                                ) : pendingTasks.length === 0 ? (
-                                    <Stack align="center" gap="md" py="xl">
-                                        <TbClipboardList size={48} color="#ccc" />
-                                        <Text c="dimmed" ta="center">ไม่มีงานที่รอวิ่งแมส</Text>
-                                    </Stack>
-                                ) : (
-                                    <>
-                                        <Table.ScrollContainer minWidth={700}>
-                                            <Table striped highlightOnHover>
-                                                <Table.Thead>
-                                                    <Table.Tr>
-                                                        <Table.Th>ลูกค้า</Table.Th>
-                                                        <Table.Th>ปลายทาง</Table.Th>
-                                                        <Table.Th>รายละเอียด</Table.Th>
-                                                        <Table.Th ta="center">แผนก</Table.Th>
-                                                        <Table.Th>วันที่รับงาน</Table.Th>
-                                                        <Table.Th ta="center">สถานะ</Table.Th>
-                                                    </Table.Tr>
-                                                </Table.Thead>
-                                                <Table.Tbody>
-                                                    {pendingTasks.map(task => {
-                                                        const deptColors: Record<string, string> = { dbd: 'violet', rd: 'green', sso: 'blue', hr: 'red' }
-                                                        return (
-                                                            <Table.Tr key={task.id}>
-                                                                <Table.Td>
-                                                                    <Text fw={600} size="sm">{task.client_name}</Text>
-                                                                </Table.Td>
-                                                                <Table.Td>
-                                                                    <Text size="sm" c="dimmed">{task.messenger_destination || '-'}</Text>
-                                                                </Table.Td>
-                                                                <Table.Td>
-                                                                    <Text size="sm" c="dimmed">{task.messenger_details || task.notes || '-'}</Text>
-                                                                </Table.Td>
-                                                                <Table.Td ta="center">
-                                                                    <Badge size="xs" variant="light" color={deptColors[task.department] || 'gray'}>
-                                                                        {task.department?.toUpperCase()}
-                                                                    </Badge>
-                                                                </Table.Td>
-                                                                <Table.Td>
-                                                                    <Text size="sm">{new Date(task.received_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })}</Text>
-                                                                </Table.Td>
-                                                                <Table.Td ta="center">
-                                                                    <Badge size="xs" variant="light" color="orange">รอจัดเส้นทาง</Badge>
-                                                                </Table.Td>
-                                                            </Table.Tr>
-                                                        )
-                                                    })}
-                                                </Table.Tbody>
-                                            </Table>
-                                        </Table.ScrollContainer>
-                                        <Group justify="space-between" mt="md" px="xs">
-                                            <Text size="sm" c="dimmed">ทั้งหมด {pendingTasks.length} รายการ</Text>
-                                        </Group>
-                                    </>
-                                )}
+                                <PendingTasksTab
+                                    tasks={pendingTasks}
+                                    loading={pendingLoading}
+                                />
                             </Tabs.Panel>
 
                             {/* ===== TAB: ประวัติ ===== */}
                             <Tabs.Panel value="history" p="md">
-                                {completedRoutes.length === 0 ? (
-                                    <Stack align="center" gap="md" py="xl">
-                                        <TbHistory size={48} color="#ccc" />
-                                        <Text c="dimmed" ta="center">ยังไม่มีประวัติการวิ่งแมส</Text>
-                                    </Stack>
-                                ) : (
-                                    <Table.ScrollContainer minWidth={700}>
-                                        <Table striped highlightOnHover>
-                                            <Table.Thead>
-                                                <Table.Tr>
-                                                    <Table.Th>วันที่</Table.Th>
-                                                    <Table.Th ta="center">จุดแวะ</Table.Th>
-                                                    <Table.Th ta="center">สำเร็จ</Table.Th>
-                                                    <Table.Th ta="right">ระยะทาง</Table.Th>
-                                                    <Table.Th ta="center">สถานะ</Table.Th>
-                                                    <Table.Th ta="center">จัดการ</Table.Th>
-                                                </Table.Tr>
-                                            </Table.Thead>
-                                            <Table.Tbody>
-                                                {completedRoutes.map(route => {
-                                                    const totalStops = Number(route.total_stops) || 0
-                                                    const doneStops = Number(route.completed_stops) || 0
-                                                    const failedStops = Number(route.failed_stops) || 0
-                                                    return (
-                                                        <Table.Tr key={route.id}>
-                                                            <Table.Td>
-                                                                {new Date(route.route_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })}
-                                                            </Table.Td>
-                                                            <Table.Td ta="center">{totalStops}</Table.Td>
-                                                            <Table.Td ta="center">
-                                                                <Group gap={4} justify="center">
-                                                                    <Text size="sm" c={failedStops > 0 ? 'red' : 'green'} fw={600}>
-                                                                        {doneStops}/{totalStops}
-                                                                    </Text>
-                                                                    {failedStops > 0 && (
-                                                                        <Tooltip label={`${failedStops} จุดไม่สำเร็จ`}>
-                                                                            <ThemeIcon size={16} variant="transparent" color="red">
-                                                                                <TbAlertTriangle size={14} />
-                                                                            </ThemeIcon>
-                                                                        </Tooltip>
-                                                                    )}
-                                                                </Group>
-                                                            </Table.Td>
-                                                            <Table.Td ta="right">{Number(route.total_distance).toFixed(1)} km</Table.Td>
-                                                            <Table.Td ta="center">
-                                                                <Badge size="sm" variant="light" color="green">เสร็จสิ้น</Badge>
-                                                            </Table.Td>
-                                                            <Table.Td ta="center">
-                                                                <Tooltip label="ดูรายละเอียด">
-                                                                    <ActionIcon size="sm" variant="subtle" color="blue" onClick={() => viewDetail(route.id)}>
-                                                                        <TbSearch size={16} />
-                                                                    </ActionIcon>
-                                                                </Tooltip>
-                                                            </Table.Td>
-                                                        </Table.Tr>
-                                                    )
-                                                })}
-                                            </Table.Tbody>
-                                        </Table>
-                                    </Table.ScrollContainer>
-                                )}
+                                <HistoryTab
+                                    routes={completedRoutes}
+                                    onViewDetail={viewDetail}
+                                />
                             </Tabs.Panel>
 
                             {/* ===== TAB: แดชบอร์ด ===== */}
                             <Tabs.Panel value="dashboard" p="md">
-                                <Stack gap="lg">
-                                    {/* Period Filter */}
-                                    <Card withBorder radius="md" p="md" style={{ background: 'linear-gradient(135deg, #f8f9fa, #e9ecef)' }}>
-                                        <Group justify="space-between" align="center" wrap="wrap" gap="sm">
-                                            <Group gap="sm">
-                                                <ThemeIcon size={32} radius="md" variant="light" color="indigo">
-                                                    <TbCalendar size={18} />
-                                                </ThemeIcon>
-                                                <div>
-                                                    <Text size="xs" c="dimmed" fw={500}>ช่วงเวลา</Text>
-                                                    <Text size="sm" fw={600}>{periodLabel}</Text>
-                                                </div>
-                                            </Group>
-                                            <SegmentedControl
-                                                value={dashboardPeriod}
-                                                onChange={setDashboardPeriod}
-                                                data={[
-                                                    { label: '📅 รายวัน', value: 'daily' },
-                                                    { label: '📆 รายสัปดาห์', value: 'weekly' },
-                                                    { label: '🗓️ รายเดือน', value: 'monthly' },
-                                                    { label: '📋 ทั้งหมด', value: 'all' },
-                                                    { label: '🔍 กำหนดเอง', value: 'custom' },
-                                                ]}
-                                                radius="lg"
-                                                size="sm"
-                                                style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}
-                                            />
-                                        </Group>
-                                        {dashboardPeriod === 'custom' && (
-                                            <Group gap="md" mt="sm">
-                                                <DateInput
-                                                    label="วันเริ่มต้น"
-                                                    placeholder="เลือกวันที่"
-                                                    value={customDateStart}
-                                                    onChange={setCustomDateStart}
-                                                    size="sm"
-                                                    radius="md"
-                                                    clearable
-                                                    maxDate={customDateEnd || undefined}
-                                                    valueFormat="DD MMM YYYY"
-                                                    style={{ flex: 1, minWidth: 160 }}
-                                                />
-                                                <Text size="sm" c="dimmed" mt={24}>ถึง</Text>
-                                                <DateInput
-                                                    label="วันสิ้นสุด"
-                                                    placeholder="เลือกวันที่"
-                                                    value={customDateEnd}
-                                                    onChange={setCustomDateEnd}
-                                                    size="sm"
-                                                    radius="md"
-                                                    clearable
-                                                    minDate={customDateStart || undefined}
-                                                    valueFormat="DD MMM YYYY"
-                                                    style={{ flex: 1, minWidth: 160 }}
-                                                />
-                                            </Group>
-                                        )}
-                                    </Card>
-
-                                    {/* Charts Row */}
-                                    <SimpleGrid cols={{ base: 1, md: 2 }} spacing="lg">
-                                        {/* Route Status Donut Chart */}
-                                        <Card withBorder radius="md" p="lg">
-                                            <Text fw={700} size="md" mb="md">📊 สถานะเส้นทาง</Text>
-                                            <Group justify="center" align="center" gap="xl">
-                                                <RingProgress
-                                                    size={160}
-                                                    thickness={18}
-                                                    roundCaps
-                                                    sections={dashboardStats.routeStatusSections}
-                                                    label={
-                                                        <Stack align="center" gap={0}>
-                                                            <Text ta="center" size="xl" fw={800}>{dashboardStats.totalRoutes}</Text>
-                                                            <Text ta="center" size="xs" c="dimmed">เส้นทาง</Text>
-                                                        </Stack>
-                                                    }
-                                                />
-                                                <Stack gap="xs">
-                                                    <Group gap="xs">
-                                                        <Box style={{ width: 12, height: 12, borderRadius: 3, backgroundColor: '#40c057' }} />
-                                                        <Text size="sm">เสร็จสิ้น</Text>
-                                                        <Text size="sm" fw={700} c="green">{dashboardStats.routesByStatus.completed}</Text>
-                                                    </Group>
-                                                    <Group gap="xs">
-                                                        <Box style={{ width: 12, height: 12, borderRadius: 3, backgroundColor: '#fab005' }} />
-                                                        <Text size="sm">กำลังวิ่ง</Text>
-                                                        <Text size="sm" fw={700} c="yellow.8">{dashboardStats.routesByStatus.in_progress}</Text>
-                                                    </Group>
-                                                    <Group gap="xs">
-                                                        <Box style={{ width: 12, height: 12, borderRadius: 3, backgroundColor: '#ff922b' }} />
-                                                        <Text size="sm">วางแผน</Text>
-                                                        <Text size="sm" fw={700} c="orange">{dashboardStats.routesByStatus.planned}</Text>
-                                                    </Group>
-                                                </Stack>
-                                            </Group>
-                                        </Card>
-
-                                        {/* Stop Status Bar Chart */}
-                                        <Card withBorder radius="md" p="lg">
-                                            <Text fw={700} size="md" mb="md">📍 สรุปจุดแวะทั้งหมด</Text>
-                                            <Stack gap="md">
-                                                <Group justify="center" gap="xl" mb="xs">
-                                                    <Stack align="center" gap={2}>
-                                                        <Text size="2rem" fw={800} c="teal">{dashboardStats.completedStopsCount}</Text>
-                                                        <Text size="xs" c="dimmed">สำเร็จ</Text>
-                                                    </Stack>
-                                                    <Stack align="center" gap={2}>
-                                                        <Text size="2rem" fw={800} c="red">{dashboardStats.failedStopsCount}</Text>
-                                                        <Text size="xs" c="dimmed">ไม่สำเร็จ</Text>
-                                                    </Stack>
-                                                    <Stack align="center" gap={2}>
-                                                        <Text size="2rem" fw={800} c="gray">{dashboardStats.pendingStopsCount}</Text>
-                                                        <Text size="xs" c="dimmed">รอดำเนินการ</Text>
-                                                    </Stack>
-                                                </Group>
-
-                                                <div>
-                                                    <Group justify="space-between" mb={4}>
-                                                        <Text size="xs" c="dimmed">สำเร็จ</Text>
-                                                        <Text size="xs" fw={600} c="teal">{dashboardStats.stopCompletionPct}%</Text>
-                                                    </Group>
-                                                    <Progress value={dashboardStats.stopCompletionPct} color="teal" size="lg" radius="xl" />
-                                                </div>
-                                                <div>
-                                                    <Group justify="space-between" mb={4}>
-                                                        <Text size="xs" c="dimmed">ไม่สำเร็จ</Text>
-                                                        <Text size="xs" fw={600} c="red">{dashboardStats.stopFailedPct}%</Text>
-                                                    </Group>
-                                                    <Progress value={dashboardStats.stopFailedPct} color="red" size="lg" radius="xl" />
-                                                </div>
-                                                <div>
-                                                    <Group justify="space-between" mb={4}>
-                                                        <Text size="xs" c="dimmed">รอดำเนินการ</Text>
-                                                        <Text size="xs" fw={600} c="gray">{dashboardStats.stopPendingPct}%</Text>
-                                                    </Group>
-                                                    <Progress value={dashboardStats.stopPendingPct} color="gray" size="lg" radius="xl" />
-                                                </div>
-
-                                                <Divider />
-                                                <Group justify="center">
-                                                    <Text size="sm" c="dimmed">จุดแวะทั้งหมด: <Text span fw={700}>{dashboardStats.totalStops}</Text> จุด</Text>
-                                                </Group>
-                                            </Stack>
-                                        </Card>
-                                    </SimpleGrid>
-
-                                    {/* Route Summary Table */}
-                                    <Card withBorder radius="md" p="lg">
-                                        <Group justify="space-between" mb="md">
-                                            <Text fw={700} size="md">🗂️ ตารางสรุปเส้นทาง — {periodLabel}</Text>
-                                            <Badge size="sm" variant="light" color="indigo">{filteredDashboardRoutes.length} เส้นทาง</Badge>
-                                        </Group>
-                                        {filteredDashboardRoutes.length === 0 ? (
-                                            <Stack align="center" gap="md" py="xl">
-                                                <TbRoute size={48} color="#ccc" />
-                                                <Text c="dimmed" ta="center">ไม่มีข้อมูลเส้นทางในช่วงเวลานี้</Text>
-                                            </Stack>
-                                        ) : (
-                                            <Table.ScrollContainer minWidth={800}>
-                                                <Table striped highlightOnHover>
-                                                    <Table.Thead>
-                                                        <Table.Tr style={{ backgroundColor: '#f8f9fa' }}>
-                                                            <Table.Th style={{ width: 40 }}>#</Table.Th>
-                                                            <Table.Th>วันที่</Table.Th>
-                                                            <Table.Th>จุดเริ่มต้น</Table.Th>
-                                                            <Table.Th ta="center">จุดแวะ</Table.Th>
-                                                            <Table.Th ta="center">สำเร็จ / ทั้งหมด</Table.Th>
-                                                            <Table.Th ta="right">ระยะทาง</Table.Th>
-                                                            <Table.Th ta="center">ความคืบหน้า</Table.Th>
-                                                            <Table.Th ta="center">สถานะ</Table.Th>
-                                                            <Table.Th ta="center">จัดการ</Table.Th>
-                                                        </Table.Tr>
-                                                    </Table.Thead>
-                                                    <Table.Tbody>
-                                                        {filteredDashboardRoutes.map((route, idx) => {
-                                                            const st = statusConfig[route.status] || statusConfig.planned
-                                                            const ts = Number(route.total_stops) || 0
-                                                            const cs = Number(route.completed_stops) || 0
-                                                            const fs = Number(route.failed_stops) || 0
-                                                            const pct = ts > 0 ? Math.round((cs / ts) * 100) : 0
-                                                            return (
-                                                                <Table.Tr key={route.id} style={{ cursor: 'pointer' }} onClick={() => viewDetail(route.id)}>
-                                                                    <Table.Td>
-                                                                        <Text size="sm" c="dimmed">{idx + 1}</Text>
-                                                                    </Table.Td>
-                                                                    <Table.Td>
-                                                                        <Text size="sm" fw={600}>
-                                                                            {new Date(route.route_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })}
-                                                                        </Text>
-                                                                    </Table.Td>
-                                                                    <Table.Td>
-                                                                        <Group gap={4}>
-                                                                            <TbMapPin size={14} color="#868e96" />
-                                                                            <Text size="sm">{route.start_location || '-'}</Text>
-                                                                        </Group>
-                                                                    </Table.Td>
-                                                                    <Table.Td ta="center">
-                                                                        <Badge size="sm" variant="light" color="gray">{ts}</Badge>
-                                                                    </Table.Td>
-                                                                    <Table.Td ta="center">
-                                                                        <Group gap={4} justify="center">
-                                                                            <Text size="sm" fw={600} c={fs > 0 ? 'red' : 'green'}>
-                                                                                {cs}/{ts}
-                                                                            </Text>
-                                                                            {fs > 0 && (
-                                                                                <Tooltip label={`${fs} จุดไม่สำเร็จ`}>
-                                                                                    <ThemeIcon size={16} variant="transparent" color="red">
-                                                                                        <TbAlertTriangle size={14} />
-                                                                                    </ThemeIcon>
-                                                                                </Tooltip>
-                                                                            )}
-                                                                        </Group>
-                                                                    </Table.Td>
-                                                                    <Table.Td ta="right">
-                                                                        <Text size="sm" fw={500}>{Number(route.total_distance).toFixed(1)} km</Text>
-                                                                    </Table.Td>
-                                                                    <Table.Td>
-                                                                        <Tooltip label={`${pct}%`}>
-                                                                            <Progress
-                                                                                value={pct}
-                                                                                size="sm"
-                                                                                radius="xl"
-                                                                                color={pct === 100 ? 'green' : pct > 0 ? 'blue' : 'gray'}
-                                                                                style={{ minWidth: 80 }}
-                                                                            />
-                                                                        </Tooltip>
-                                                                    </Table.Td>
-                                                                    <Table.Td ta="center">
-                                                                        <Badge size="sm" variant="light" color={st.color}>{st.label}</Badge>
-                                                                    </Table.Td>
-                                                                    <Table.Td ta="center">
-                                                                        <Group gap={4} justify="center">
-                                                                            <Tooltip label="ดูรายละเอียด">
-                                                                                <ActionIcon size="sm" variant="subtle" color="blue" onClick={(e) => { e.stopPropagation(); viewDetail(route.id) }}>
-                                                                                    <TbSearch size={16} />
-                                                                                </ActionIcon>
-                                                                            </Tooltip>
-                                                                            <Tooltip label="ลบ">
-                                                                                <ActionIcon size="sm" variant="subtle" color="red" onClick={(e) => { e.stopPropagation(); handleDelete(route.id) }}>
-                                                                                    <TbTrash size={16} />
-                                                                                </ActionIcon>
-                                                                            </Tooltip>
-                                                                        </Group>
-                                                                    </Table.Td>
-                                                                </Table.Tr>
-                                                            )
-                                                        })}
-                                                    </Table.Tbody>
-                                                </Table>
-                                            </Table.ScrollContainer>
-                                        )}
-                                    </Card>
-                                </Stack>
+                                <DashboardTab
+                                    filteredRoutes={filteredDashboardRoutes}
+                                    dashboardStats={dashboardStats}
+                                    periodLabel={periodLabel}
+                                    dashboardPeriod={dashboardPeriod}
+                                    setDashboardPeriod={setDashboardPeriod}
+                                    customDateStart={customDateStart}
+                                    setCustomDateStart={setCustomDateStart}
+                                    customDateEnd={customDateEnd}
+                                    setCustomDateEnd={setCustomDateEnd}
+                                    onViewDetail={viewDetail}
+                                    onDelete={handleDelete}
+                                />
                             </Tabs.Panel>
                         </Tabs>
                     </Card>
                 )}
             </Stack>
 
-            {/* ============================================================ */}
             {/* Create Route Modal */}
-            {/* ============================================================ */}
-            <Modal
+            <CreateRouteModal
                 opened={createModalOpen}
                 onClose={() => setCreateModalOpen(false)}
-                title={<Group gap="sm"><TbPlus size={20} /><Text fw={700} size="lg">สร้างตารางวิ่ง</Text></Group>}
-                size="lg" radius="lg"
-            >
-                <Stack gap="md">
-                    <SimpleGrid cols={2}>
-                        <DateInput
-                            label="วันที่วิ่ง" value={formDate} onChange={setFormDate}
-                            required valueFormat="DD/MM/YYYY"
-                        />
-                        <Box>
-                            <Text size="sm" fw={500} mb={4}>ระยะทางรวม</Text>
-                            <Text size="lg" fw={700} c="orange">{formTotalDistance.toFixed(1)} km</Text>
-                        </Box>
-                    </SimpleGrid>
+                formDate={formDate}
+                setFormDate={setFormDate}
+                formNotes={formNotes}
+                setFormNotes={setFormNotes}
+                formStops={formStops}
+                formTotalDistance={formTotalDistance}
+                startLocation={startLocation}
+                startLat={startLat}
+                startLng={startLng}
+                handleStartLocationChange={handleStartLocationChange}
+                locations={locations}
+                handleCreateNewLocation={handleCreateNewLocation}
+                addFormStop={addFormStop}
+                removeFormStop={removeFormStop}
+                moveFormStop={moveFormStop}
+                updateFormStop={updateFormStop}
+                handleStopLocationChange={handleStopLocationChange}
+                pendingTasks={pendingTasks}
+                selectedTaskIds={selectedTaskIds}
+                toggleTaskSelection={toggleTaskSelection}
+                toggleAllTasks={toggleAllTasks}
+                importPendingTasks={importPendingTasks}
+                importingTasks={importingTasks}
+                geocodedCount={geocodedCount}
+                autoCalcAllDistances={autoCalcAllDistances}
+                calcInProgress={calcInProgress}
+                handleCreate={handleCreate}
+                creating={creating}
+            />
 
-                    {/* ===== จุดเริ่มต้น ===== */}
-                    <Divider
-                        label={<Group gap={6}><TbCurrentLocation size={16} /><Text size="sm" fw={600}>จุดเริ่มต้น</Text></Group>}
-                        labelPosition="center"
-                    />
-
-                    <Card withBorder radius="md" p="sm" style={{ backgroundColor: '#e8f5e9', borderColor: '#66bb6a' }}>
-                        <LocationSelect
-                            locations={locations}
-                            value={startLocation}
-                            onChange={handleStartLocationChange}
-                            onCreateNew={(name) => handleCreateNewLocation(name, true)}
-                            label="สถานที่เริ่มต้น"
-                            placeholder="พิมพ์ค้นหาหรือเลือกจากรายการ..."
-                        />
-                        {startLat && startLng && (
-                            <Text size="xs" c="dimmed" mt={4}>
-                                ✅ พิกัด: {startLat.toFixed(5)}, {startLng.toFixed(5)}
-                            </Text>
-                        )}
-                        {startLocation && !startLat && (
-                            <Text size="xs" c="orange" mt={4}>
-                                ⚠️ ยังไม่มีพิกัด — เลือกจากรายการที่มีเครื่องหมาย 📍
-                            </Text>
-                        )}
-                    </Card>
-
-                    <Textarea
-                        label="หมายเหตุรวม" placeholder="หมายเหตุสำหรับทริปนี้..."
-                        value={formNotes} onChange={(e) => setFormNotes(e.currentTarget.value)}
-                        autosize minRows={2}
-                    />
-
-                    {/* ===== นำเข้าจากรอวิ่งแมส ===== */}
-                    {pendingTasks.length > 0 && (
-                        <>
-                            <Divider
-                                label={<Group gap={6}><TbClipboardList size={16} /><Text size="sm" fw={600}>นำเข้าจากรอวิ่งแมส ({pendingTasks.length} งาน)</Text></Group>}
-                                labelPosition="center"
-                            />
-                            <Card withBorder radius="md" p="sm" style={{ backgroundColor: '#fff8e1', borderColor: '#ffb74d', maxHeight: 260, overflowY: 'auto' }}>
-                                <Group justify="space-between" mb="xs">
-                                    <Checkbox
-                                        label={<Text size="xs" fw={600}>เลือกทั้งหมด</Text>}
-                                        checked={selectedTaskIds.length === pendingTasks.length && pendingTasks.length > 0}
-                                        indeterminate={selectedTaskIds.length > 0 && selectedTaskIds.length < pendingTasks.length}
-                                        onChange={toggleAllTasks}
-                                        size="xs"
-                                    />
-                                    <Button
-                                        size="xs" variant="light" color="orange"
-                                        leftSection={<TbClipboardList size={14} />}
-                                        disabled={selectedTaskIds.length === 0}
-                                        loading={importingTasks}
-                                        onClick={importPendingTasks}
-                                    >
-                                        {importingTasks ? 'กำลังค้นหาพิกัด...' : `นำเข้า ${selectedTaskIds.length > 0 ? `(${selectedTaskIds.length})` : ''}`}
-                                    </Button>
-                                </Group>
-                                <Stack gap={4}>
-                                    {pendingTasks.map(task => {
-                                        const deptColors: Record<string, string> = { dbd: 'violet', rd: 'green', sso: 'blue', hr: 'red' }
-                                        return (
-                                            <Card key={task.id} withBorder radius="sm" p="xs"
-                                                style={{
-                                                    backgroundColor: selectedTaskIds.includes(task.id) ? '#e3f2fd' : '#fff',
-                                                    borderColor: selectedTaskIds.includes(task.id) ? '#42a5f5' : '#e0e0e0',
-                                                    cursor: 'pointer',
-                                                }}
-                                                onClick={() => toggleTaskSelection(task.id)}
-                                            >
-                                                <Group gap="xs" wrap="nowrap">
-                                                    <Checkbox
-                                                        checked={selectedTaskIds.includes(task.id)}
-                                                        onChange={() => toggleTaskSelection(task.id)}
-                                                        size="xs"
-                                                        onClick={(e) => e.stopPropagation()}
-                                                    />
-                                                    <div style={{ flex: 1, minWidth: 0 }}>
-                                                        <Group gap={6} wrap="nowrap">
-                                                            <Text size="sm" fw={600} truncate>{task.client_name}</Text>
-                                                            <Badge size="xs" variant="light" color={deptColors[task.department] || 'gray'}>
-                                                                {task.department?.toUpperCase()}
-                                                            </Badge>
-                                                        </Group>
-                                                        <Text size="xs" c="dimmed" truncate>
-                                                            📍 {task.messenger_destination || task.client_address || 'ไม่ระบุ'}
-                                                        </Text>
-                                                        {task.messenger_details && (
-                                                            <Text size="xs" c="dimmed" truncate>📋 {task.messenger_details}</Text>
-                                                        )}
-                                                    </div>
-                                                </Group>
-                                            </Card>
-                                        )
-                                    })}
-                                </Stack>
-                            </Card>
-                        </>
-                    )}
-
-                    {/* ===== จุดแวะ ===== */}
-                    <Divider label={`จุดแวะ (${formStops.length})`} labelPosition="center" />
-
-                    {formStops.map((stop, index) => (
-                        <Card key={index} withBorder radius="md" p="sm" style={{ backgroundColor: '#f8f9fa' }}>
-                            <Group justify="space-between" mb="xs">
-                                <Group gap="xs">
-                                    <Badge size="sm" variant="outline" color="gray">จุดที่ {index + 1}</Badge>
-                                    {stop.lat && stop.lng && <Badge size="xs" variant="light" color="green">📍 มีพิกัด</Badge>}
-                                </Group>
-                                <Group gap={4}>
-                                    <ActionIcon size="xs" variant="subtle" disabled={index === 0} onClick={() => moveFormStop(index, 'up')}>
-                                        <TbArrowUp size={14} />
-                                    </ActionIcon>
-                                    <ActionIcon size="xs" variant="subtle" disabled={index === formStops.length - 1} onClick={() => moveFormStop(index, 'down')}>
-                                        <TbArrowDown size={14} />
-                                    </ActionIcon>
-                                    <ActionIcon size="xs" variant="subtle" color="red" onClick={() => removeFormStop(index)}>
-                                        <TbTrash size={14} />
-                                    </ActionIcon>
-                                </Group>
-                            </Group>
-
-                            <SimpleGrid cols={2} spacing="xs">
-                                <LocationSelect
-                                    locations={locations}
-                                    value={stop.location_name}
-                                    onChange={(name, loc) => handleStopLocationChange(index, name, loc)}
-                                    onCreateNew={(name) => handleCreateNewLocation(name, false, index)}
-                                    label="สถานที่"
-                                    placeholder="พิมพ์ค้นหาหรือเลือก..."
-                                />
-                                <NumberInput
-                                    label="ระยะทาง (km)" placeholder="0"
-                                    value={stop.distance_km}
-                                    onChange={(v) => updateFormStop(index, 'distance_km', v || 0)}
-                                    size="sm" min={0} decimalScale={1}
-                                    leftSection={<TbRoute size={14} />}
-                                />
-                            </SimpleGrid>
-
-                            <SimpleGrid cols={2} spacing="xs" mt="xs">
-                                <TextInput
-                                    label="เวลาโดยประมาณ" placeholder="เช่น 09:00 หรือ ~30 นาที"
-                                    value={stop.estimated_time}
-                                    onChange={(e) => updateFormStop(index, 'estimated_time', e.currentTarget.value)}
-                                    size="sm" leftSection={<TbClock size={14} />}
-                                />
-                                <TextInput
-                                    label="งาน/เอกสาร" placeholder="เช่น จดทะเบียนบริษัท, ยื่น VAT"
-                                    value={stop.tasks.join(', ')}
-                                    onChange={(e) => updateFormStop(index, 'tasks', e.currentTarget.value.split(',').map(t => t.trim()))}
-                                    size="sm"
-                                />
-                            </SimpleGrid>
-
-                            <TextInput
-                                label="หมายเหตุ" placeholder="หมายเหตุสำหรับจุดนี้..."
-                                value={stop.notes}
-                                onChange={(e) => updateFormStop(index, 'notes', e.currentTarget.value)}
-                                size="sm" mt="xs" leftSection={<TbNotes size={14} />}
-                            />
-                        </Card>
-                    ))}
-
-                    <Button variant="light" leftSection={<TbPlus size={16} />} onClick={addFormStop} fullWidth>
-                        เพิ่มจุดแวะ
-                    </Button>
-
-                    {/* Auto-calc distance */}
-                    {formStops.length > 0 && (
-                        <Card withBorder radius="md" p="sm" style={{ backgroundColor: '#fff3e0', borderColor: '#ffa726' }}>
-                            <Group justify="space-between" align="center">
-                                <div>
-                                    <Text size="sm" fw={600} c="orange.8">
-                                        <TbCalculator size={16} style={{ verticalAlign: 'middle', marginRight: 6 }} />
-                                        คำนวณระยะทางอัตโนมัติ
-                                    </Text>
-                                    <Text size="xs" c="dimmed" mt={2}>
-                                        {geocodedCount}/{formStops.length} จุดมีพิกัด
-                                        {startLat && startLng ? ' + จุดเริ่มต้น ✅' : ' — ยังไม่มีพิกัดจุดเริ่มต้น'}
-                                    </Text>
-                                </div>
-                                <Button
-                                    size="sm" color="orange"
-                                    leftSection={<TbCalculator size={16} />}
-                                    onClick={autoCalcAllDistances}
-                                    loading={calcInProgress}
-                                    disabled={!startLat || !startLng || formStops.length === 0}
-                                >
-                                    คำนวณ
-                                </Button>
-                            </Group>
-                            {calcInProgress && <Progress value={100} animated size="xs" mt="xs" color="orange" />}
-                        </Card>
-                    )}
-
-                    <Divider />
-
-                    <Group justify="flex-end">
-                        <Button variant="default" onClick={() => setCreateModalOpen(false)}>ยกเลิก</Button>
-                        <Button onClick={handleCreate} loading={creating} leftSection={<TbCheck size={16} />}>
-                            สร้างตาราง
-                        </Button>
-                    </Group>
-                </Stack>
-            </Modal>
-
-            {/* ============================================================ */}
-            {/* Detail / View Modal */}
-            {/* ============================================================ */}
-            <Modal
+            {/* Route Detail Modal */}
+            <RouteDetailModal
                 opened={detailModalOpen}
                 onClose={() => { setDetailModalOpen(false); setSelectedRoute(null) }}
-                title={<Group gap="sm"><TbEye size={20} /><Text fw={700} size="lg">รายละเอียดตารางวิ่ง</Text></Group>}
-                size="lg" radius="lg"
-            >
-                {detailLoading && <Box ta="center" py="xl"><Loader /></Box>}
+                route={selectedRoute}
+                loading={detailLoading}
+                onUpdateRouteStatus={handleUpdateRouteStatus}
+                onUpdateStopStatus={handleUpdateStopStatus}
+            />
 
-                {!detailLoading && selectedRoute && (
-                    <Stack gap="md">
-                        <Card withBorder radius="md" p="md" style={{ backgroundColor: '#f0f7ff' }}>
-                            <SimpleGrid cols={2} spacing="sm">
-                                <div>
-                                    <Text size="xs" c="dimmed">วันที่</Text>
-                                    <Text fw={600}>
-                                        {new Date(selectedRoute.route_date).toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-                                    </Text>
-                                </div>
-                                <div>
-                                    <Text size="xs" c="dimmed">ระยะทางรวม</Text>
-                                    <Text fw={700} c="orange" size="lg">{Number(selectedRoute.total_distance).toFixed(1)} km</Text>
-                                </div>
-                            </SimpleGrid>
-
-                            {selectedRoute.start_location && (
-                                <Box mt="sm" p="xs" style={{ backgroundColor: '#e8f5e9', borderRadius: 8 }}>
-                                    <Text size="xs" c="dimmed">🚩 จุดเริ่มต้น:</Text>
-                                    <Text size="sm" fw={500}>{selectedRoute.start_location}</Text>
-                                </Box>
-                            )}
-
-                            {selectedRoute.notes && (
-                                <Box mt="sm" p="xs" style={{ backgroundColor: '#fff3e0', borderRadius: 8 }}>
-                                    <Text size="xs" c="dimmed">หมายเหตุ:</Text>
-                                    <Text size="sm">{selectedRoute.notes}</Text>
-                                </Box>
-                            )}
-
-                            <Group mt="sm" gap="xs">
-                                <Text size="xs" c="dimmed">สถานะ:</Text>
-                                <Select
-                                    size="xs" value={selectedRoute.status}
-                                    data={[
-                                        { value: 'planned', label: '📝 วางแผน' },
-                                        { value: 'in_progress', label: '🔄 กำลังดำเนินการ' },
-                                        { value: 'completed', label: '✅ เสร็จสิ้น' },
-                                    ]}
-                                    onChange={(v) => v && handleUpdateRouteStatus(selectedRoute.id, v)}
-                                    style={{ width: 180 }}
-                                />
-                            </Group>
-                        </Card>
-
-                        {/* 🗺️ Map */}
-                        <Divider label="🗺️ แผนที่เส้นทาง" labelPosition="center" />
-                        <RouteMap
-                            startLocation={selectedRoute.start_location}
-                            startLat={selectedRoute.start_lat}
-                            startLng={selectedRoute.start_lng}
-                            stops={selectedRoute.stops}
-                            height={350}
-                        />
-
-                        <Divider label="เส้นทาง" labelPosition="center" />
-
-                        {/* Starting point marker */}
-                        {selectedRoute.start_location && (
-                            <Box>
-                                <Group gap="sm" align="flex-start">
-                                    <Box style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 36 }}>
-                                        <ThemeIcon size={32} radius="xl" color="teal" variant="filled">
-                                            <TbCurrentLocation size={16} />
-                                        </ThemeIcon>
-                                        {selectedRoute.stops.length > 0 && (
-                                            <Box style={{ width: 2, height: 40, backgroundColor: '#dee2e6', margin: '4px 0' }} />
-                                        )}
-                                    </Box>
-                                    <Card withBorder radius="md" p="sm" style={{ flex: 1, backgroundColor: '#e8f5e9' }}>
-                                        <Text fw={600} size="sm">🚩 {selectedRoute.start_location}</Text>
-                                        <Text size="xs" c="dimmed">จุดเริ่มต้น</Text>
-                                    </Card>
-                                </Group>
-                            </Box>
-                        )}
-
-                        {/* Stops Timeline */}
-                        {selectedRoute.stops.map((stop, i) => {
-                            const st = stopStatusConfig[stop.status] || stopStatusConfig.pending
-                            const StIcon = st.icon
-                            return (
-                                <Box key={stop.id || i}>
-                                    <Group gap="sm" align="flex-start">
-                                        <Box style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 36 }}>
-                                            <ThemeIcon size={32} radius="xl" color={st.color} variant="filled">
-                                                <StIcon size={16} />
-                                            </ThemeIcon>
-                                            {i < selectedRoute.stops.length - 1 && (
-                                                <Box style={{ width: 2, height: 40, backgroundColor: '#dee2e6', margin: '4px 0' }} />
-                                            )}
-                                        </Box>
-                                        <Card withBorder radius="md" p="sm" style={{ flex: 1 }}>
-                                            <Group justify="space-between">
-                                                <div>
-                                                    <Text fw={600} size="sm">{stop.location_name}</Text>
-                                                    {stop.estimated_time && <Text size="xs" c="dimmed">⏰ {stop.estimated_time}</Text>}
-                                                </div>
-                                                <Group gap="xs">
-                                                    {stop.distance_km > 0 && (
-                                                        <Badge size="xs" variant="light" color="orange">
-                                                            {Number(stop.distance_km).toFixed(1)} km
-                                                        </Badge>
-                                                    )}
-                                                    <Badge size="xs" variant="light" color={st.color}>{st.label}</Badge>
-                                                </Group>
-                                            </Group>
-
-                                            {stop.tasks && stop.tasks.length > 0 && (
-                                                <Group gap={4} mt={4}>
-                                                    {stop.tasks.map((task, ti) => (
-                                                        <Badge key={ti} size="xs" variant="outline" color="gray">📋 {task}</Badge>
-                                                    ))}
-                                                </Group>
-                                            )}
-
-                                            {stop.notes && (
-                                                <Box mt={4} p={6} style={{
-                                                    backgroundColor: stop.status === 'failed' ? '#ffebee' : '#fff8e1',
-                                                    borderRadius: 6,
-                                                    borderLeft: `3px solid ${stop.status === 'failed' ? '#e53935' : '#f9a825'}`,
-                                                }}>
-                                                    <Text size="xs">
-                                                        {stop.status === 'failed' ? '⚠️' : '📝'} {stop.notes}
-                                                    </Text>
-                                                </Box>
-                                            )}
-
-                                            {stop.status === 'pending' && stop.id && (
-                                                <Group gap="xs" mt="xs">
-                                                    <Button size="xs" variant="light" color="green" leftSection={<TbCheck size={12} />}
-                                                        onClick={() => handleUpdateStopStatus(stop.id!, 'completed')}>
-                                                        สำเร็จ
-                                                    </Button>
-                                                    <Button size="xs" variant="light" color="red" leftSection={<TbX size={12} />}
-                                                        onClick={() => {
-                                                            const note = window.prompt('หมายเหตุ (เหตุผลที่ไม่สำเร็จ):')
-                                                            if (note !== null) handleUpdateStopStatus(stop.id!, 'failed', note || undefined)
-                                                        }}>
-                                                        ไม่สำเร็จ
-                                                    </Button>
-                                                </Group>
-                                            )}
-                                        </Card>
-                                    </Group>
-                                </Box>
-                            )
-                        })}
-
-                        {selectedRoute.stops.length === 0 && (
-                            <Text c="dimmed" ta="center" py="md">ไม่มีจุดแวะ</Text>
-                        )}
-                    </Stack>
-                )}
-            </Modal>
-
-            {/* ============================================================ */}
             {/* Create Location Modal */}
-            {/* ============================================================ */}
             <Modal
                 opened={newLocModalOpen}
                 onClose={() => setNewLocModalOpen(false)}
@@ -1873,7 +983,6 @@ export default function MessengerRoutes() {
                         value={newLocLat && newLocLng ? `${newLocLat}, ${newLocLng}` : ''}
                         onChange={(e) => {
                             const val = e.currentTarget.value.trim()
-                            // Try to parse "lat, lng" format from Google Maps
                             const parts = val.split(',').map(p => p.trim())
                             if (parts.length === 2 && parts[0] && parts[1]) {
                                 setNewLocLat(parts[0])
@@ -1882,7 +991,6 @@ export default function MessengerRoutes() {
                                 setNewLocLat('')
                                 setNewLocLng('')
                             } else {
-                                // Partial input — store in lat for now
                                 setNewLocLat(val)
                                 setNewLocLng('')
                             }
@@ -1930,9 +1038,8 @@ export default function MessengerRoutes() {
                     </Group>
                 </Stack>
             </Modal>
-            {/* ============================================================ */}
+
             {/* Delete Confirmation Modal */}
-            {/* ============================================================ */}
             <Modal
                 opened={!!deleteConfirmId}
                 onClose={() => setDeleteConfirmId(null)}

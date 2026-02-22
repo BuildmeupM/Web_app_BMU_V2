@@ -29,76 +29,11 @@ import { useQuery, useMutation, useQueryClient } from 'react-query'
 import { useAuthStore } from '../store/authStore'
 import { employeeService, Employee } from '../services/employeeService'
 import EmployeeList from '../components/Employee/EmployeeList'
-import EmployeeDetail from '../components/Employee/EmployeeDetail'
 import EmployeeForm from '../components/Employee/EmployeeForm'
 import EmployeeImport from '../components/Employee/EmployeeImport'
 import EmployeeDashboard from '../components/Employee/EmployeeDashboard'
+import { EmployeeDetailView } from '../components/EmployeeManagement'
 
-// Component to load and display employee detail
-function EmployeeDetailView({
-  employeeId,
-  onBack,
-  onEdit,
-}: {
-  employeeId: string
-  onBack?: () => void
-  onEdit: () => void
-}) {
-  const { data: employee, isLoading, error } = useQuery(
-    ['employee', employeeId],
-    () => employeeService.getById(employeeId),
-    {
-      enabled: !!employeeId,
-    }
-  )
-
-  if (isLoading) {
-    return (
-      <Card>
-        {onBack && (
-          <Group justify="space-between" mb="md">
-            <Button variant="subtle" onClick={onBack}>
-              ← กลับไปรายชื่อ
-            </Button>
-          </Group>
-        )}
-        <Center py="xl">
-          <Loader />
-        </Center>
-      </Card>
-    )
-  }
-
-  if (error || !employee) {
-    return (
-      <Card>
-        {onBack && (
-          <Group justify="space-between" mb="md">
-            <Button variant="subtle" onClick={onBack}>
-              ← กลับไปรายชื่อ
-            </Button>
-          </Group>
-        )}
-        <Alert icon={<TbAlertCircle size={16} />} color="red">
-          เกิดข้อผิดพลาดในการโหลดข้อมูลพนักงาน
-        </Alert>
-      </Card>
-    )
-  }
-
-  return (
-    <Card>
-      {onBack && (
-        <Group justify="space-between" mb="md">
-          <Button variant="subtle" onClick={onBack}>
-            ← กลับไปรายชื่อ
-          </Button>
-        </Group>
-      )}
-      <EmployeeDetail employee={employee} onEdit={onEdit} />
-    </Card>
-  )
-}
 
 export default function EmployeeManagement() {
   const { user } = useAuthStore()

@@ -29,21 +29,11 @@ import type { RegistrationClient } from '../../services/registrationClientServic
 import { type WorkType, type TeamStatus, getTeamStatuses } from '../../services/registrationWorkService'
 import { notifications } from '@mantine/notifications'
 import usersService from '../../services/usersService'
+import { STEPS, STATUS_CONFIG } from './utils/taskConstants'
+import type { StepsState } from './utils/taskConstants'
+import { formatThaiDate, formatTime } from './utils/taskFormatters'
 
-// Step definitions
-const STEPS = [
-    { key: 'step_1' as const, label: 'ประสานงานขอเอกสาร', pct: 20 },
-    { key: 'step_2' as const, label: 'เตรียมข้อมูล', pct: 40 },
-    { key: 'step_3' as const, label: 'รอลูกค้าเตรียมเอกสาร', pct: 60 },
-    { key: 'step_4' as const, label: 'รอวิ่งแมส', pct: 80 },
-    { key: 'step_5' as const, label: 'ส่งมอบงาน', pct: 100 },
-]
 
-const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
-    pending: { label: 'รอดำเนินการ', color: 'orange' },
-    in_progress: { label: 'กำลังดำเนินการ', color: 'blue' },
-    completed: { label: 'เสร็จสิ้น', color: 'green' },
-}
 
 interface TaskDetailDrawerProps {
     opened: boolean
@@ -314,17 +304,7 @@ export default function TaskDetailDrawer({
         addCommentMutation.mutate(commentText.trim())
     }
 
-    const formatThaiDate = (dateStr: string) => {
-        try {
-            return new Date(dateStr).toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' })
-        } catch { return dateStr }
-    }
-
-    const formatTime = (dateStr: string) => {
-        try {
-            return new Date(dateStr).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
-        } catch { return '' }
-    }
+    // formatThaiDate and formatTime are now imported from ./utils/taskFormatters
 
     if (!task) return null
 

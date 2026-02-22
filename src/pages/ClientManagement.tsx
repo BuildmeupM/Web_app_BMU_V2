@@ -15,8 +15,6 @@ import {
   Card,
   Pagination,
   Alert,
-  Loader,
-  Center,
   Badge,
   Text,
   SimpleGrid,
@@ -29,162 +27,28 @@ import {
   TbSearch,
   TbAlertCircle,
   TbBuilding,
-  TbCalendar,
   TbCheck,
-  TbX,
-  TbCash,
-  TbFileInvoice,
-  TbFileOff,
   TbUpload,
+  TbFileInvoice,
 } from 'react-icons/tb'
 import { useQuery, useMutation, useQueryClient } from 'react-query'
 import { useAuthStore } from '../store/authStore'
-import clientsService, { Client, AccountingFees, DbdInfo, AgencyCredentials } from '../services/clientsService'
+import clientsService, { Client } from '../services/clientsService'
 import ClientList from '../components/Client/ClientList'
-import ClientDetail from '../components/Client/ClientDetail'
 import ClientForm from '../components/Client/ClientForm'
 import ClientDeleteModal from '../components/Client/ClientDeleteModal'
 import ClientImport from '../components/Client/ClientImport'
-import MonthlyFeesForm from '../components/Client/MonthlyFeesForm'
-import DbdInfoForm from '../components/Client/DbdInfoForm'
-import AgencyCredentialsForm from '../components/Client/AgencyCredentialsForm'
 import { notifications } from '@mantine/notifications'
+import {
+  ClientDetailView,
+  companyStatusOptions,
+  taxRegistrationStatusOptions,
+  getCompanyStatusColor,
+  getCompanyStatusIcon,
+  getCompanyStatusColorValue,
+  getTaxStatusIcon,
+} from '../components/ClientManagement'
 
-// Component to load and display client detail + manage related-data modals
-function ClientDetailView({
-  build,
-  onBack,
-  onEdit,
-}: {
-  build: string
-  onBack?: () => void
-  onEdit: (client: Client) => void
-}) {
-  const queryClient = useQueryClient()
-  const { data: client, isLoading, error } = useQuery(
-    ['client', build],
-    () => clientsService.getByBuild(build),
-    { enabled: !!build }
-  )
-
-  // Modal states
-  const [monthlyFeesOpened, setMonthlyFeesOpened] = useState(false)
-  const [dbdOpened, setDbdOpened] = useState(false)
-  const [credentialsOpened, setCredentialsOpened] = useState(false)
-
-  // Save handler for monthly fees
-  const handleSaveMonthlyFees = async (data: AccountingFees) => {
-    try {
-      // Merge with existing accounting_fees (preserve peak_code, dates)
-      const existingFees = client?.accounting_fees || {}
-      const merged = { ...existingFees, ...data }
-      await clientsService.update(build, { accounting_fees: merged })
-      notifications.show({ title: 'บันทึกสำเร็จ', message: 'บันทึกค่าทำบัญชีรายเดือนเรียบร้อย', color: 'green' })
-      queryClient.invalidateQueries(['client', build])
-      setMonthlyFeesOpened(false)
-    } catch (err: any) {
-      notifications.show({ title: 'เกิดข้อผิดพลาด', message: err?.response?.data?.message || 'ไม่สามารถบันทึกได้', color: 'red' })
-    }
-  }
-
-  // Save handler for DBD info
-  const handleSaveDbdInfo = async (data: DbdInfo) => {
-    try {
-      await clientsService.update(build, { dbd_info: data })
-      notifications.show({ title: 'บันทึกสำเร็จ', message: 'บันทึกข้อมูล DBD เรียบร้อย', color: 'green' })
-      queryClient.invalidateQueries(['client', build])
-      setDbdOpened(false)
-    } catch (err: any) {
-      notifications.show({ title: 'เกิดข้อผิดพลาด', message: err?.response?.data?.message || 'ไม่สามารถบันทึกได้', color: 'red' })
-    }
-  }
-
-  // Save handler for credentials
-  const handleSaveCredentials = async (data: AgencyCredentials) => {
-    try {
-      await clientsService.update(build, { agency_credentials: data })
-      notifications.show({ title: 'บันทึกสำเร็จ', message: 'บันทึกรหัสผู้ใช้เรียบร้อย', color: 'green' })
-      queryClient.invalidateQueries(['client', build])
-      setCredentialsOpened(false)
-    } catch (err: any) {
-      notifications.show({ title: 'เกิดข้อผิดพลาด', message: err?.response?.data?.message || 'ไม่สามารถบันทึกได้', color: 'red' })
-    }
-  }
-
-  if (isLoading) {
-    return (
-      <Card>
-        {onBack && (
-          <Group justify="space-between" mb="md">
-            <Button variant="subtle" onClick={onBack}>← กลับไปรายชื่อ</Button>
-          </Group>
-        )}
-        <Center py="xl"><Loader /></Center>
-      </Card>
-    )
-  }
-
-  if (error || !client) {
-    return (
-      <Card>
-        {onBack && (
-          <Group justify="space-between" mb="md">
-            <Button variant="subtle" onClick={onBack}>← กลับไปรายชื่อ</Button>
-          </Group>
-        )}
-        <Alert icon={<TbAlertCircle size={16} />} color="red">
-          เกิดข้อผิดพลาดในการโหลดข้อมูลลูกค้า
-        </Alert>
-      </Card>
-    )
-  }
-
-  return (
-    <>
-      <Card>
-        {onBack && (
-          <Group justify="space-between" mb="md">
-            <Button variant="subtle" onClick={onBack}>← กลับไปรายชื่อ</Button>
-          </Group>
-        )}
-        <ClientDetail
-          client={client}
-          onEdit={() => onEdit(client)}
-          onEditMonthlyFees={() => setMonthlyFeesOpened(true)}
-          onEditDbdInfo={() => setDbdOpened(true)}
-          onEditCredentials={() => setCredentialsOpened(true)}
-        />
-      </Card>
-
-      {/* Monthly Fees Modal */}
-      <MonthlyFeesForm
-        opened={monthlyFeesOpened}
-        onClose={() => setMonthlyFeesOpened(false)}
-        onSubmit={handleSaveMonthlyFees}
-        data={client.accounting_fees}
-        build={build}
-      />
-
-      {/* DBD Info Modal */}
-      <DbdInfoForm
-        opened={dbdOpened}
-        onClose={() => setDbdOpened(false)}
-        onSubmit={handleSaveDbdInfo}
-        data={client.dbd_info}
-        build={build}
-      />
-
-      {/* Credentials Modal */}
-      <AgencyCredentialsForm
-        opened={credentialsOpened}
-        onClose={() => setCredentialsOpened(false)}
-        onSubmit={handleSaveCredentials}
-        data={client.agency_credentials}
-        build={build}
-      />
-    </>
-  )
-}
 
 export default function ClientManagement() {
   const { user } = useAuthStore()
@@ -369,79 +233,7 @@ export default function ClientManagement() {
     setSelectedClient(null)
   }
 
-  const companyStatusOptions = [
-    { value: 'all', label: 'ทั้งหมด' },
-    { value: 'รายเดือน', label: 'รายเดือน' },
-    { value: 'รายเดือน / วางมือ', label: 'รายเดือน / วางมือ' },
-    { value: 'รายเดือน / จ่ายรายปี', label: 'รายเดือน / จ่ายรายปี' },
-    { value: 'รายเดือน / เดือนสุดท้าย', label: 'รายเดือน / เดือนสุดท้าย' },
-    { value: 'ยกเลิกทำ', label: 'ยกเลิกทำ' },
-  ]
 
-  const taxRegistrationStatusOptions = [
-    { value: 'all', label: 'ทั้งหมด' },
-    { value: 'จดภาษีมูลค่าเพิ่ม', label: 'จดภาษีมูลค่าเพิ่ม' },
-    { value: 'ยังไม่จดภาษีมูลค่าเพิ่ม', label: 'ยังไม่จดภาษีมูลค่าเพิ่ม' },
-  ]
-
-  // Helper function to get company status color
-  const getCompanyStatusColor = (status: string): string => {
-    switch (status) {
-      case 'รายเดือน':
-        return 'green'
-      case 'รายเดือน / วางมือ':
-        return 'yellow'
-      case 'รายเดือน / จ่ายรายปี':
-        return 'blue'
-      case 'รายเดือน / เดือนสุดท้าย':
-        return 'orange'
-      case 'ยกเลิกทำ':
-        return 'red'
-      default:
-        return 'gray'
-    }
-  }
-
-  // Helper function to get company status icon
-  const getCompanyStatusIcon = (status: string) => {
-    switch (status) {
-      case 'รายเดือน':
-        return TbCalendar
-      case 'รายเดือน / วางมือ':
-        return TbCheck
-      case 'รายเดือน / จ่ายรายปี':
-        return TbCash
-      case 'รายเดือน / เดือนสุดท้าย':
-        return TbFileInvoice
-      case 'ยกเลิกทำ':
-        return TbX
-      default:
-        return TbBuilding
-    }
-  }
-
-  // Helper function to get company status color value
-  const getCompanyStatusColorValue = (status: string): string => {
-    switch (status) {
-      case 'รายเดือน':
-        return '#4caf50'
-      case 'รายเดือน / วางมือ':
-        return '#ff9800'
-      case 'รายเดือน / จ่ายรายปี':
-        return '#4facfe'
-      case 'รายเดือน / เดือนสุดท้าย':
-        return '#ff6b35'
-      case 'ยกเลิกทำ':
-        return '#f44336'
-      default:
-        return '#999'
-    }
-  }
-
-  // Helper function to get tax registration status icon
-  const getTaxStatusIcon = (status: string) => {
-    return status === 'จดภาษีมูลค่าเพิ่ม' ? TbFileInvoice : TbFileOff
-  }
 
   return (
     <Container size="xl" py="md">

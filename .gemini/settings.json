@@ -1,0 +1,10 @@
+{
+    "mcpServers": {
+        "nas-mysql": {
+            "command": "python",
+            "args": [
+                "c:\\Users\\USER\\Desktop\\github\\Web_app_BMU_V2\\nas_mysql_mcp.py"
+            ]
+        }
+    }
+}

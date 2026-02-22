@@ -27,11 +27,7 @@ import {
     Tooltip,
     Box,
     SegmentedControl,
-    SimpleGrid,
     Collapse,
-    Divider,
-    CopyButton,
-    Paper,
 } from '@mantine/core'
 import {
     TbSearch,
@@ -44,16 +40,8 @@ import {
     TbFilter,
     TbChevronDown,
     TbChevronRight,
-    TbUsers,
-    TbCurrencyBaht,
     TbCalendar,
     TbRefresh,
-    TbExternalLink,
-    TbPhoto,
-    TbCopy,
-    TbMapPin,
-    TbMessage,
-    TbReceipt,
     TbFileSpreadsheet,
 } from 'react-icons/tb'
 import { useQuery, useQueryClient } from 'react-query'
@@ -61,308 +49,14 @@ import { useAuthStore } from '../store/authStore'
 import clientsService, { Client, AccountingFees } from '../services/clientsService'
 import MonthlyFeesForm from '../components/Client/MonthlyFeesForm'
 import { notifications } from '@mantine/notifications'
+import {
+    companyStatusOptions,
+    defaultStatuses,
+    monthViewOptions,
+    getStatusColor,
+    ExpandedRow,
+} from '../components/AccountingFeesManagement'
 
-// ─── Constants ───────────────────────────────────────────────
-
-const companyStatusOptions = [
-    { value: 'รายเดือน', label: 'รายเดือน' },
-    { value: 'รายเดือน / วางมือ', label: 'รายเดือน / วางมือ' },
-    { value: 'รายเดือน / จ่ายรายปี', label: 'รายเดือน / จ่ายรายปี' },
-    { value: 'รายเดือน / เดือนสุดท้าย', label: 'รายเดือน / เดือนสุดท้าย' },
-    { value: 'ยกเลิกทำ', label: 'ยกเลิกทำ' },
-]
-
-const defaultStatuses = companyStatusOptions
-    .filter((opt) => opt.value.includes('รายเดือน'))
-    .map((opt) => opt.value)
-
-const MONTHS_TH = [
-    { key: 'jan', label: 'ม.ค.' },
-    { key: 'feb', label: 'ก.พ.' },
-    { key: 'mar', label: 'มี.ค.' },
-    { key: 'apr', label: 'เม.ย.' },
-    { key: 'may', label: 'พ.ค.' },
-    { key: 'jun', label: 'มิ.ย.' },
-    { key: 'jul', label: 'ก.ค.' },
-    { key: 'aug', label: 'ส.ค.' },
-    { key: 'sep', label: 'ก.ย.' },
-    { key: 'oct', label: 'ต.ค.' },
-    { key: 'nov', label: 'พ.ย.' },
-    { key: 'dec', label: 'ธ.ค.' },
-]
-
-const monthViewOptions = [
-    { label: '3 เดือน', value: '3' },
-    { label: '6 เดือน', value: '6' },
-    { label: '9 เดือน', value: '9' },
-    { label: '12 เดือน', value: '12' },
-]
-
-const getStatusColor = (status: string): string => {
-    switch (status) {
-        case 'รายเดือน': return 'green'
-        case 'รายเดือน / วางมือ': return 'yellow'
-        case 'รายเดือน / จ่ายรายปี': return 'blue'
-        case 'รายเดือน / เดือนสุดท้าย': return 'orange'
-        case 'ยกเลิกทำ': return 'red'
-        default: return 'gray'
-    }
-}
-
-const formatCurrency = (val: number | null | undefined): string => {
-    if (val === null || val === undefined) return '-'
-    return Math.round(val).toLocaleString('th-TH')
-}
-
-const getMonthlyFee = (fees: AccountingFees | null | undefined, prefix: string, monthKey: string): number | null => {
-    if (!fees) return null
-    return (fees as any)[`${prefix}_${monthKey}`] ?? null
-}
-
-const sumFees = (fees: AccountingFees | null | undefined, prefix: string, monthCount: number): number => {
-    if (!fees) return 0
-    const months = MONTHS_TH.slice(0, monthCount)
-    return months.reduce((sum, m) => {
-        const val = (fees as any)[`${prefix}_${m.key}`]
-        return sum + (typeof val === 'number' ? val : 0)
-    }, 0)
-}
-
-// ─── MonthCard Component ────────────────────────────────────
-
-function MonthCard({ label, value }: { label: string; value: number | null }) {
-    const hasValue = value !== null && value !== undefined
-    return (
-        <Box
-            style={{
-                backgroundColor: hasValue ? '#e8f5e9' : '#f5f5f5',
-                borderRadius: 8,
-                padding: '6px 4px',
-                textAlign: 'center',
-                border: hasValue ? '1px solid #c8e6c9' : '1px solid #e0e0e0',
-                minWidth: 0,
-            }}
-        >
-            <Text size="xs" c="dimmed" fw={500}>{label}</Text>
-            <Text
-                size="sm"
-                fw={hasValue ? 700 : 400}
-                c={hasValue ? 'dark' : 'dimmed'}
-                style={{ fontVariantNumeric: 'tabular-nums' }}
-            >
-                {hasValue ? formatCurrency(value) : '-'}
-            </Text>
-        </Box>
-    )
-}
-
-// ─── ExpandedRow Component ──────────────────────────────────
-
-function ExpandedRow({
-    fees,
-    monthCount,
-    canEdit,
-    onEdit,
-}: {
-    fees: AccountingFees | null
-    monthCount: number
-    canEdit: boolean
-    onEdit: () => void
-}) {
-    const months = MONTHS_TH.slice(0, monthCount)
-    const totalAccounting = sumFees(fees, 'accounting_fee', monthCount)
-    const totalHR = sumFees(fees, 'hr_fee', monthCount)
-
-    if (!fees) {
-        return (
-            <Box p="md" style={{ backgroundColor: '#fafafa', borderRadius: 8 }}>
-                <Group justify="space-between" align="center">
-                    <Text c="dimmed" fs="italic" size="sm">ยังไม่มีข้อมูลค่าทำบัญชี</Text>
-                    {canEdit && (
-                        <Button
-                            size="xs"
-                            variant="light"
-                            color="orange"
-                            leftSection={<TbEdit size={14} />}
-                            onClick={onEdit}
-                        >
-                            เพิ่มข้อมูล
-                        </Button>
-                    )}
-                </Group>
-            </Box>
-        )
-    }
-
-    return (
-        <Box p="md" style={{ backgroundColor: '#fafafa', borderRadius: 8 }}>
-            <Stack gap="md">
-                {/* ค่าทำบัญชี */}
-                <div>
-                    <Group justify="space-between" mb={8}>
-                        <Group gap={6}>
-                            <TbCurrencyBaht size={16} color="#ff6b35" />
-                            <Text size="sm" fw={600} c="#ff6b35">ค่าทำบัญชีรายเดือน</Text>
-                            {fees?.fee_year && (
-                                <Badge size="xs" variant="light" color="gray">ปี {fees.fee_year}</Badge>
-                            )}
-                        </Group>
-                        <Badge variant="light" color="orange" size="sm">
-                            รวม {formatCurrency(totalAccounting)} บาท
-                        </Badge>
-                    </Group>
-                    <SimpleGrid cols={{ base: 4, xs: 6, sm: 6, md: monthCount <= 6 ? monthCount : 6, lg: monthCount }}>
-                        {months.map((m) => (
-                            <MonthCard
-                                key={`acc-${m.key}`}
-                                label={m.label}
-                                value={getMonthlyFee(fees, 'accounting_fee', m.key)}
-                            />
-                        ))}
-                    </SimpleGrid>
-                </div>
-
-                <Divider variant="dashed" />
-
-                {/* ค่า HR */}
-                <div>
-                    <Group justify="space-between" mb={8}>
-                        <Group gap={6}>
-                            <TbUsers size={16} color="#1976d2" />
-                            <Text size="sm" fw={600} c="#1976d2">ค่าบริการ HR รายเดือน</Text>
-                        </Group>
-                        <Badge variant="light" color="blue" size="sm">
-                            รวม {formatCurrency(totalHR)} บาท
-                        </Badge>
-                    </Group>
-                    <SimpleGrid cols={{ base: 4, xs: 6, sm: 6, md: monthCount <= 6 ? monthCount : 6, lg: monthCount }}>
-                        {months.map((m) => (
-                            <MonthCard
-                                key={`hr-${m.key}`}
-                                label={m.label}
-                                value={getMonthlyFee(fees, 'hr_fee', m.key)}
-                            />
-                        ))}
-                    </SimpleGrid>
-                </div>
-
-                {/* Footer: Info Cards Grid */}
-                <Divider variant="dashed" />
-                <SimpleGrid cols={{ base: 1, xs: 2, md: 4 }} spacing="sm">
-                    {/* Peak Code Card */}
-                    <Paper withBorder radius="md" p="xs" style={{ borderColor: '#e0e0e0' }}>
-                        <Group gap={8} mb={4}>
-                            <TbMapPin size={14} color="#ff6b35" />
-                            <Text size="xs" fw={600} c="dimmed">Peak Code</Text>
-                        </Group>
-                        <Text size="sm" fw={700} c="dark">
-                            {fees.peak_code || <Text span fs="italic" c="dimmed">-</Text>}
-                        </Text>
-                    </Paper>
-
-                    {/* Line Chat Card */}
-                    <Paper withBorder radius="md" p="xs" style={{ borderColor: '#e0e0e0' }}>
-                        <Group gap={8} mb={4}>
-                            <TbMessage size={14} color="#06c755" />
-                            <Text size="xs" fw={600} c="dimmed">Line Chat</Text>
-                            {fees.line_chat_type && (
-                                <Badge size="xs" variant="light" color={fees.line_chat_type === 'group' ? 'green' : 'teal'}>
-                                    {fees.line_chat_type}
-                                </Badge>
-                            )}
-                        </Group>
-                        {fees.line_chat_id ? (
-                            <Group gap={4}>
-                                <Tooltip label={fees.line_chat_id} multiline maw={300}>
-                                    <Text size="xs" ff="monospace" c="dark" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 160 }}>
-                                        {fees.line_chat_id}
-                                    </Text>
-                                </Tooltip>
-                                <CopyButton value={fees.line_chat_id}>
-                                    {({ copied, copy }) => (
-                                        <ActionIcon size="xs" variant="subtle" color={copied ? 'teal' : 'gray'} onClick={copy}>
-                                            {copied ? <TbCheck size={12} /> : <TbCopy size={12} />}
-                                        </ActionIcon>
-                                    )}
-                                </CopyButton>
-                            </Group>
-                        ) : (
-                            <Text size="xs" c="dimmed" fs="italic">ไม่มีข้อมูล</Text>
-                        )}
-                    </Paper>
-
-                    {/* Billing Card */}
-                    <Paper withBorder radius="md" p="xs" style={{ borderColor: '#e0e0e0' }}>
-                        <Group gap={8} mb={4}>
-                            <TbReceipt size={14} color="#2196f3" />
-                            <Text size="xs" fw={600} c="dimmed">Line Billing</Text>
-                            {fees.line_billing_chat_type && (
-                                <Badge size="xs" variant="light" color={fees.line_billing_chat_type === 'group' ? 'green' : 'teal'}>
-                                    {fees.line_billing_chat_type}
-                                </Badge>
-                            )}
-                        </Group>
-                        {fees.line_billing_id ? (
-                            <Group gap={4}>
-                                <Tooltip label={fees.line_billing_id} multiline maw={300}>
-                                    <Text size="xs" ff="monospace" c="dark" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 160 }}>
-                                        {fees.line_billing_id}
-                                    </Text>
-                                </Tooltip>
-                                <CopyButton value={fees.line_billing_id}>
-                                    {({ copied, copy }) => (
-                                        <ActionIcon size="xs" variant="subtle" color={copied ? 'teal' : 'gray'} onClick={copy}>
-                                            {copied ? <TbCheck size={12} /> : <TbCopy size={12} />}
-                                        </ActionIcon>
-                                    )}
-                                </CopyButton>
-                            </Group>
-                        ) : (
-                            <Text size="xs" c="dimmed" fs="italic">ไม่มีข้อมูล</Text>
-                        )}
-                    </Paper>
-
-                    {/* Image Link Card */}
-                    <Paper withBorder radius="md" p="xs" style={{ borderColor: fees.accounting_fee_image_url ? '#4caf50' : '#ef5350', borderWidth: 1.5 }}>
-                        <Group gap={8} mb={4}>
-                            <TbPhoto size={14} color={fees.accounting_fee_image_url ? '#4caf50' : '#ef5350'} />
-                            <Text size="xs" fw={600} c="dimmed">รูปค่าทำบัญชี</Text>
-                        </Group>
-                        {fees.accounting_fee_image_url ? (
-                            <Button
-                                size="xs"
-                                variant="light"
-                                color="green"
-                                fullWidth
-                                leftSection={<TbExternalLink size={14} />}
-                                onClick={() => window.open(fees.accounting_fee_image_url!, '_blank')}
-                            >
-                                ดูรูปค่าทำบัญชี
-                            </Button>
-                        ) : (
-                            <Text size="xs" c="red" fs="italic">ไม่มีข้อมูล</Text>
-                        )}
-                    </Paper>
-                </SimpleGrid>
-
-                {/* Edit Button */}
-                {canEdit && (
-                    <Group justify="flex-end">
-                        <Button
-                            size="xs"
-                            variant="light"
-                            color="orange"
-                            leftSection={<TbEdit size={14} />}
-                            onClick={onEdit}
-                        >
-                            แก้ไข
-                        </Button>
-                    </Group>
-                )}
-            </Stack>
-        </Box>
-    )
-}
 
 // ─── Main Component ─────────────────────────────────────────
 
@@ -466,10 +160,11 @@ export default function AccountingFeesManagement() {
             setFeesCache((prev) => ({ ...prev, [editClient.build]: data }))
             queryClient.invalidateQueries(['clients-fees'])
             setEditClient(null)
-        } catch (err: any) {
+        } catch (err: unknown) {
+            const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'ไม่สามารถบันทึกได้'
             notifications.show({
                 title: 'เกิดข้อผิดพลาด',
-                message: err?.response?.data?.message || 'ไม่สามารถบันทึกได้',
+                message,
                 color: 'red',
             })
         }

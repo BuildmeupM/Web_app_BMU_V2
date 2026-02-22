@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS activity_logs (
     ip_address VARCHAR(45) NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_activity_user_id (user_id),
-    INDEX idx_activity_page (page),
+    INDEX idx_activity_page (page),ffff
     INDEX idx_activity_entity (entity_type, entity_id),
     INDEX idx_activity_build (build),
     INDEX idx_activity_created_at (created_at),

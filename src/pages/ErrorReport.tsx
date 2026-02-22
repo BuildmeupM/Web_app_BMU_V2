@@ -1,82 +1,38 @@
 /**
  * ErrorReport Page — รายงานข้อผิดพลาดด้านภาษี
  * Accounting team creates error reports → admin/audit approves → auto-create messenger task
+ *
+ * Sub-components extracted to src/components/ErrorReport/
+ *   - constants.ts (STATUS_CONFIG, helpers, emptyForm)
+ *   - ErrorReportFormModal.tsx
+ *   - RejectModal.tsx
+ *   - DetailModal.tsx
+ *   - DeleteConfirmModal.tsx
  */
 
-import { useState, useMemo, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { useQuery, useQueryClient } from 'react-query'
 import {
     Container, Title, Button, Group, Text, Badge, Card,
-    Table, Modal, TextInput, Textarea, Select, NumberInput,
-    Stack, LoadingOverlay, ActionIcon, Tooltip, Box,
-    MultiSelect, Paper, Divider, Alert, SimpleGrid,
-    Combobox, InputBase, useCombobox,
+    Table, LoadingOverlay, ActionIcon, Tooltip, Box,
+    SimpleGrid,
 } from '@mantine/core'
-import { DateInput } from '@mantine/dates'
 import { notifications } from '@mantine/notifications'
 import {
     TbPlus, TbCheck, TbX, TbEdit, TbTrash,
-    TbAlertTriangle, TbSend, TbEye, TbRefresh, TbMapPin,
+    TbAlertTriangle, TbEye, TbRefresh,
 } from 'react-icons/tb'
 import { useAuthStore } from '../store/authStore'
 import {
     errorReportService,
     ErrorReport, ErrorReportForm,
-    AuditorOption, ClientOption,
-    ERROR_TYPE_OPTIONS, FAULT_PARTY_OPTIONS, MONTH_OPTIONS,
 } from '../services/errorReportService'
-import { getLocations, createLocation, MessengerLocation } from '../services/messengerRouteService'
-
-// Year options for tax month filter
-const currentYear = new Date().getFullYear()
-const YEAR_OPTIONS = Array.from({ length: 5 }, (_, i) => ({
-    value: String(currentYear - 2 + i),
-    label: String(currentYear - 2 + i + 543), // Buddhist year
-}))
-
-const STATUS_CONFIG: Record<string, { color: string; label: string }> = {
-    pending: { color: 'yellow', label: 'รอตรวจสอบ' },
-    approved: { color: 'green', label: 'อนุมัติแล้ว' },
-    rejected: { color: 'red', label: 'ไม่อนุมัติ' },
-}
-
-const MESSENGER_STATUS_CONFIG: Record<string, { color: string; label: string }> = {
-    pending: { color: 'yellow', label: 'รอวิ่ง' },
-    in_progress: { color: 'blue', label: 'กำลังดำเนินการ' },
-    completed: { color: 'green', label: 'เสร็จแล้ว' },
-    failed: { color: 'red', label: 'ล้มเหลว' },
-}
-
-const getErrorTypeLabels = (types: string[]) => {
-    if (!types || !Array.isArray(types)) return '-'
-    return types.map(t => {
-        const opt = ERROR_TYPE_OPTIONS.find(o => o.value === t)
-        return opt ? opt.label : t
-    }).join(', ')
-}
-
-const getTaxMonthLabels = (months: string[]) => {
-    if (!months || !Array.isArray(months)) return '-'
-    return months.map(m => {
-        const [year, month] = m.split('-')
-        const monthOpt = MONTH_OPTIONS.find(o => o.value === month)
-        const thaiYear = Number(year) + 543
-        return monthOpt ? `${monthOpt.label} ${thaiYear}` : m
-    }).join(', ')
-}
-
-const emptyForm: ErrorReportForm = {
-    report_date: new Date().toISOString().slice(0, 10),
-    client_id: null,
-    client_name: '',
-    error_types: [],
-    tax_months: [],
-    auditor_id: null,
-    auditor_name: '',
-    fault_party: '',
-    fine_amount: '',
-    submission_address: '',
-}
+import { getLocations, MessengerLocation } from '../services/messengerRouteService'
+import {
+    STATUS_CONFIG, MESSENGER_STATUS_CONFIG, emptyForm,
+    getErrorTypeLabels, getTaxMonthLabels,
+} from '../components/ErrorReport'
+import { ErrorReportFormModal, RejectModal, DetailModal, DeleteConfirmModal } from '../components/ErrorReport'
 
 export default function ErrorReportPage() {
     const { user } = useAuthStore()
@@ -95,7 +51,7 @@ export default function ErrorReportPage() {
         () => errorReportService.getAuditors(),
         { staleTime: 5 * 60 * 1000 } // 5 min cache
     )
-    const { data: clients = [], refetch: refetchClients } = useQuery(
+    const { data: clients = [] } = useQuery(
         ['error-reports-clients'],
         () => errorReportService.getClients(),
         { staleTime: 5 * 60 * 1000 }
@@ -108,11 +64,6 @@ export default function ErrorReportPage() {
     const loading = loadingReports
     const [refreshing, setRefreshing] = useState(false)
 
-    // Locations address search state
-    const [addressSearch, setAddressSearch] = useState('')
-    const addressCombobox = useCombobox({
-        onDropdownClose: () => addressCombobox.resetSelectedOption(),
-    })
 
     // Modal state
     const [formOpened, setFormOpened] = useState(false)
@@ -126,9 +77,6 @@ export default function ErrorReportPage() {
 
     // Detail modal
     const [detailReport, setDetailReport] = useState<ErrorReport | null>(null)
-
-    // Tax month picker state
-    const [selectedYear, setSelectedYear] = useState(String(currentYear))
 
     // ✅ Performance: refetch ทุก query ที่เกี่ยวข้อง
     const refreshAll = useCallback(async () => {
@@ -161,33 +109,10 @@ export default function ErrorReportPage() {
         }, 300)
     }, [queryClient])
 
-    // Client select options
-    const clientOptions = useMemo(() =>
-        clients.map(c => ({ value: String(c.id), label: c.name })),
-        [clients]
-    )
-
-    // Auditor select options
-    const auditorOptions = useMemo(() =>
-        auditors.map(a => ({ value: String(a.id), label: a.name })),
-        [auditors]
-    )
-
-    // Tax month multi-select options (for selected year)
-    const taxMonthOptions = useMemo(() =>
-        MONTH_OPTIONS.map(m => ({
-            value: `${selectedYear}-${m.value}`,
-            label: `${m.label} ${Number(selectedYear) + 543}`,
-        })),
-        [selectedYear]
-    )
-
     // Open create form
     const openCreate = () => {
         setEditingId(null)
         setForm({ ...emptyForm })
-        setSelectedYear(String(currentYear))
-        setAddressSearch('')
         setFormOpened(true)
     }
 
@@ -208,11 +133,6 @@ export default function ErrorReportPage() {
             fine_amount: report.fine_amount || 0,
             submission_address: report.submission_address || '',
         })
-        // Detect year from first tax month
-        if (taxMonths?.length > 0) {
-            setSelectedYear(taxMonths[0].split('-')[0])
-        }
-        setAddressSearch(report.submission_address || '')
         setFormOpened(true)
     }
 
@@ -496,398 +416,44 @@ export default function ErrorReportPage() {
                 </Box>
             </Card>
 
-            {/* ============================================================ */}
-            {/* Create/Edit Modal */}
-            {/* ============================================================ */}
-            <Modal
+            {/* Extracted Modals */}
+            <ErrorReportFormModal
                 opened={formOpened}
                 onClose={() => setFormOpened(false)}
-                title={
-                    <Group gap="xs">
-                        <TbAlertTriangle size={20} color="#f97316" />
-                        <Text fw={700}>{editingId ? 'แก้ไขรายงาน' : 'สร้างรายงานข้อผิดพลาด'}</Text>
-                    </Group>
+                editingId={editingId}
+                form={form}
+                setForm={setForm}
+                onSubmit={handleSubmit}
+                submitting={submitting}
+                clients={clients}
+                auditors={auditors}
+                locations={locations}
+                userName={user?.name || ''}
+                searchClients={searchClients}
+                clientSearching={clientSearching}
+                onLocationsUpdate={(updater) =>
+                    queryClient.setQueryData<MessengerLocation[]>(
+                        ['error-reports-locations'],
+                        (prev) => updater(prev || [])
+                    )
                 }
-                size="lg"
-                centered
-            >
-                <Stack gap="md">
-                    {/* Row 1: Date + Client */}
-                    <SimpleGrid cols={2}>
-                        <DateInput
-                            label="วันที่แจ้ง"
-                            value={form.report_date ? new Date(form.report_date) : null}
-                            onChange={(val) => setForm(f => ({ ...f, report_date: val ? val.toISOString().slice(0, 10) : '' }))}
-                            valueFormat="DD/MM/YYYY"
-                            required
-                        />
-                        <Select
-                            label="บริษัท"
-                            placeholder="พิมพ์ค้นหาบริษัท..."
-                            data={clientOptions}
-                            value={form.client_id ? String(form.client_id) : null}
-                            onChange={(val) => {
-                                const client = clients.find(c => String(c.id) === val)
-                                setForm(f => ({
-                                    ...f,
-                                    client_id: val ? Number(val) : null,
-                                    client_name: client?.name || '',
-                                }))
-                            }}
-                            onSearchChange={(query) => searchClients(query)}
-                            searchable
-                            required
-                            nothingFoundMessage={clientSearching ? 'กำลังค้นหา...' : 'ไม่พบข้อมูล'}
-                            filter={({ options }) => options}
-                        />
-                    </SimpleGrid>
-
-                    {/* Error types (multi-select) */}
-                    <MultiSelect
-                        label="หัวข้อผิดพลาด"
-                        placeholder="เลือกรายการ"
-                        data={ERROR_TYPE_OPTIONS}
-                        value={form.error_types}
-                        onChange={(val) => setForm(f => ({ ...f, error_types: val }))}
-                        required
-                    />
-
-                    {/* Tax months: Year selector + Month multi-select */}
-                    <Paper withBorder radius="md" p="sm">
-                        <Text size="sm" fw={600} mb="xs">เดือนภาษี <Text component="span" c="red">*</Text></Text>
-                        <SimpleGrid cols={2}>
-                            <Select
-                                label="ปี"
-                                data={YEAR_OPTIONS}
-                                value={selectedYear}
-                                onChange={(val) => setSelectedYear(val || String(currentYear))}
-                            />
-                            <MultiSelect
-                                label="เดือน"
-                                placeholder="เลือกเดือน"
-                                data={taxMonthOptions}
-                                value={form.tax_months}
-                                onChange={(val) => setForm(f => ({ ...f, tax_months: val }))}
-                            />
-                        </SimpleGrid>
-                    </Paper>
-
-                    {/* Accountant (auto-filled) */}
-                    <TextInput
-                        label="ผู้ทำบัญชี"
-                        value={user?.name || ''}
-                        readOnly
-                        variant="filled"
-                    />
-
-                    {/* Row: Auditor + Fault party */}
-                    <SimpleGrid cols={2}>
-                        <Select
-                            label="ผู้ตรวจภาษีประจำเดือน"
-                            placeholder="เลือกผู้ตรวจ"
-                            data={auditorOptions}
-                            value={form.auditor_id ? String(form.auditor_id) : null}
-                            onChange={(val) => {
-                                const auditor = auditors.find(a => String(a.id) === val)
-                                setForm(f => ({
-                                    ...f,
-                                    auditor_id: val || null,
-                                    auditor_name: auditor?.name || '',
-                                }))
-                            }}
-                            searchable
-                            clearable
-                        />
-                        <Select
-                            label="ฝ่ายที่ทำให้เกิดข้อผิดพลาด"
-                            placeholder="เลือก"
-                            data={FAULT_PARTY_OPTIONS}
-                            value={form.fault_party}
-                            onChange={(val) => setForm(f => ({ ...f, fault_party: (val || '') as any }))}
-                            required
-                        />
-                    </SimpleGrid>
-
-                    {/* Fine amount */}
-                    <NumberInput
-                        label="จำนวนค่าปรับ (บาท)"
-                        placeholder="ระบุจำนวนเงิน"
-                        value={form.fine_amount === 0 || form.fine_amount === '' ? '' : form.fine_amount}
-                        onChange={(val) => setForm(f => ({ ...f, fine_amount: val === '' ? '' : Number(val) }))}
-                        min={0}
-                        thousandSeparator=","
-                        suffix=" บาท"
-                        hideControls
-                        allowNegative={false}
-                        onFocus={(e) => e.currentTarget.select()}
-                        styles={{ input: { textAlign: 'right' } }}
-                    />
-
-                    {/* Submission address — searchable location dropdown */}
-                    <Combobox
-                        store={addressCombobox}
-                        onOptionSubmit={async (val) => {
-                            if (val === '__create__') {
-                                // Create new location
-                                const name = (addressSearch || '').trim()
-                                if (!name) return
-                                try {
-                                    const newLoc = await createLocation({ name, category: 'อื่นๆ' })
-                                    queryClient.setQueryData<MessengerLocation[]>(['error-reports-locations'], (prev) => [...(prev || []), newLoc])
-                                    const addr = newLoc.name
-                                    setForm(f => ({ ...f, submission_address: addr }))
-                                    setAddressSearch(addr)
-                                    notifications.show({ title: 'เพิ่มสถานที่สำเร็จ', message: `เพิ่ม "${name}" แล้ว`, color: 'green' })
-                                } catch {
-                                    notifications.show({ title: 'ข้อผิดพลาด', message: 'ไม่สามารถเพิ่มสถานที่ได้', color: 'red' })
-                                }
-                            } else {
-                                const loc = locations.find(l => l.id === val)
-                                if (loc) {
-                                    const addr = loc.address ? `${loc.name} — ${loc.address}` : loc.name
-                                    setForm(f => ({ ...f, submission_address: addr }))
-                                    setAddressSearch(addr)
-                                }
-                            }
-                            addressCombobox.closeDropdown()
-                        }}
-                    >
-                        <Combobox.Target>
-                            <InputBase
-                                label="ข้อมูลที่อยู่ที่จะต้องยื่นปรับแบบ"
-                                placeholder="พิมพ์ค้นหาหรือเลือกสถานที่..."
-                                required
-                                leftSection={<TbMapPin size={16} />}
-                                rightSection={<Combobox.Chevron />}
-                                rightSectionPointerEvents="none"
-                                value={addressSearch || form.submission_address}
-                                onChange={(e) => {
-                                    const val = e.currentTarget.value
-                                    setAddressSearch(val)
-                                    setForm(f => ({ ...f, submission_address: val }))
-                                    addressCombobox.openDropdown()
-                                    addressCombobox.updateSelectedOptionIndex()
-                                }}
-                                onClick={() => addressCombobox.openDropdown()}
-                                onFocus={() => addressCombobox.openDropdown()}
-                                onBlur={() => addressCombobox.closeDropdown()}
-                            />
-                        </Combobox.Target>
-                        <Combobox.Dropdown>
-                            <Combobox.Options mah={200} style={{ overflowY: 'auto' }}>
-                                {locations
-                                    .filter(loc => {
-                                        const q = (addressSearch || form.submission_address || '').toLowerCase().trim()
-                                        if (!q) return true
-                                        return loc.name.toLowerCase().includes(q) || (loc.address || '').toLowerCase().includes(q)
-                                    })
-                                    .slice(0, 10)
-                                    .map(loc => (
-                                        <Combobox.Option value={loc.id} key={loc.id}>
-                                            <Group gap="xs">
-                                                <TbMapPin size={14} color="#666" />
-                                                <div>
-                                                    <Text size="sm" fw={500}>{loc.name}</Text>
-                                                    {loc.address && <Text size="xs" c="dimmed">{loc.address}</Text>}
-                                                </div>
-                                                {loc.category && (
-                                                    <Badge size="xs" variant="light" color="gray" ml="auto">{loc.category}</Badge>
-                                                )}
-                                            </Group>
-                                        </Combobox.Option>
-                                    ))}
-                                {locations.filter(loc => {
-                                    const q = (addressSearch || form.submission_address || '').toLowerCase().trim()
-                                    if (!q) return true
-                                    return loc.name.toLowerCase().includes(q) || (loc.address || '').toLowerCase().includes(q)
-                                }).length === 0 && (
-                                        <Combobox.Empty>ไม่พบสถานที่</Combobox.Empty>
-                                    )}
-                                {(addressSearch || '').trim() && !locations.some(loc => loc.name.toLowerCase() === (addressSearch || '').toLowerCase().trim()) && (
-                                    <Combobox.Option value="__create__" style={{ borderTop: '1px solid #eee' }}>
-                                        <Group gap="xs">
-                                            <TbPlus size={14} color="#228be6" />
-                                            <Text size="sm" c="blue">เพิ่ม "{(addressSearch || '').trim()}" เป็นสถานที่ใหม่</Text>
-                                        </Group>
-                                    </Combobox.Option>
-                                )}
-                            </Combobox.Options>
-                        </Combobox.Dropdown>
-                    </Combobox>
-
-                    <Divider />
-
-                    <Group justify="flex-end">
-                        <Button variant="default" onClick={() => setFormOpened(false)}>ยกเลิก</Button>
-                        <Button
-                            leftSection={<TbSend size={16} />}
-                            onClick={handleSubmit}
-                            loading={submitting}
-                            color="orange"
-                        >
-                            {editingId ? 'บันทึก' : 'ส่งรายงาน'}
-                        </Button>
-                    </Group>
-                </Stack>
-            </Modal>
-
-            {/* ============================================================ */}
-            {/* Reject Reason Modal */}
-            {/* ============================================================ */}
-            <Modal
+            />
+            <RejectModal
                 opened={rejectModalId !== null}
                 onClose={() => setRejectModalId(null)}
-                title={<Text fw={700} c="red">ไม่อนุมัติรายงาน</Text>}
-                size="md"
-                centered
-            >
-                <Stack>
-                    <Textarea
-                        label="เหตุผลที่ไม่อนุมัติ"
-                        placeholder="กรุณาระบุเหตุผล..."
-                        value={rejectReason}
-                        onChange={(e) => setRejectReason(e.currentTarget.value)}
-                        required
-                        minRows={3}
-                    />
-                    <Group justify="flex-end">
-                        <Button variant="default" onClick={() => setRejectModalId(null)}>ยกเลิก</Button>
-                        <Button color="red" leftSection={<TbX size={16} />} onClick={handleReject}>
-                            ยืนยันไม่อนุมัติ
-                        </Button>
-                    </Group>
-                </Stack>
-            </Modal>
-
-            {/* ============================================================ */}
-            {/* Detail Modal */}
-            {/* ============================================================ */}
-            <Modal
-                opened={detailReport !== null}
+                rejectReason={rejectReason}
+                onRejectReasonChange={setRejectReason}
+                onConfirm={handleReject}
+            />
+            <DetailModal
+                report={detailReport}
                 onClose={() => setDetailReport(null)}
-                title={<Text fw={700}>รายละเอียดรายงาน #{detailReport?.id}</Text>}
-                size="lg"
-                centered
-            >
-                {detailReport && (() => {
-                    const errorTypes = typeof detailReport.error_types === 'string' ? JSON.parse(detailReport.error_types) : detailReport.error_types
-                    const taxMonths = typeof detailReport.tax_months === 'string' ? JSON.parse(detailReport.tax_months) : detailReport.tax_months
-                    const statusCfg = STATUS_CONFIG[detailReport.status] || STATUS_CONFIG.pending
-
-                    return (
-                        <Stack gap="sm">
-                            <SimpleGrid cols={2}>
-                                <div>
-                                    <Text size="xs" c="dimmed">วันที่แจ้ง</Text>
-                                    <Text size="sm" fw={500}>{detailReport.report_date ? new Date(detailReport.report_date).toLocaleDateString('th-TH') : '-'}</Text>
-                                </div>
-                                <div>
-                                    <Text size="xs" c="dimmed">สถานะ</Text>
-                                    <Badge color={statusCfg.color} variant="light">{statusCfg.label}</Badge>
-                                </div>
-                            </SimpleGrid>
-
-                            <div>
-                                <Text size="xs" c="dimmed">บริษัท</Text>
-                                <Text size="sm" fw={500}>{detailReport.client_name}</Text>
-                            </div>
-
-                            <div>
-                                <Text size="xs" c="dimmed">หัวข้อผิดพลาด</Text>
-                                <Group gap={4} mt={2}>
-                                    {(errorTypes || []).map((t: string) => {
-                                        const opt = ERROR_TYPE_OPTIONS.find(o => o.value === t)
-                                        return <Badge key={t} size="sm" variant="outline" color="orange">{opt?.label || t}</Badge>
-                                    })}
-                                </Group>
-                            </div>
-
-                            <div>
-                                <Text size="xs" c="dimmed">เดือนภาษี</Text>
-                                <Text size="sm">{getTaxMonthLabels(taxMonths)}</Text>
-                            </div>
-
-                            <SimpleGrid cols={2}>
-                                <div>
-                                    <Text size="xs" c="dimmed">ผู้ทำบัญชี</Text>
-                                    <Text size="sm">{detailReport.accountant_name}</Text>
-                                </div>
-                                <div>
-                                    <Text size="xs" c="dimmed">ผู้ตรวจภาษี</Text>
-                                    <Text size="sm">{detailReport.auditor_name || '-'}</Text>
-                                </div>
-                            </SimpleGrid>
-
-                            <SimpleGrid cols={2}>
-                                <div>
-                                    <Text size="xs" c="dimmed">ฝ่ายที่ทำให้เกิดข้อผิดพลาด</Text>
-                                    <Badge color={detailReport.fault_party === 'bmu' ? 'orange' : 'blue'} variant="light">
-                                        {detailReport.fault_party === 'bmu' ? 'พนักงาน BMU' : 'ลูกค้า'}
-                                    </Badge>
-                                </div>
-                                <div>
-                                    <Text size="xs" c="dimmed">ค่าปรับ</Text>
-                                    <Text size="sm" fw={600} c={detailReport.fine_amount > 0 ? 'red' : 'dimmed'}>
-                                        {detailReport.fine_amount > 0 ? `${Number(detailReport.fine_amount).toLocaleString()} บาท` : 'ไม่มี'}
-                                    </Text>
-                                </div>
-                            </SimpleGrid>
-
-                            {detailReport.submission_address && (
-                                <div>
-                                    <Text size="xs" c="dimmed">ที่อยู่ยื่นปรับแบบ</Text>
-                                    <Text size="sm">{detailReport.submission_address}</Text>
-                                </div>
-                            )}
-
-                            {detailReport.status === 'approved' && (
-                                <Alert color="green" variant="light" title="อนุมัติแล้ว">
-                                    <Text size="sm">
-                                        อนุมัติโดย: {detailReport.approved_by_name} |
-                                        เมื่อ: {detailReport.approved_at ? new Date(detailReport.approved_at).toLocaleString('th-TH') : '-'}
-                                    </Text>
-                                    {detailReport.messenger_task_id && (
-                                        <Text size="xs" c="dimmed" mt={4}>
-                                            Messenger Task ID: {detailReport.messenger_task_id}
-                                        </Text>
-                                    )}
-                                </Alert>
-                            )}
-
-                            {detailReport.status === 'rejected' && (
-                                <Alert color="red" variant="light" title="ไม่อนุมัติ">
-                                    <Text size="sm">
-                                        โดย: {detailReport.approved_by_name} |
-                                        เมื่อ: {detailReport.approved_at ? new Date(detailReport.approved_at).toLocaleString('th-TH') : '-'}
-                                    </Text>
-                                    <Text size="sm" fw={600} mt={4}>
-                                        เหตุผล: {detailReport.reject_reason}
-                                    </Text>
-                                </Alert>
-                            )}
-                        </Stack>
-                    )
-                })()}
-            </Modal>
-            {/* ============================================================ */}
-            {/* Delete Confirmation Modal */}
-            {/* ============================================================ */}
-            <Modal
+            />
+            <DeleteConfirmModal
                 opened={!!deleteConfirmId}
                 onClose={() => setDeleteConfirmId(null)}
-                title={<Group gap="sm"><TbTrash size={20} color="red" /><Text fw={700} size="lg">ยืนยันการลบ</Text></Group>}
-                size="sm"
-                radius="lg"
-                centered
-            >
-                <Stack gap="md">
-                    <Text size="sm" c="dimmed">ต้องการลบรายงานข้อผิดพลาดนี้หรือไม่? การลบจะไม่สามารถกู้คืนได้</Text>
-                    <Group justify="flex-end" gap="sm">
-                        <Button variant="default" onClick={() => setDeleteConfirmId(null)}>ยกเลิก</Button>
-                        <Button color="red" leftSection={<TbTrash size={16} />} onClick={confirmDelete}>ลบรายงาน</Button>
-                    </Group>
-                </Stack>
-            </Modal>
+                onConfirm={confirmDelete}
+            />
         </Container>
     )
 }
