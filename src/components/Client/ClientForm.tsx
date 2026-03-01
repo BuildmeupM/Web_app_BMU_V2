@@ -24,6 +24,7 @@ import { notifications } from '@mantine/notifications'
 import { TbAlertCircle, TbWand } from 'react-icons/tb'
 import { Client } from '../../services/clientsService'
 import { parseThaiAddress } from '../../utils/addressParser'
+import { dateParser } from '../../utils/dateTimeUtils'
 
 interface ClientFormProps {
   opened: boolean
@@ -382,6 +383,7 @@ export default function ClientForm({
                         label="วันจัดตั้งกิจการ"
                         placeholder="เลือกวันที่"
                         valueFormat="DD/MM/YYYY"
+                        dateParser={dateParser}
                         {...form.getInputProps('establishment_date')}
                       />
                     </Grid.Col>
@@ -433,6 +435,7 @@ export default function ClientForm({
                         label="วันที่จดภาษีมูลค่าเพิ่ม"
                         placeholder="เลือกวันที่"
                         valueFormat="DD/MM/YYYY"
+                        dateParser={dateParser}
                         required={form.values.tax_registration_status === 'จดภาษีมูลค่าเพิ่ม'}
                         {...form.getInputProps('vat_registration_date')}
                       />
@@ -559,6 +562,7 @@ export default function ClientForm({
                         label="วันเริ่มทำบัญชี"
                         placeholder="เลือกวันที่"
                         valueFormat="DD/MM/YYYY"
+                        dateParser={dateParser}
                         withAsterisk
                         {...form.getInputProps('accounting_start_date')}
                       />
@@ -568,6 +572,7 @@ export default function ClientForm({
                         label="วันสิ้นสุดทำบัญชี"
                         placeholder="เลือกวันที่"
                         valueFormat="DD/MM/YYYY"
+                        dateParser={dateParser}
                         {...form.getInputProps('accounting_end_date')}
                       />
                     </Grid.Col>
@@ -597,6 +602,7 @@ export default function ClientForm({
                         label="วันที่อนุมัติ BOI"
                         placeholder="เลือกวันที่"
                         valueFormat="DD/MM/YYYY"
+                        dateParser={dateParser}
                         {...form.getInputProps('boi_approval_date')}
                       />
                     </Grid.Col>
@@ -605,6 +611,7 @@ export default function ClientForm({
                         label="วันที่เริ่มใช้สิทธิ์ BOI"
                         placeholder="เลือกวันที่"
                         valueFormat="DD/MM/YYYY"
+                        dateParser={dateParser}
                         {...form.getInputProps('boi_first_use_date')}
                       />
                     </Grid.Col>
@@ -613,6 +620,7 @@ export default function ClientForm({
                         label="วันที่หมดอายุ BOI"
                         placeholder="เลือกวันที่"
                         valueFormat="DD/MM/YYYY"
+                        dateParser={dateParser}
                         {...form.getInputProps('boi_expiry_date')}
                       />
                     </Grid.Col>

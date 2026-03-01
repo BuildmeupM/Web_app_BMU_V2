@@ -20,41 +20,64 @@ router.use(authorize('admin', 'audit'))
  */
 router.get('/stats', async (req, res) => {
     try {
+        const { taxMonth, taxYear } = req.query;
+        let joinClause = '';
+        let mtdFilter = '';
+
+        if (taxMonth && taxYear) {
+            joinClause = `
+                LEFT JOIN monthly_tax_data mtd ON activity_logs.build = mtd.build 
+                AND mtd.tax_year = COALESCE(JSON_EXTRACT(activity_logs.metadata, '$.year'), YEAR(activity_logs.created_at))
+                AND mtd.tax_month = COALESCE(JSON_EXTRACT(activity_logs.metadata, '$.month'), MONTH(activity_logs.created_at))
+                AND mtd.deleted_at IS NULL
+            `;
+            mtdFilter = `AND mtd.tax_month = ? AND mtd.tax_year = ?`;
+        }
+        
+        const getParams = () => (taxMonth && taxYear) ? [taxMonth, taxYear] : [];
+
         // จำนวน log วันนี้
         const [todayResult] = await pool.execute(
-            `SELECT COUNT(*) as count FROM activity_logs WHERE DATE(created_at) = CURDATE()`
+            `SELECT COUNT(activity_logs.id) as count FROM activity_logs ${joinClause} 
+             WHERE DATE(activity_logs.created_at) = CURDATE() ${mtdFilter}`,
+            getParams()
         )
 
-        // จำนวน log สัปดาห์นี้
+        // จำนวน log 7 วันที่ผ่านมา
         const [weekResult] = await pool.execute(
-            `SELECT COUNT(*) as count FROM activity_logs 
-       WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)`
+            `SELECT COUNT(activity_logs.id) as count FROM activity_logs ${joinClause} 
+             WHERE activity_logs.created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) ${mtdFilter}`,
+            getParams()
         )
 
-        // จำนวน log เดือนนี้
+        // จำนวน log 30 วันที่ผ่านมา
         const [monthResult] = await pool.execute(
-            `SELECT COUNT(*) as count FROM activity_logs 
-       WHERE MONTH(created_at) = MONTH(CURDATE()) AND YEAR(created_at) = YEAR(CURDATE())`
+            `SELECT COUNT(activity_logs.id) as count FROM activity_logs ${joinClause} 
+             WHERE activity_logs.created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) ${mtdFilter}`,
+            getParams()
         )
 
-        // Active users วันนี้ (unique users ที่มี activity)
+        // Active users วันนี้
         const [activeUsersResult] = await pool.execute(
-            `SELECT COUNT(DISTINCT user_id) as count FROM activity_logs 
-       WHERE DATE(created_at) = CURDATE()`
+            `SELECT COUNT(DISTINCT activity_logs.user_id) as count FROM activity_logs ${joinClause} 
+             WHERE DATE(activity_logs.created_at) = CURDATE() ${mtdFilter}`,
+            getParams()
         )
 
-        // Top page วันนี้
+        // Top page 30 วันที่ผ่านมา
         const [topPageResult] = await pool.execute(
-            `SELECT page, COUNT(*) as count FROM activity_logs 
-       WHERE DATE(created_at) = CURDATE()
-       GROUP BY page ORDER BY count DESC LIMIT 1`
+            `SELECT activity_logs.page, COUNT(activity_logs.id) as count FROM activity_logs ${joinClause} 
+             WHERE activity_logs.created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) ${mtdFilter}
+             GROUP BY activity_logs.page ORDER BY count DESC LIMIT 1`,
+            getParams()
         )
 
-        // จำนวนครั้ง correction (field_changed เป็น status และ new_value เป็น แก้ไข)
+        // จำนวนครั้ง correction 30 วันที่ผ่านมา
         const [correctionResult] = await pool.execute(
-            `SELECT COUNT(*) as count FROM activity_logs 
-       WHERE new_value IN ('needs_correction', 'edit') 
-       AND DATE(created_at) = CURDATE()`
+            `SELECT COUNT(activity_logs.id) as count FROM activity_logs ${joinClause} 
+             WHERE activity_logs.new_value IN ('needs_correction', 'edit') 
+             AND activity_logs.created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) ${mtdFilter}`,
+            getParams()
         )
 
         res.json({
@@ -259,6 +282,19 @@ router.get('/employee-summary', async (req, res) => {
 router.get('/correction-summary', async (req, res) => {
     try {
         const days = parseInt(req.query.days) || 30
+        const taxMonth = req.query.taxMonth
+        const taxYear = req.query.taxYear
+
+        let timeFilter = `AND al.created_at >= DATE_SUB(CURDATE(), INTERVAL ? DAY)`
+        const params = [days]
+
+        let mtdFilter = ''
+        if (taxMonth && taxYear) {
+            timeFilter = '' // When specific tax month is requested, we don't limit by days unless asked
+            params.pop() // Remove days param
+            mtdFilter = `AND mtd.tax_month = ? AND mtd.tax_year = ?`
+            params.push(taxMonth, taxYear)
+        }
 
         const [corrections] = await pool.execute(
             `SELECT 
@@ -275,22 +311,28 @@ router.get('/correction-summary', async (req, res) => {
             AND mtd.deleted_at IS NULL
        LEFT JOIN employees e ON mtd.accounting_responsible = e.employee_id
        WHERE al.new_value IN ('needs_correction', 'edit')
-         AND al.created_at >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
+         ${timeFilter}
+         ${mtdFilter}
        GROUP BY al.build, al.company_name, e.first_name, e.nick_name
        ORDER BY correction_count DESC
        LIMIT 10`,
-            [days]
+            params
         )
 
         // สรุปรวม
-        const [totalResult] = await pool.execute(
-            `SELECT COUNT(*) as total_corrections, 
-              COUNT(DISTINCT build) as total_affected_companies
-       FROM activity_logs 
-       WHERE new_value IN ('needs_correction', 'edit')
-         AND created_at >= DATE_SUB(CURDATE(), INTERVAL ? DAY)`,
-            [days]
-        )
+        let totalQuery = `
+            SELECT COUNT(*) as total_corrections, 
+                   COUNT(DISTINCT al.build) as total_affected_companies
+            FROM activity_logs al
+            LEFT JOIN monthly_tax_data mtd ON al.build = mtd.build 
+                 AND mtd.tax_year = COALESCE(JSON_EXTRACT(al.metadata, '$.year'), YEAR(al.created_at))
+                 AND mtd.tax_month = COALESCE(JSON_EXTRACT(al.metadata, '$.month'), MONTH(al.created_at))
+                 AND mtd.deleted_at IS NULL
+            WHERE al.new_value IN ('needs_correction', 'edit')
+              ${timeFilter}
+              ${mtdFilter}
+        `;
+        const [totalResult] = await pool.execute(totalQuery, params)
 
         res.json({
             success: true,
@@ -411,12 +453,14 @@ router.get('/chart-status-summary', async (req, res) => {
         const pageName = req.query.pageName;
         const reviewer = req.query.reviewer;
         const accountant = req.query.accountant;
+        const taxMonth = req.query.taxMonth;
+        const taxYear = req.query.taxYear;
 
         let joinClause = "";
         let whereClause = "WHERE 1=1";
         const params = [];
 
-        if (reviewer || accountant) {
+        if (reviewer || accountant || (taxMonth && taxYear)) {
             joinClause = `
                 INNER JOIN monthly_tax_data mtd ON al.build = mtd.build 
                 AND mtd.tax_year = COALESCE(JSON_EXTRACT(al.metadata, '$.year'), YEAR(al.created_at))
@@ -430,6 +474,10 @@ router.get('/chart-status-summary', async (req, res) => {
             if (accountant) {
                 whereClause += " AND mtd.accounting_responsible = ?";
                 params.push(accountant);
+            }
+            if (taxMonth && taxYear) {
+                whereClause += " AND mtd.tax_month = ? AND mtd.tax_year = ?";
+                params.push(taxMonth, taxYear);
             }
         }
 
@@ -478,12 +526,12 @@ router.get('/chart-status-summary', async (req, res) => {
  */
 router.get('/export-logs', async (req, res) => {
     try {
-        const { startDate, endDate, reviewer, accountant } = req.query;
+        const { startDate, endDate, reviewer, accountant, taxMonth, taxYear } = req.query;
         let whereClause = "WHERE 1=1";
         let joinClause = "";
         const params = [];
 
-        if (reviewer || accountant) {
+        if (reviewer || accountant || (taxMonth && taxYear)) {
             joinClause = `
                 INNER JOIN monthly_tax_data mtd ON al.build = mtd.build 
                 AND mtd.tax_year = COALESCE(JSON_EXTRACT(al.metadata, '$.year'), YEAR(al.created_at))
@@ -497,6 +545,10 @@ router.get('/export-logs', async (req, res) => {
             if (accountant) {
                 whereClause += " AND mtd.accounting_responsible = ?";
                 params.push(accountant);
+            }
+            if (taxMonth && taxYear) {
+                whereClause += " AND mtd.tax_month = ? AND mtd.tax_year = ?";
+                params.push(taxMonth, taxYear);
             }
         }
 

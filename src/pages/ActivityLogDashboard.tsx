@@ -51,12 +51,25 @@ const formatUserName = (user: User): string => {
   if (!user.name) return user.username;
   if (!user.nick_name) return user.name;
   
-  // If the name already contains the nickname, don't append it again
-  if (user.name.includes(user.nick_name)) {
-      return user.name;
+  const cleanNickName = user.nick_name.replace(/[()]/g, '').trim();
+  const cleanName = user.name.trim();
+
+  // If the name already contains the (nickname), don't append it again
+  if (cleanName.includes(`(${cleanNickName})`)) {
+      return cleanName;
+  }
+
+  // If the name ends with " nickname", replace it with "(nickname)"
+  if (cleanName.endsWith(` ${cleanNickName}`)) {
+      return `${cleanName.slice(0, -(cleanNickName.length + 1))}(${cleanNickName})`;
+  }
+
+  // If the name IS the nickname
+  if (cleanName === cleanNickName) {
+      return cleanName;
   }
   
-  return `${user.name}(${user.nick_name})`;
+  return `${cleanName}(${cleanNickName})`;
 }
 
 // ═══════════════════════════════════════════════════
@@ -145,7 +158,7 @@ export default function ActivityLogDashboard() {
     const [search, setSearch] = useState('')
     const [filterPage, setFilterPage] = useState<string | null>(null)
     const [filterDetailsStatus, setFilterDetailsStatus] = useState<string | null>(null)
-    const [filterMonth, setFilterMonth] = useState<Date | null>(null)
+    const [filterMonth, setFilterMonth] = useState<Date | null>(() => dayjs().subtract(1, 'month').toDate())
     const [loadingLogs, setLoadingLogs] = useState(false)
 
     // ─── Column resize ───
@@ -186,15 +199,18 @@ export default function ActivityLogDashboard() {
     const fetchAll = useCallback(async () => {
         setLoading(true)
         try {
+            const taxYear = filterMonth ? filterMonth.getFullYear() : undefined
+            const taxMonth = filterMonth ? filterMonth.getMonth() + 1 : undefined
+
             const [s, cr, us] = await Promise.all([
-                activityLogsService.getStats(),
-                activityLogsService.getCorrectionSummary(),
+                activityLogsService.getStats({ taxMonth, taxYear }),
+                activityLogsService.getCorrectionSummary({ taxMonth, taxYear }),
                 usersService.getList({ status: 'active' })
             ])
             setStats(s); setCorrections(cr); setUsers(us.data)
         } catch (err) { console.error('Activity log fetch error:', err) }
         finally { setLoading(false) }
-    }, [])
+    }, [filterMonth])
 
     const fetchLogs = useCallback(async () => {
         setLoadingLogs(true)
@@ -219,17 +235,22 @@ export default function ActivityLogDashboard() {
 
     const fetchChartData = useCallback(async () => {
         try {
+            const taxYear = filterMonth ? filterMonth.getFullYear() : undefined
+            const taxMonth = filterMonth ? filterMonth.getMonth() + 1 : undefined
+
             const d = chartPeriod === 'custom' && chartDate ? localToIsoDate(chartDate) : undefined
             const days = chartPeriod !== 'custom' ? chartPeriod : undefined
             const res = await activityLogsService.getChartStatusSummary({
                 date: d, days,
                 pageName: chartPage || undefined,
                 reviewer: chartReviewer || undefined,
-                accountant: chartAccountant || undefined
+                accountant: chartAccountant || undefined,
+                taxMonth,
+                taxYear
             })
             setChartData(res)
         } catch (err) { console.error('Error fetching chart data:', err) }
-    }, [chartDate, chartPage, chartPeriod, chartReviewer, chartAccountant])
+    }, [chartDate, chartPage, chartPeriod, chartReviewer, chartAccountant, filterMonth])
 
     useEffect(() => { fetchAll() }, [fetchAll])
     useEffect(() => { fetchLogs() }, [fetchLogs])
@@ -239,13 +260,18 @@ export default function ActivityLogDashboard() {
 
     const handleExportExcel = async () => {
         try {
+            const taxYear = filterMonth ? filterMonth.getFullYear() : undefined
+            const taxMonth = filterMonth ? filterMonth.getMonth() + 1 : undefined
+
             const s = exportStart ? localToIsoDate(exportStart) : undefined
             const e = exportEnd ? localToIsoDate(exportEnd) : undefined
 
             const blob = await activityLogsService.exportLogsToExcel({
                 startDate: s, endDate: e,
                 reviewer: chartReviewer || undefined,
-                accountant: chartAccountant || undefined
+                accountant: chartAccountant || undefined,
+                taxMonth,
+                taxYear
             })
             const url = window.URL.createObjectURL(blob)
             const a = document.createElement('a')
@@ -263,11 +289,11 @@ export default function ActivityLogDashboard() {
     // ─── STAT CARDS CONFIG ───
     const statCards = [
         { label: 'กิจกรรมวันนี้', value: stats?.todayCount ?? 0, icon: '📊' },
-        { label: 'สัปดาห์นี้', value: stats?.weekCount ?? 0, icon: '📅' },
-        { label: 'เดือนนี้', value: stats?.monthCount ?? 0, icon: '📈' },
+        { label: '7 วัน', value: stats?.weekCount ?? 0, icon: '📅' },
+        { label: '30 วัน', value: stats?.monthCount ?? 0, icon: '📈' },
         { label: 'ผู้ใช้งาน (วันนี้)', value: stats?.activeUsers ?? 0, icon: '👥' },
-        { label: 'หน้าที่ใช้มากสุด', value: PAGE_LABELS[stats?.topPage || ''] || stats?.topPage || '-', icon: '⭐', isText: true },
-        { label: 'แก้ไข (เดือนนี้)', value: stats?.corrections ?? 0, icon: '🔄' },
+        { label: 'หน้าที่ใช้มากสุด (30 วัน)', value: PAGE_LABELS[stats?.topPage || ''] || stats?.topPage || '-', icon: '⭐', isText: true },
+        { label: 'แก้ไข (30 วัน)', value: stats?.corrections ?? 0, icon: '🔄' },
     ]
 
     // ═══ Loading ═══
@@ -310,7 +336,8 @@ export default function ActivityLogDashboard() {
                             radius="md"
                             variant="filled"
                             style={{ minWidth: 180, backgroundColor: 'rgba(255, 255, 255, 0.9)', borderRadius: 8 }}
-                            valueFormat="MM/YYYY"
+                            locale="th"
+                            valueFormat="MMM BBBB"
                         />
                         <Tooltip label="รีเฟรชข้อมูล" withArrow>
                             <ActionIcon
@@ -349,7 +376,9 @@ export default function ActivityLogDashboard() {
                 <Box className="ald-summary-card red-line ald-animate ald-delay-4">
                     <Group gap="xs" mb="md">
                         <div className="ald-section-icon" style={{ background: 'linear-gradient(135deg, #fef2f2, #fee2e2)' }}>🔄</div>
-                        <Text fw={700} size="md" c="#1a1a2e">สรุปแก้ไข (เดือนนี้)</Text>
+                        <Text fw={700} size="md" c="#1a1a2e">
+                            สรุปแก้ไข {filterMonth ? `(${String(filterMonth.getMonth() + 1).padStart(2, '0')}/${filterMonth.getFullYear()})` : '(ทั้งหมด)'}
+                        </Text>
                     </Group>
 
                     {corrections.length > 0 ? (

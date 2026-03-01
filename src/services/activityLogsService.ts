@@ -54,7 +54,10 @@ export interface LogListResponse {
 }
 
 export const activityLogsService = {
-  getStats: async (): Promise<ActivityLogStats> => {
+  getStats: async (params?: {
+    taxMonth?: number;
+    taxYear?: number;
+  }): Promise<ActivityLogStats> => {
     const response = await api.get<{
       success: boolean;
       data: {
@@ -65,7 +68,7 @@ export const activityLogsService = {
         topPage: { page: string; count: number } | null;
         correctionsToday: number;
       };
-    }>("/activity-logs/stats");
+    }>("/activity-logs/stats", { params });
 
     const d = response.data.data;
     return {
@@ -103,6 +106,8 @@ export const activityLogsService = {
     pageName?: string;
     reviewer?: string;
     accountant?: string;
+    taxMonth?: number;
+    taxYear?: number;
   }): Promise<StatusSummaryPoint[]> => {
     const response = await api.get<{
       success: boolean;
@@ -116,6 +121,8 @@ export const activityLogsService = {
     endDate?: string;
     reviewer?: string;
     accountant?: string;
+    taxMonth?: number;
+    taxYear?: number;
   }): Promise<Blob> => {
     const response = await api.get("/activity-logs/export-logs", {
       params,
@@ -124,14 +131,17 @@ export const activityLogsService = {
     return response.data;
   },
 
-  getCorrectionSummary: async (): Promise<CorrectionSummary[]> => {
+  getCorrectionSummary: async (params?: {
+    taxMonth?: number;
+    taxYear?: number;
+  }): Promise<CorrectionSummary[]> => {
     const response = await api.get<{
       success: boolean;
       data: {
         corrections: CorrectionSummary[];
         summary: Record<string, number>;
       };
-    }>("/activity-logs/correction-summary");
+    }>("/activity-logs/correction-summary", { params });
     return response.data.data.corrections;
   },
 
