@@ -50,7 +50,7 @@ export default function ClientDetailView({ build, onBack, onEdit }: ClientDetail
   // Save handler for DBD info
   const handleSaveDbdInfo = async (data: DbdInfo) => {
     try {
-      await clientsService.update(build, { dbd_info: data })
+      await clientsService.updateDbdInfo(build, data)
       notifications.show({ title: 'บันทึกสำเร็จ', message: 'บันทึกข้อมูล DBD เรียบร้อย', color: 'green' })
       queryClient.invalidateQueries(['client', build])
       setDbdOpened(false)
@@ -63,7 +63,7 @@ export default function ClientDetailView({ build, onBack, onEdit }: ClientDetail
   // Save handler for credentials
   const handleSaveCredentials = async (data: AgencyCredentials) => {
     try {
-      await clientsService.update(build, { agency_credentials: data })
+      await clientsService.updateAgencyCredentials(build, data)
       notifications.show({ title: 'บันทึกสำเร็จ', message: 'บันทึกรหัสผู้ใช้เรียบร้อย', color: 'green' })
       queryClient.invalidateQueries(['client', build])
       setCredentialsOpened(false)

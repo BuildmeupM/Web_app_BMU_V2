@@ -209,6 +209,11 @@ router.post('/login', loginRateLimiter, async (req, res) => {
       name: user.name,
     }
 
+    // Emit real-time update for online users
+    if (req.app.get('io')) {
+      req.app.get('io').to('dashboard:online-users').emit('online-users:changed')
+    }
+
     res.json({
       success: true,
       message: 'เข้าสู่ระบบสำเร็จ',
@@ -260,6 +265,11 @@ router.post('/logout', authenticateToken, async (req, res) => {
     } catch (sessionError) {
       console.error('Error updating session on logout:', sessionError)
       // ไม่ block logout ถ้า update session ไม่สำเร็จ
+    }
+
+    // Emit real-time update for online users
+    if (req.app.get('io')) {
+      req.app.get('io').to('dashboard:online-users').emit('online-users:changed')
     }
 
     res.json({

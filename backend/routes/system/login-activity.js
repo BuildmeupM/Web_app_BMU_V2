@@ -9,6 +9,15 @@ import { authenticateToken, authorize } from '../../middleware/auth.js'
 
 const router = express.Router()
 
+const KNOWN_INTERNAL_IPS = [
+  '171.7.95.152',
+  '110.169.43.81',
+  '127.0.0.1',
+  '::1',
+  'localhost',
+  '::ffff:127.0.0.1'
+]
+
 // ทุก route ต้อง authenticate + admin only
 router.use(authenticateToken)
 router.use(authorize('admin'))
@@ -141,10 +150,15 @@ router.get('/attempts', async (req, res) => {
       [...params, String(limit), String(offset)]
     )
 
+    const processedAttempts = attempts.map(a => ({
+      ...a,
+      is_internal: KNOWN_INTERNAL_IPS.includes(a.ip_address) || !a.ip_address
+    }))
+
     res.json({
       success: true,
       data: {
-        attempts,
+        attempts: processedAttempts,
         pagination: {
           page,
           limit,
@@ -386,8 +400,6 @@ router.get('/session-history', async (req, res) => {
  * GET /api/login-activity/external-ips
  * ดึง login attempts ทั้งหมดที่มาจาก IP ภายนอก
  */
-const KNOWN_INTERNAL_IPS = ['171.7.95.152', '110.169.43.81', '127.0.0.1', '::1', 'localhost', '::ffff:127.0.0.1']
-
 router.get('/external-ips', async (req, res) => {
   try {
     const { today } = req.query
@@ -413,11 +425,16 @@ router.get('/external-ips', async (req, res) => {
       KNOWN_INTERNAL_IPS
     )
 
+    const processedAttempts = attempts.map(a => ({
+      ...a,
+      is_internal: false // By definition of this query, they are not internal
+    }))
+
     res.json({
       success: true,
       data: {
-        attempts,
-        count: attempts.length,
+        attempts: processedAttempts,
+        count: processedAttempts.length,
       },
     })
   } catch (error) {
@@ -555,12 +572,16 @@ heartbeatRouter.post('/heartbeat', authenticateToken, async (req, res) => {
     }
 
     // Mark expired sessions (ไม่มี heartbeat > 30 นาที)
-    await pool.execute(
+    const [result] = await pool.execute(
       `UPDATE user_sessions 
        SET session_status = 'expired', logout_at = last_active_at
        WHERE session_status = 'active' 
          AND last_active_at < DATE_SUB(NOW(), INTERVAL 30 MINUTE)`
     )
+
+    if (result.affectedRows > 0 && req.app.get('io')) {
+      req.app.get('io').to('dashboard:online-users').emit('online-users:changed')
+    }
 
     res.json({ success: true, sessionStatus: 'active' })
   } catch (error) {

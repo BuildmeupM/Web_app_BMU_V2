@@ -45,18 +45,18 @@ export default function LoginChart({ data, loading }: { data: ChartDataPoint[]; 
     const gapBetween = 3
 
     return (
-        <Card padding="lg" radius="xl" withBorder>
+        <Card padding="lg" radius="xl" withBorder style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.02)' }}>
             <Group justify="space-between" mb="md">
                 <Text size="sm" fw={600}>
                     แนวโน้มการเข้าสู่ระบบ (7 วัน)
                 </Text>
                 <Group gap="md">
                     <Group gap={4}>
-                        <Box style={{ width: 12, height: 12, borderRadius: 3, background: 'var(--mantine-color-green-6)' }} />
+                        <Box style={{ width: 12, height: 12, borderRadius: 3, background: 'var(--mantine-color-green-5)' }} />
                         <Text size="xs" c="dimmed">สำเร็จ</Text>
                     </Group>
                     <Group gap={4}>
-                        <Box style={{ width: 12, height: 12, borderRadius: 3, background: 'var(--mantine-color-red-5)' }} />
+                        <Box style={{ width: 12, height: 12, borderRadius: 3, background: 'var(--mantine-color-red-4)' }} />
                         <Text size="xs" c="dimmed">ล้มเหลว</Text>
                     </Group>
                 </Group>
@@ -93,9 +93,9 @@ export default function LoginChart({ data, loading }: { data: ChartDataPoint[]; 
                                 y={paddingTop + chartHeight - sH}
                                 width={barW}
                                 height={sH}
-                                rx={3}
-                                fill="var(--mantine-color-green-6)"
-                                opacity={0.85}
+                                rx={4}
+                                fill="var(--mantine-color-green-5)"
+                                opacity={0.9}
                             />
                             {/* Success count label */}
                             {d.success_count > 0 && (
@@ -116,9 +116,9 @@ export default function LoginChart({ data, loading }: { data: ChartDataPoint[]; 
                                 y={paddingTop + chartHeight - fH}
                                 width={barW}
                                 height={fH}
-                                rx={3}
-                                fill="var(--mantine-color-red-5)"
-                                opacity={0.85}
+                                rx={4}
+                                fill="var(--mantine-color-red-4)"
+                                opacity={0.9}
                             />
                             {/* Fail count label */}
                             {d.failed_count > 0 && (

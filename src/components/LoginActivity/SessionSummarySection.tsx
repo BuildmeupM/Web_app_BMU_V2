@@ -25,7 +25,7 @@ export default function SessionSummarySection() {
     const summary = summaryData?.summary || []
 
     return (
-        <Card shadow="sm" radius="lg" padding="md" withBorder>
+        <Card shadow="none" radius="xl" padding="md" withBorder style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.02)' }}>
             <Group justify="space-between" mb="md">
                 <Group gap="xs">
                     <TbClock size={18} color="var(--mantine-color-blue-6)" />
@@ -54,7 +54,7 @@ export default function SessionSummarySection() {
                     ไม่มีข้อมูล session ในวันที่เลือก
                 </Text>
             ) : (
-                <Table striped highlightOnHover>
+                <Table striped highlightOnHover verticalSpacing="sm">
                     <Table.Thead>
                         <Table.Tr>
                             <Table.Th>พนักงาน</Table.Th>
@@ -99,9 +99,9 @@ export default function SessionSummarySection() {
                                 </Table.Td>
                                 <Table.Td style={{ textAlign: 'center' }}>
                                     {s.is_online ? (
-                                        <Badge size="sm" variant="filled" color="green">ออนไลน์</Badge>
+                                        <Badge size="sm" variant="light" color="teal">ออนไลน์</Badge>
                                     ) : (
-                                        <Badge size="sm" variant="light" color="gray">ออฟไลน์</Badge>
+                                        <Badge size="sm" variant="outline" color="gray" style={{ borderStyle: 'dashed' }}>ออฟไลน์</Badge>
                                     )}
                                 </Table.Td>
                             </Table.Tr>

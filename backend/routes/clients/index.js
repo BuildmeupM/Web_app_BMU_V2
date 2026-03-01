@@ -122,7 +122,7 @@ router.get('/', authenticateToken, async (req, res) => {
     const offset = (pageNum - 1) * limitNum
 
     // Role-based access control
-    const isHRorAdmin = req.user.role === 'admin'
+    // const isHRorAdmin = req.user.role === 'admin' // Not currently used in this route
 
     // Build WHERE clause
     const whereConditions = ['c.deleted_at IS NULL']
@@ -1120,6 +1120,148 @@ router.patch('/:build/accounting-fees', authenticateToken, authorize('admin', 'h
 })
 
 /**
+ * PATCH /api/clients/:build/agency-credentials
+ * อัพเดทเฉพาะข้อมูลรหัสผู้ใช้หน่วยงานราชการ
+ * Access: Admin, HR, Data Entry, Data Entry & Service
+ */
+router.patch('/:build/agency-credentials', authenticateToken, authorize('admin', 'hr', 'data_entry', 'data_entry_and_service'), async (req, res) => {
+  try {
+    const { build } = req.params
+    const agency_credentials = req.body
+
+    // Check if client exists
+    const [existingClients] = await pool.execute(
+      'SELECT id FROM clients WHERE build = ? AND deleted_at IS NULL',
+      [build]
+    )
+
+    if (existingClients.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Client not found',
+      })
+    }
+
+    if (!agency_credentials || Object.keys(agency_credentials).length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No agency credentials data provided',
+      })
+    }
+
+    // Always DELETE then INSERT for simplicity, same as PUT endpoint
+    await pool.execute('DELETE FROM agency_credentials WHERE build = ? AND deleted_at IS NULL', [build])
+    
+    await pool.execute(
+      `INSERT INTO agency_credentials (
+        id, build,
+        efiling_username, efiling_password,
+        sso_username, sso_password,
+        dbd_username, dbd_password,
+        student_loan_username, student_loan_password,
+        enforcement_username, enforcement_password
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        generateUUID(), build,
+        agency_credentials.efiling_username || null,
+        agency_credentials.efiling_password || null,
+        agency_credentials.sso_username || null,
+        agency_credentials.sso_password || null,
+        agency_credentials.dbd_username || null,
+        agency_credentials.dbd_password || null,
+        agency_credentials.student_loan_username || null,
+        agency_credentials.student_loan_password || null,
+        agency_credentials.enforcement_username || null,
+        agency_credentials.enforcement_password || null,
+      ]
+    )
+
+    // Invalidate cache
+    invalidateCache('GET:/clients')
+
+    res.json({
+      success: true,
+      message: 'Agency credentials updated successfully',
+      data: { build },
+    })
+  } catch (error) {
+    console.error('Update agency credentials error:', error)
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+    })
+  }
+})
+
+/**
+ * PATCH /api/clients/:build/dbd-info
+ * อัพเดทเฉพาะข้อมูล DBD
+ * Access: Admin, HR, Data Entry, Data Entry & Service
+ */
+router.patch('/:build/dbd-info', authenticateToken, authorize('admin', 'hr', 'data_entry', 'data_entry_and_service'), async (req, res) => {
+  try {
+    const { build } = req.params
+    const dbd_info = req.body
+
+    // Check if client exists
+    const [existingClients] = await pool.execute(
+      'SELECT id FROM clients WHERE build = ? AND deleted_at IS NULL',
+      [build]
+    )
+
+    if (existingClients.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Client not found',
+      })
+    }
+
+    if (!dbd_info || Object.keys(dbd_info).length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No dbd_info data provided',
+      })
+    }
+
+    // Always DELETE then INSERT for simplicity, same as PUT endpoint
+    await pool.execute('DELETE FROM dbd_info WHERE build = ? AND deleted_at IS NULL', [build])
+    
+    await pool.execute(
+      `INSERT INTO dbd_info (
+        id, build, accounting_period, registered_capital, paid_capital,
+        business_code, business_objective_at_registration,
+        latest_business_code, latest_business_objective
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        generateUUID(), build,
+        dbd_info.accounting_period || null,
+        dbd_info.registered_capital || null,
+        dbd_info.paid_capital || null,
+        dbd_info.business_code || null,
+        dbd_info.business_objective_at_registration || null,
+        dbd_info.latest_business_code || null,
+        dbd_info.latest_business_objective || null,
+      ]
+    )
+
+    // Invalidate cache
+    invalidateCache('GET:/clients')
+
+    res.json({
+      success: true,
+      message: 'DBD info updated successfully',
+      data: { build },
+    })
+  } catch (error) {
+    console.error('Update dbd info error:', error)
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+    })
+  }
+})
+
+/**
  * DELETE /api/clients/:build
  * ลบลูกค้า (soft delete)
  * Access: Admin/HR only
@@ -1253,7 +1395,7 @@ router.post(
         }
       })
 
-      legalEntityNumberMap.forEach((rows, legalEntityNumber) => {
+      legalEntityNumberMap.forEach((rows) => {
         if (rows.length > 1) {
           // Legal entity number can be duplicated for branches - show informational message
           validationResults.warnings.push({

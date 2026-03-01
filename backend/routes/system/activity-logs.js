@@ -6,6 +6,7 @@
 import express from 'express'
 import pool from '../../config/database.js'
 import { authenticateToken, authorize } from '../../middleware/auth.js'
+import xlsx from 'xlsx'
 
 const router = express.Router()
 
@@ -82,7 +83,7 @@ router.get('/list', async (req, res) => {
         const page = parseInt(req.query.page) || 1
         const limit = parseInt(req.query.limit) || 20
         const offset = (page - 1) * limit
-        const { userId, pageName, action, startDate, endDate, build, search } = req.query
+        const { userId, pageName, action, taxMonth, taxYear, build, search, detailsStatus } = req.query
 
         let whereClause = 'WHERE 1=1'
         const params = []
@@ -96,20 +97,28 @@ router.get('/list', async (req, res) => {
             params.push(pageName)
         }
         if (action) {
-            whereClause += ' AND al.action = ?'
-            params.push(action)
+            if (action === 'status_correction') {
+                whereClause += " AND al.new_value IN ('needs_correction', 'edit')"
+            } else {
+                whereClause += ' AND al.action = ?'
+                params.push(action)
+            }
         }
-        if (startDate) {
-            whereClause += ' AND DATE(al.created_at) >= ?'
-            params.push(startDate)
+        if (taxMonth) {
+            whereClause += " AND JSON_EXTRACT(al.metadata, '$.month') = ?"
+            params.push(taxMonth)
         }
-        if (endDate) {
-            whereClause += ' AND DATE(al.created_at) <= ?'
-            params.push(endDate)
+        if (taxYear) {
+            whereClause += " AND JSON_EXTRACT(al.metadata, '$.year') = ?"
+            params.push(taxYear)
         }
         if (build) {
             whereClause += ' AND al.build = ?'
             params.push(build)
+        }
+        if (detailsStatus) {
+            whereClause += ' AND al.new_value = ?'
+            params.push(detailsStatus)
         }
         if (search) {
             whereClause += ' AND (al.company_name LIKE ? OR al.description LIKE ? OR al.user_name LIKE ?)'
@@ -251,22 +260,25 @@ router.get('/correction-summary', async (req, res) => {
     try {
         const days = parseInt(req.query.days) || 30
 
-        // สรุปจำนวน correction grouped by คนที่ถูกแก้ไข (ดูจาก build → ดูว่าใครรับผิดชอบ)
-        // แต่ในที่นี้เราดูจาก user ที่ทำการ update สถานะเป็น needs_correction/edit
         const [corrections] = await pool.execute(
             `SELECT 
-         al.user_name,
-         al.user_id,
-         al.employee_id,
+         al.build,
+         al.company_name,
+         e.first_name,
+         e.nick_name,
          COUNT(*) as correction_count,
-         COUNT(DISTINCT al.build) as unique_companies,
-         GROUP_CONCAT(DISTINCT al.build ORDER BY al.build SEPARATOR ', ') as affected_builds,
          MAX(al.created_at) as last_correction
        FROM activity_logs al
+       LEFT JOIN monthly_tax_data mtd ON al.build = mtd.build 
+            AND mtd.tax_year = COALESCE(JSON_EXTRACT(al.metadata, '$.year'), YEAR(al.created_at))
+            AND mtd.tax_month = COALESCE(JSON_EXTRACT(al.metadata, '$.month'), MONTH(al.created_at))
+            AND mtd.deleted_at IS NULL
+       LEFT JOIN employees e ON mtd.accounting_responsible = e.employee_id
        WHERE al.new_value IN ('needs_correction', 'edit')
          AND al.created_at >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
-       GROUP BY al.user_id, al.user_name, al.employee_id
-       ORDER BY correction_count DESC`,
+       GROUP BY al.build, al.company_name, e.first_name, e.nick_name
+       ORDER BY correction_count DESC
+       LIMIT 10`,
             [days]
         )
 
@@ -386,5 +398,161 @@ router.get('/audit-corrections', async (req, res) => {
         res.status(500).json({ success: false, message: 'Internal server error' })
     }
 })
-
 export default router
+
+/**
+ * GET /api/activity-logs/chart-status-summary
+ * สรุปกิจกรรมตามสถานะ (new_value) ประจำวัน
+ */
+router.get('/chart-status-summary', async (req, res) => {
+    try {
+        const dateParam = req.query.date; // YYYY-MM-DD
+        const daysParam = req.query.days; // 7, 14, 30
+        const pageName = req.query.pageName;
+        const reviewer = req.query.reviewer;
+        const accountant = req.query.accountant;
+
+        let joinClause = "";
+        let whereClause = "WHERE 1=1";
+        const params = [];
+
+        if (reviewer || accountant) {
+            joinClause = `
+                INNER JOIN monthly_tax_data mtd ON al.build = mtd.build 
+                AND mtd.tax_year = COALESCE(JSON_EXTRACT(al.metadata, '$.year'), YEAR(al.created_at))
+                AND mtd.tax_month = COALESCE(JSON_EXTRACT(al.metadata, '$.month'), MONTH(al.created_at))
+                AND mtd.deleted_at IS NULL
+            `;
+            if (reviewer) {
+                whereClause += " AND mtd.tax_inspection_responsible = ?";
+                params.push(reviewer);
+            }
+            if (accountant) {
+                whereClause += " AND mtd.accounting_responsible = ?";
+                params.push(accountant);
+            }
+        }
+
+        if (daysParam) {
+            whereClause += " AND DATE(al.created_at) >= DATE_SUB(CURDATE(), INTERVAL ? DAY) AND DATE(al.created_at) <= CURDATE()";
+            params.push(parseInt(daysParam, 10) - 1);
+        } else if (dateParam) {
+            whereClause += " AND DATE(al.created_at) = ?";
+            params.push(dateParam);
+        } else {
+            whereClause += " AND DATE(al.created_at) = CURDATE()";
+        }
+
+        if (pageName) {
+            whereClause += " AND al.page = ?";
+            params.push(pageName);
+        }
+        
+        whereClause += " AND al.new_value IS NOT NULL AND al.new_value != ''";
+        // Filter actions that update status
+        whereClause += " AND al.action IN ('status_update', 'status_correction')";
+
+        const [results] = await pool.execute(
+            `SELECT al.new_value as status, COUNT(*) as count
+             FROM activity_logs al
+             ${joinClause}
+             ${whereClause}
+             GROUP BY al.new_value
+             ORDER BY count DESC`,
+             params
+        );
+
+        res.json({
+            success: true,
+            data: results
+        });
+    } catch (error) {
+        console.error('Error getting chart status summary:', error);
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+});
+
+/**
+ * GET /api/activity-logs/export-logs
+ * ส่งออก Excel
+ */
+router.get('/export-logs', async (req, res) => {
+    try {
+        const { startDate, endDate, reviewer, accountant } = req.query;
+        let whereClause = "WHERE 1=1";
+        let joinClause = "";
+        const params = [];
+
+        if (reviewer || accountant) {
+            joinClause = `
+                INNER JOIN monthly_tax_data mtd ON al.build = mtd.build 
+                AND mtd.tax_year = COALESCE(JSON_EXTRACT(al.metadata, '$.year'), YEAR(al.created_at))
+                AND mtd.tax_month = COALESCE(JSON_EXTRACT(al.metadata, '$.month'), MONTH(al.created_at))
+                AND mtd.deleted_at IS NULL
+            `;
+            if (reviewer) {
+                whereClause += " AND mtd.tax_inspection_responsible = ?";
+                params.push(reviewer);
+            }
+            if (accountant) {
+                whereClause += " AND mtd.accounting_responsible = ?";
+                params.push(accountant);
+            }
+        }
+
+        if (startDate) {
+            whereClause += " AND DATE(al.created_at) >= ?";
+            params.push(startDate);
+        }
+        if (endDate) {
+            whereClause += " AND DATE(al.created_at) <= ?";
+            params.push(endDate);
+        }
+
+        const [logs] = await pool.execute(
+            `SELECT 
+              al.created_at as 'วัน-เวลา',
+              al.user_name as 'ผู้ใช้งาน',
+              al.action as 'การกระทำ',
+              al.page as 'หน้า',
+              al.build as 'Build',
+              al.company_name as 'ชื่อบริษัท',
+              al.description as 'รายละเอียด'
+             FROM activity_logs al
+             ${joinClause}
+             ${whereClause}
+             ORDER BY al.created_at DESC`,
+             params
+        );
+
+        // Convert the JSON object array to a worksheet
+        const ws = xlsx.utils.json_to_sheet(logs);
+
+        ws['!cols'] = [
+            { wch: 20 }, // วัน-เวลา
+            { wch: 20 }, // ผู้ใช้งาน
+            { wch: 20 }, // การกระทำ
+            { wch: 15 }, // หน้า
+            { wch: 10 }, // Build
+            { wch: 30 }, // ชื่อบริษัท
+            { wch: 40 }  // รายละเอียด
+        ];
+
+        // Create a workbook and append the worksheet
+        const wb = xlsx.utils.book_new();
+        xlsx.utils.book_append_sheet(wb, ws, "Activity Logs");
+
+        // Write to buffer
+        const buffer = xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' });
+
+        // Set response headers
+        res.setHeader('Content-Disposition', 'attachment; filename="activity_logs.xlsx"');
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        
+        // Send buffer
+        res.end(buffer);
+    } catch (error) {
+        console.error('Error exporting logs:', error);
+        res.status(500).json({ success: false, message: 'Internal server error while exporting' });
+    }
+});

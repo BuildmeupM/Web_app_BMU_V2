@@ -29,33 +29,16 @@ export interface ActivityLogStats {
   corrections: number;
 }
 
-export interface ChartDataPoint {
-  date: string;
+export interface StatusSummaryPoint {
+  status: string;
   count: number;
-}
-
-export interface PageBreakdown {
-  page: string;
-  count: number;
-}
-
-export interface ChartData {
-  trend: ChartDataPoint[];
-  pageBreakdown: PageBreakdown[];
-}
-
-export interface EmployeeSummary {
-  employee_id: string;
-  user_name: string;
-  total_actions: number;
-  status_updates: number;
-  data_creates: number;
-  data_edits: number;
 }
 
 export interface CorrectionSummary {
-  employee_id: string;
-  user_name: string;
+  build: string;
+  company_name: string | null;
+  first_name: string | null;
+  nick_name: string | null;
   correction_count: number;
   last_correction: string;
 }
@@ -74,9 +57,25 @@ export const activityLogsService = {
   getStats: async (): Promise<ActivityLogStats> => {
     const response = await api.get<{
       success: boolean;
-      data: ActivityLogStats;
+      data: {
+        today: number;
+        thisWeek: number;
+        thisMonth: number;
+        activeUsersToday: number;
+        topPage: { page: string; count: number } | null;
+        correctionsToday: number;
+      };
     }>("/activity-logs/stats");
-    return response.data.data;
+
+    const d = response.data.data;
+    return {
+      todayCount: d.today || 0,
+      weekCount: d.thisWeek || 0,
+      monthCount: d.thisMonth || 0,
+      activeUsers: d.activeUsersToday || 0,
+      topPage: d.topPage?.page || null,
+      corrections: d.correctionsToday || 0,
+    };
   },
 
   getList: async (params: {
@@ -85,10 +84,11 @@ export const activityLogsService = {
     userId?: string;
     pageName?: string;
     action?: string;
-    startDate?: string;
-    endDate?: string;
+    taxMonth?: number;
+    taxYear?: number;
     build?: string;
     search?: string;
+    detailsStatus?: string;
   }): Promise<LogListResponse> => {
     const response = await api.get<{ success: boolean; data: LogListResponse }>(
       "/activity-logs/list",
@@ -97,28 +97,42 @@ export const activityLogsService = {
     return response.data.data;
   },
 
-  getChart: async (days: number = 7): Promise<ChartData> => {
-    const response = await api.get<{ success: boolean; data: ChartData }>(
-      "/activity-logs/chart",
-      { params: { days } },
-    );
+  getChartStatusSummary: async (params: {
+    date?: string;
+    days?: string;
+    pageName?: string;
+    reviewer?: string;
+    accountant?: string;
+  }): Promise<StatusSummaryPoint[]> => {
+    const response = await api.get<{
+      success: boolean;
+      data: StatusSummaryPoint[];
+    }>("/activity-logs/chart-status-summary", { params });
     return response.data.data;
   },
 
-  getEmployeeSummary: async (): Promise<EmployeeSummary[]> => {
-    const response = await api.get<{
-      success: boolean;
-      data: EmployeeSummary[];
-    }>("/activity-logs/employee-summary");
-    return response.data.data;
+  exportLogsToExcel: async (params: {
+    startDate?: string;
+    endDate?: string;
+    reviewer?: string;
+    accountant?: string;
+  }): Promise<Blob> => {
+    const response = await api.get("/activity-logs/export-logs", {
+      params,
+      responseType: "blob",
+    });
+    return response.data;
   },
 
   getCorrectionSummary: async (): Promise<CorrectionSummary[]> => {
     const response = await api.get<{
       success: boolean;
-      data: CorrectionSummary[];
+      data: {
+        corrections: CorrectionSummary[];
+        summary: Record<string, number>;
+      };
     }>("/activity-logs/correction-summary");
-    return response.data.data;
+    return response.data.data.corrections;
   },
 
   getAuditCorrections: async (

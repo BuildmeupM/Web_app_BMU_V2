@@ -1,7 +1,7 @@
 import { Table, Badge, Button, Group, Text, Card, Loader, Center, Alert } from '@mantine/core'
 import { TbFileText, TbAlertCircle } from 'react-icons/tb'
 import { useQuery } from 'react-query'
-import { useEffect, useMemo, memo, useCallback } from 'react'
+import { useEffect, useMemo, memo } from 'react'
 import { useAuthStore } from '../../store/authStore'
 import { getCurrentTaxMonth } from '../../utils/taxMonthUtils'
 import { derivePp30Status } from '../../utils/pp30StatusUtils'
@@ -13,6 +13,14 @@ import buddhistEra from 'dayjs/plugin/buddhistEra'
 import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
 import { formatDateTimeNoConversion } from '../../utils/dateTimeUtils'
+
+interface ApiError {
+  message?: string;
+  code?: string;
+  response?: {
+    status?: number;
+  };
+}
 
 dayjs.extend(buddhistEra)
 dayjs.extend(utc)
@@ -230,6 +238,7 @@ const TaxInspectionTable = memo(function TaxInspectionTable({
         })
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []) // Empty dependency array เพื่อให้ run เพียงครั้งเดียวเมื่อ mount
 
   // ✅ BUG-168: Debug logging เพื่อตรวจสอบว่า component update หรือไม่
@@ -281,9 +290,9 @@ const TaxInspectionTable = memo(function TaxInspectionTable({
       refetchOnWindowFocus: false, // ปิดการ refetch อัตโนมัติเมื่อ focus window เพื่อลด requests
       refetchOnReconnect: false, // ปิดการ refetch เมื่อ reconnect (ใช้ cache แทน)
       enabled: !!employeeId && _hasHydrated, // ✅ BUG-168: รอ hydration เสร็จก่อน enable query
-      retry: (failureCount, error: any) => {
+      retry: (failureCount, error: unknown) => {
         // ไม่ retry สำหรับ 429 errors เพราะจะทำให้แย่ลง
-        if (error?.response?.status === 429) {
+        if ((error as ApiError)?.response?.status === 429) {
           return false
         }
         // Retry 1 ครั้งสำหรับ errors อื่นๆ
@@ -300,10 +309,10 @@ const TaxInspectionTable = memo(function TaxInspectionTable({
           })
         }
       },
-      onError: (err) => {
+      onError: (err: unknown) => {
         if (import.meta.env.DEV) {
           console.error('[TaxInspectionTable] Query ERROR:', {
-            error: (err as any)?.message || 'Unknown error',
+            error: (err as ApiError)?.message || 'Unknown error',
             timestamp: new Date().toISOString(),
           })
         }
@@ -319,87 +328,89 @@ const TaxInspectionTable = memo(function TaxInspectionTable({
         isLoading,
         hasData: !!taxDataResponse,
         dataLength: taxDataResponse?.data?.length || 0,
-        error: error ? (error as any)?.message || 'Unknown error' : null,
+        error: error ? (error as ApiError)?.message || 'Unknown error' : null,
         timestamp: new Date().toISOString(),
       })
     }
   }, [employeeId, _hasHydrated, isLoading, taxDataResponse, error])
 
   // Transform API data to table format
-  const tableData = taxDataResponse?.data?.map((item: MonthlyTaxData) => {
-    // Format dates: ใช้ฟังก์ชันเดียวกับ TaxInspectionForm เพื่อให้การแสดงผลสอดคล้องกัน
-    // ⚠️ สำคัญ: Backend ส่งข้อมูลมาเป็น format 'YYYY-MM-DD HH:mm:ss' ซึ่งเป็นเวลาไทยแล้ว (ไม่ใช่ UTC)
-    // ดังนั้นไม่ต้องแปลง timezone แต่แปลง format จาก 'YYYY-MM-DD HH:mm:ss' เป็น 'DD/MM/YYYY HH:mm' เท่านั้น
-    const formatDate = (dateStr: string | null | undefined) => {
-      if (!dateStr) return null
-      // ใช้ formatDateTimeNoConversion เพื่อแปลง format โดยไม่แปลง timezone (เหมือน TaxInspectionForm)
-      const formatted = formatDateTimeNoConversion(dateStr, 'DD/MM/YYYY HH:mm')
-      return formatted || null
-    }
+  const tableData = useMemo(() => {
+    return taxDataResponse?.data?.map((item: MonthlyTaxData) => {
+      // Format dates: ใช้ฟังก์ชันเดียวกับ TaxInspectionForm เพื่อให้การแสดงผลสอดคล้องกัน
+      // ⚠️ สำคัญ: Backend ส่งข้อมูลมาเป็น format 'YYYY-MM-DD HH:mm:ss' ซึ่งเป็นเวลาไทยแล้ว (ไม่ใช่ UTC)
+      // ดังนั้นไม่ต้องแปลง timezone แต่แปลง format จาก 'YYYY-MM-DD HH:mm:ss' เป็น 'DD/MM/YYYY HH:mm' เท่านั้น
+      const formatDate = (dateStr: string | null | undefined) => {
+        if (!dateStr) return null
+        // ใช้ formatDateTimeNoConversion เพื่อแปลง format โดยไม่แปลง timezone (เหมือน TaxInspectionForm)
+        const formatted = formatDateTimeNoConversion(dateStr, 'DD/MM/YYYY HH:mm')
+        return formatted || null
+      }
 
-    // ⚠️ สำคัญ: ใช้ pp30_status หรือ pp30_form จาก backend โดยตรง (หลัง migration 028)
-    // ถ้าไม่มี ให้ derive จาก timestamp fields
-    // ใช้ shared utility เพื่อ derive pp30_status (single source of truth)
-    // ⚠️ สำคัญ: derivePp30Status จะใช้ pp30_status หรือ pp30_form ก่อน แล้วค่อย derive จาก timestamp
-    const pp30Status = derivePp30Status(item)
+      // ⚠️ สำคัญ: ใช้ pp30_status หรือ pp30_form จาก backend โดยตรง (หลัง migration 028)
+      // ถ้าไม่มี ให้ derive จาก timestamp fields
+      // ใช้ shared utility เพื่อ derive pp30_status (single source of truth)
+      // ⚠️ สำคัญ: derivePp30Status จะใช้ pp30_status หรือ pp30_form ก่อน แล้วค่อย derive จาก timestamp
+      const pp30Status = derivePp30Status(item)
 
-    // สร้างรายชื่อผู้ทำ: พนักงานที่รับผิดชอบในการคีย์, พนักงานที่ยื่น WHT, พนักงานที่ยื่น VAT, ผู้ทำบัญชี
-    // ใช้ first_name และ nick_name เพื่อแสดงเป็น "ชื่อ (ชื่อเล่น)" โดยไม่แสดงนามสกุล
-    const documentEntryName = formatEmployeeName(
-      item.document_entry_responsible_first_name,
-      item.document_entry_responsible_nick_name
-    )
-    const whtFilerName = formatEmployeeName(
-      item.wht_filer_current_employee_first_name || item.wht_filer_employee_first_name,
-      item.wht_filer_current_employee_nick_name || item.wht_filer_employee_nick_name
-    )
-    const vatFilerName = formatEmployeeName(
-      item.vat_filer_current_employee_first_name || item.vat_filer_employee_first_name,
-      item.vat_filer_current_employee_nick_name || item.vat_filer_employee_nick_name
-    )
-    const accountingResponsibleName = formatEmployeeName(
-      item.accounting_responsible_first_name,
-      item.accounting_responsible_nick_name
-    )
+      // สร้างรายชื่อผู้ทำ: พนักงานที่รับผิดชอบในการคีย์, พนักงานที่ยื่น WHT, พนักงานที่ยื่น VAT, ผู้ทำบัญชี
+      // ใช้ first_name และ nick_name เพื่อแสดงเป็น "ชื่อ (ชื่อเล่น)" โดยไม่แสดงนามสกุล
+      const documentEntryName = formatEmployeeName(
+        item.document_entry_responsible_first_name,
+        item.document_entry_responsible_nick_name
+      )
+      const whtFilerName = formatEmployeeName(
+        item.wht_filer_current_employee_first_name || item.wht_filer_employee_first_name,
+        item.wht_filer_current_employee_nick_name || item.wht_filer_employee_nick_name
+      )
+      const vatFilerName = formatEmployeeName(
+        item.vat_filer_current_employee_first_name || item.vat_filer_employee_first_name,
+        item.vat_filer_current_employee_nick_name || item.vat_filer_employee_nick_name
+      )
+      const accountingResponsibleName = formatEmployeeName(
+        item.accounting_responsible_first_name,
+        item.accounting_responsible_nick_name
+      )
 
-    // สร้างข้อความแสดงผู้ทำ (แสดงเฉพาะที่มีข้อมูล)
-    // แสดงเป็น bullet points เพื่อให้อ่านง่าย
-    const performerList: string[] = []
-    if (documentEntryName !== '-') {
-      performerList.push(`• พนักงานที่รับผิดชอบในการคีย์: ${documentEntryName}`)
-    }
-    if (whtFilerName !== '-') {
-      performerList.push(`• พนักงานที่ยื่น WHT: ${whtFilerName}`)
-    }
-    if (vatFilerName !== '-') {
-      performerList.push(`• พนักงานที่ยื่น VAT: ${vatFilerName}`)
-    }
-    if (accountingResponsibleName !== '-') {
-      performerList.push(`• ผู้ทำบัญชี: ${accountingResponsibleName}`)
-    }
-    const performerText = performerList.length > 0 ? performerList.join('\n') : '-'
+      // สร้างข้อความแสดงผู้ทำ (แสดงเฉพาะที่มีข้อมูล)
+      // แสดงเป็น bullet points เพื่อให้อ่านง่าย
+      const performerList: string[] = []
+      if (documentEntryName !== '-') {
+        performerList.push(`• พนักงานที่รับผิดชอบในการคีย์: ${documentEntryName}`)
+      }
+      if (whtFilerName !== '-') {
+        performerList.push(`• พนักงานที่ยื่น WHT: ${whtFilerName}`)
+      }
+      if (vatFilerName !== '-') {
+        performerList.push(`• พนักงานที่ยื่น VAT: ${vatFilerName}`)
+      }
+      if (accountingResponsibleName !== '-') {
+        performerList.push(`• ผู้ทำบัญชี: ${accountingResponsibleName}`)
+      }
+      const performerText = performerList.length > 0 ? performerList.join('\n') : '-'
 
-    return {
-      id: item.id,
-      build: item.build,
-      companyName: item.company_name || '-',
-      pndSentDate: formatDate(item.pnd_sent_for_review_date),
-      pndStatus: item.pnd_status || null,
-      pp30SentDate: formatDate(item.pp30_sent_for_review_date),
-      pp30Status: pp30Status,
-      pp30PaymentStatus: item.pp30_payment_status || null,
-      pp30PaymentAmount: item.pp30_payment_amount || null,
-      performer: performerText,
-      wht_inquiry: item.wht_inquiry ?? undefined,
-      wht_response: item.wht_response ?? undefined,
-      wht_submission_comment: item.wht_submission_comment ?? undefined,
-      wht_filing_response: item.wht_filing_response ?? undefined,
-      pp30_inquiry: item.pp30_inquiry ?? undefined,
-      pp30_response: item.pp30_response ?? undefined,
-      pp30_submission_comment: item.pp30_submission_comment ?? undefined,
-      pp30_filing_response: item.pp30_filing_response ?? undefined,
-    }
-  }) || []
+      return {
+        id: item.id,
+        build: item.build,
+        companyName: item.company_name || '-',
+        pndSentDate: formatDate(item.pnd_sent_for_review_date),
+        pndStatus: item.pnd_status || null,
+        pp30SentDate: formatDate(item.pp30_sent_for_review_date),
+        pp30Status: pp30Status,
+        pp30PaymentStatus: item.pp30_payment_status || null,
+        pp30PaymentAmount: item.pp30_payment_amount || null,
+        performer: performerText,
+        wht_inquiry: item.wht_inquiry ?? undefined,
+        wht_response: item.wht_response ?? undefined,
+        wht_submission_comment: item.wht_submission_comment ?? undefined,
+        wht_filing_response: item.wht_filing_response ?? undefined,
+        pp30_inquiry: item.pp30_inquiry ?? undefined,
+        pp30_response: item.pp30_response ?? undefined,
+        pp30_submission_comment: item.pp30_submission_comment ?? undefined,
+        pp30_filing_response: item.pp30_filing_response ?? undefined,
+      }
+    }) || []
+  }, [taxDataResponse?.data])
   const getStatusBadge = (status: string | null) => {
     if (!status) return <Text c="dimmed">-</Text>
     return (
@@ -440,13 +451,14 @@ const TaxInspectionTable = memo(function TaxInspectionTable({
   }
 
   if (error) {
+    const apiError = error as ApiError;
     // Check if error is network-related (backend server not running)
     const isNetworkError =
-      (error as any)?.message?.includes('Network Error') ||
-      (error as any)?.code === 'ERR_NETWORK' ||
-      (error as any)?.code === 'ERR_CONNECTION_REFUSED' ||
-      (error as any)?.message?.includes('ERR_CONNECTION_REFUSED') ||
-      (error as any)?.message?.includes('ERR_SOCKET_NOT_CONNECTED')
+      apiError?.message?.includes('Network Error') ||
+      apiError?.code === 'ERR_NETWORK' ||
+      apiError?.code === 'ERR_CONNECTION_REFUSED' ||
+      apiError?.message?.includes('ERR_CONNECTION_REFUSED') ||
+      apiError?.message?.includes('ERR_SOCKET_NOT_CONNECTED')
 
     const errorMessage = isNetworkError
       ? 'ไม่สามารถเชื่อมต่อกับ Backend Server ได้ กรุณาตรวจสอบว่า Backend Server รันอยู่ที่ http://localhost:3001'

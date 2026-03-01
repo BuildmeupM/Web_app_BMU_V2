@@ -21,17 +21,43 @@ import {
     ScrollArea,
     TextInput,
     Select,
+    Skeleton,
+    Pagination,
+    Modal,
+    Button,
 } from '@mantine/core'
-import { TbRefresh, TbSearch } from 'react-icons/tb'
+import { MonthPickerInput, DatePickerInput } from '@mantine/dates'
+import { TbRefresh, TbSearch, TbCalendar, TbDownload } from 'react-icons/tb'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Cell } from 'recharts'
+import dayjs from 'dayjs'
+import 'dayjs/locale/th'
+import buddhistEra from 'dayjs/plugin/buddhistEra'
+
+dayjs.extend(buddhistEra)
+dayjs.locale('th')
+
 import {
     activityLogsService,
     type ActivityLogStats,
     type ActivityLog,
-    type ChartData,
     type CorrectionSummary,
-    type EmployeeSummary,
+    type StatusSummaryPoint,
 } from '../services/activityLogsService'
+import usersService, { type User } from '../services/usersService'
 import './ActivityLogDashboard.css'
+
+// Helper to use either nickname or username for display
+const formatUserName = (user: User): string => {
+  if (!user.name) return user.username;
+  if (!user.nick_name) return user.name;
+  
+  // If the name already contains the nickname, don't append it again
+  if (user.name.includes(user.nick_name)) {
+      return user.name;
+  }
+  
+  return `${user.name}(${user.nick_name})`;
+}
 
 // ═══════════════════════════════════════════════════
 //  Constants
@@ -48,11 +74,26 @@ const PAGE_LABELS: Record<string, string> = {
 
 const ACTION_CONFIG: Record<string, { label: string; cls: string }> = {
     status_update: { label: 'อัพเดทสถานะ', cls: 'status' },
+    status_correction: { label: 'คืนงานกลับ/สถานะแก้ไข', cls: 'correction' },
     data_create: { label: 'สร้างข้อมูล', cls: 'create' },
-    data_edit: { label: 'แก้ไข', cls: 'edit' },
+    data_edit: { label: 'แก้ไขข้อมูล', cls: 'edit' },
     listing_create: { label: 'ลงขาย', cls: 'listing' },
     listing_purchase: { label: 'ซื้องาน', cls: 'listing' },
     listing_cancel: { label: 'ยกเลิก', cls: 'correction' },
+}
+
+const DETAILS_STATUS_CONFIG: Record<string, string> = {
+    needs_correction: 'แก้ไข',
+    additional_review: 'ตรวจสอบเพิ่มเติม',
+    inquire_customer: 'สอบถามลูกค้า',
+    draft_completed: 'คีย์ดราฟเสร็จสิ้น',
+    pending_review: 'รอตรวจ',
+    pending_recheck: 'รอตรวจอีกครั้ง',
+    passed: 'ผ่าน',
+    paid: 'ชำระแล้ว',
+    received_receipt: 'รับใบเสร็จ',
+    sent_to_customer: 'ส่งลูกค้าแล้ว',
+    not_submitted: 'ไม่ได้ยื่น',
 }
 
 // ═══════════════════════════════════════════════════
@@ -67,14 +108,13 @@ function fmtDateTime(d: string) {
     } catch { return d }
 }
 
-function fmtShortDate(d: string) {
-    try {
-        return new Date(d).toLocaleDateString('th-TH', { day: '2-digit', month: 'short' })
-    } catch { return d }
-}
-
 function initial(name: string) {
     return name ? name.charAt(0).toUpperCase() : '?'
+}
+
+function localToIsoDate(date: Date) {
+    const tzOffset = date.getTimezoneOffset() * 60000; // offset in milliseconds
+    return new Date(date.getTime() - tzOffset).toISOString().split('T')[0];
 }
 
 // ═══════════════════════════════════════════════════
@@ -84,11 +124,19 @@ function initial(name: string) {
 export default function ActivityLogDashboard() {
     const [stats, setStats] = useState<ActivityLogStats | null>(null)
     const [logs, setLogs] = useState<ActivityLog[]>([])
-    const [chart, setChart] = useState<ChartData | null>(null)
     const [corrections, setCorrections] = useState<CorrectionSummary[]>([])
-    const [employees, setEmployees] = useState<EmployeeSummary[]>([])
+    const [chartData, setChartData] = useState<StatusSummaryPoint[]>([])
     const [loading, setLoading] = useState(true)
-    const [chartDays, setChartDays] = useState(7)
+
+    const [chartPeriod, setChartPeriod] = useState<string>('30')
+    const [chartDate, setChartDate] = useState<Date | null>(new Date())
+    const [chartPage, setChartPage] = useState<string | null>(null)
+    const [chartReviewer, setChartReviewer] = useState<string | null>(null)
+    const [chartAccountant, setChartAccountant] = useState<string | null>(null)
+    const [users, setUsers] = useState<User[]>([])
+    const [exportModalOpened, setExportModalOpened] = useState(false)
+    const [exportStart, setExportStart] = useState<Date | null>(new Date())
+    const [exportEnd, setExportEnd] = useState<Date | null>(new Date())
 
     const [page, setPage] = useState(1)
     const [limit, setLimit] = useState(20)
@@ -96,7 +144,9 @@ export default function ActivityLogDashboard() {
     const [total, setTotal] = useState(0)
     const [search, setSearch] = useState('')
     const [filterPage, setFilterPage] = useState<string | null>(null)
-    const [filterAction, setFilterAction] = useState<string | null>(null)
+    const [filterDetailsStatus, setFilterDetailsStatus] = useState<string | null>(null)
+    const [filterMonth, setFilterMonth] = useState<Date | null>(null)
+    const [loadingLogs, setLoadingLogs] = useState(false)
 
     // ─── Column resize ───
     const tableRef = useRef<HTMLTableElement>(null)
@@ -136,37 +186,79 @@ export default function ActivityLogDashboard() {
     const fetchAll = useCallback(async () => {
         setLoading(true)
         try {
-            const [s, c, cr, em] = await Promise.all([
+            const [s, cr, us] = await Promise.all([
                 activityLogsService.getStats(),
-                activityLogsService.getChart(chartDays),
                 activityLogsService.getCorrectionSummary(),
-                activityLogsService.getEmployeeSummary(),
+                usersService.getList({ status: 'active' })
             ])
-            setStats(s); setChart(c); setCorrections(cr); setEmployees(em)
+            setStats(s); setCorrections(cr); setUsers(us.data)
         } catch (err) { console.error('Activity log fetch error:', err) }
         finally { setLoading(false) }
-    }, [chartDays])
+    }, [])
 
     const fetchLogs = useCallback(async () => {
+        setLoadingLogs(true)
         try {
+            const taxYear = filterMonth ? filterMonth.getFullYear() : undefined
+            const taxMonth = filterMonth ? filterMonth.getMonth() + 1 : undefined
+
             const res = await activityLogsService.getList({
                 page, limit,
                 search: search || undefined,
                 pageName: filterPage || undefined,
-                action: filterAction || undefined,
+                detailsStatus: filterDetailsStatus || undefined,
+                taxMonth,
+                taxYear,
             })
             setLogs(res.logs)
             setTotalPages(res.pagination.totalPages)
             setTotal(res.pagination.total)
         } catch (err) { console.error('Log list fetch error:', err) }
-    }, [page, limit, search, filterPage, filterAction])
+        finally { setLoadingLogs(false) }
+    }, [page, limit, search, filterPage, filterDetailsStatus, filterMonth])
+
+    const fetchChartData = useCallback(async () => {
+        try {
+            const d = chartPeriod === 'custom' && chartDate ? localToIsoDate(chartDate) : undefined
+            const days = chartPeriod !== 'custom' ? chartPeriod : undefined
+            const res = await activityLogsService.getChartStatusSummary({
+                date: d, days,
+                pageName: chartPage || undefined,
+                reviewer: chartReviewer || undefined,
+                accountant: chartAccountant || undefined
+            })
+            setChartData(res)
+        } catch (err) { console.error('Error fetching chart data:', err) }
+    }, [chartDate, chartPage, chartPeriod, chartReviewer, chartAccountant])
 
     useEffect(() => { fetchAll() }, [fetchAll])
     useEffect(() => { fetchLogs() }, [fetchLogs])
+    useEffect(() => { fetchChartData() }, [fetchChartData])
 
-    const refresh = () => { setPage(1); fetchAll(); fetchLogs() }
+    const refresh = () => { setPage(1); fetchAll(); fetchLogs(); fetchChartData() }
 
-    const maxBar = chart?.trend ? Math.max(...chart.trend.map(d => d.count), 1) : 1
+    const handleExportExcel = async () => {
+        try {
+            const s = exportStart ? localToIsoDate(exportStart) : undefined
+            const e = exportEnd ? localToIsoDate(exportEnd) : undefined
+
+            const blob = await activityLogsService.exportLogsToExcel({
+                startDate: s, endDate: e,
+                reviewer: chartReviewer || undefined,
+                accountant: chartAccountant || undefined
+            })
+            const url = window.URL.createObjectURL(blob)
+            const a = document.createElement('a')
+            a.href = url
+            a.download = `activity_logs_${s || 'start'}_to_${e || 'end'}.xlsx`
+            document.body.appendChild(a)
+            a.click()
+            a.remove()
+            setExportModalOpened(false)
+        } catch (err) {
+            console.error('Export error:', err)
+        }
+    }
 
     // ─── STAT CARDS CONFIG ───
     const statCards = [
@@ -194,7 +286,8 @@ export default function ActivityLogDashboard() {
 
     // ═══ Render ═══
     return (
-        <div className="ald-root">
+        <>
+            <div className="ald-root">
             {/* ═══ Header Banner ═══ */}
             <Box className="ald-header-banner ald-animate ald-delay-1">
                 <Group justify="space-between" align="center" wrap="wrap" gap="md">
@@ -207,18 +300,18 @@ export default function ActivityLogDashboard() {
                         </Text>
                     </Box>
                     <Group gap="xs" style={{ position: 'relative', zIndex: 1 }}>
-                        <Box className="ald-filter-glass">
-                            <Group gap={4}>
-                                <button
-                                    className={`ald-tab-pill ${chartDays === 7 ? 'ald-tab-pill--active' : ''}`}
-                                    onClick={() => setChartDays(7)}
-                                >7 วัน</button>
-                                <button
-                                    className={`ald-tab-pill ${chartDays === 30 ? 'ald-tab-pill--active' : ''}`}
-                                    onClick={() => setChartDays(30)}
-                                >30 วัน</button>
-                            </Group>
-                        </Box>
+                        <MonthPickerInput
+                            placeholder="ค้นหาจากเดือนภาษี"
+                            leftSection={<TbCalendar size={16} />}
+                            value={filterMonth}
+                            onChange={(val) => { setFilterMonth(val); setPage(1) }}
+                            clearable
+                            size="sm"
+                            radius="md"
+                            variant="filled"
+                            style={{ minWidth: 180, backgroundColor: 'rgba(255, 255, 255, 0.9)', borderRadius: 8 }}
+                            valueFormat="MM/YYYY"
+                        />
                         <Tooltip label="รีเฟรชข้อมูล" withArrow>
                             <ActionIcon
                                 variant="white" size="lg" radius="xl" onClick={refresh}
@@ -250,53 +343,6 @@ export default function ActivityLogDashboard() {
                 ))}
             </SimpleGrid>
 
-            {/* ═══ Chart Section ═══ */}
-            <Paper className="ald-glass-card ald-animate ald-delay-3" p="xl" mb="lg">
-                <Group gap="xs" mb="lg">
-                    <div className="ald-section-icon">📈</div>
-                    <Text fw={700} size="md" c="#1a1a2e">แนวโน้มกิจกรรม</Text>
-                    <Badge variant="light" color="orange" size="sm" ml={4}>
-                        {chartDays === 7 ? '7 วัน' : '30 วัน'}
-                    </Badge>
-                </Group>
-
-                {chart?.trend && chart.trend.length > 0 ? (
-                    <div className="ald-chart-area">
-                        {chart.trend.map((pt, i) => (
-                            <div className="ald-bar-col" key={i}>
-                                <span className="ald-bar-val">{pt.count || ''}</span>
-                                <div
-                                    className="ald-bar"
-                                    style={{ height: `${Math.max((pt.count / maxBar) * 180, 4)}px` }}
-                                    title={`${pt.date}: ${pt.count} กิจกรรม`}
-                                />
-                                <span className="ald-bar-date">{fmtShortDate(pt.date)}</span>
-                            </div>
-                        ))}
-                    </div>
-                ) : (
-                    <Center py={60}>
-                        <Stack align="center" gap="xs">
-                            <Text size="2rem">📊</Text>
-                            <Text c="dimmed" size="sm">ยังไม่มีข้อมูลกิจกรรม</Text>
-                        </Stack>
-                    </Center>
-                )}
-
-                {/* Page breakdown chips */}
-                {chart?.pageBreakdown && chart.pageBreakdown.length > 0 && (
-                    <SimpleGrid cols={{ base: 2, sm: 3, md: 4 }} spacing="sm" mt="lg">
-                        {chart.pageBreakdown.map((p, i) => (
-                            <div className="ald-chip" key={i}>
-                                <div className="ald-chip-dot" />
-                                <Text size="xs" c="dimmed" style={{ flex: 1 }}>{PAGE_LABELS[p.page] || p.page}</Text>
-                                <Text size="sm" fw={800} c="#1a1a2e">{p.count}</Text>
-                            </div>
-                        ))}
-                    </SimpleGrid>
-                )}
-            </Paper>
-
             {/* ═══ Two Column: Correction + Employee ═══ */}
             <SimpleGrid cols={{ base: 1, md: 2 }} spacing="lg" mb="lg">
                 {/* Correction Summary */}
@@ -307,18 +353,37 @@ export default function ActivityLogDashboard() {
                     </Group>
 
                     {corrections.length > 0 ? (
-                        <Stack gap={0}>
-                            {corrections.map((c, i) => (
-                                <div className="ald-summary-row" key={i}>
-                                    <div className="ald-avatar"><span>{initial(c.user_name)}</span></div>
-                                    <Box ml="sm" style={{ flex: 1 }}>
-                                        <Text size="sm" fw={600}>{c.user_name || c.employee_id}</Text>
-                                        <Text size="xs" c="dimmed">{fmtDateTime(c.last_correction)}</Text>
-                                    </Box>
-                                    <Text fw={800} size="lg" c="#ef4444">{c.correction_count}</Text>
-                                </div>
-                            ))}
-                        </Stack>
+                        <div style={{ overflowX: 'auto' }}>
+                            <Table striped highlightOnHover verticalSpacing="sm" style={{ minWidth: 400 }}>
+                                <Table.Thead>
+                                    <Table.Tr>
+                                        <Table.Th>Build</Table.Th>
+                                        <Table.Th>ชื่อบริษัท</Table.Th>
+                                        <Table.Th>ผู้ทำบัญชี</Table.Th>
+                                        <Table.Th style={{ textAlign: 'right' }}>จำนวนแก้ไข</Table.Th>
+                                    </Table.Tr>
+                                </Table.Thead>
+                                <Table.Tbody>
+                                    {corrections.map((c, i) => {
+                                        const acctName = c.first_name ? `${c.first_name}${c.nick_name ? `(${c.nick_name})` : ''}` : 'ไม่ระบุ'
+                                        return (
+                                            <Table.Tr key={i}>
+                                                <Table.Td><Text size="sm" fw={600} c="dimmed">{c.build}</Text></Table.Td>
+                                                <Table.Td>
+                                                    <Text size="sm" fw={600}>
+                                                        {c.company_name || 'ไม่ระบุชื่อบริษัท'}
+                                                    </Text>
+                                                </Table.Td>
+                                                <Table.Td><Text size="sm">{acctName}</Text></Table.Td>
+                                                <Table.Td style={{ textAlign: 'right' }}>
+                                                    <Badge color="red" variant="light" size="lg" fw={800}>{c.correction_count}</Badge>
+                                                </Table.Td>
+                                            </Table.Tr>
+                                        )
+                                    })}
+                                </Table.Tbody>
+                            </Table>
+                        </div>
                     ) : (
                         <Center py={40}>
                             <Stack align="center" gap="xs">
@@ -329,55 +394,109 @@ export default function ActivityLogDashboard() {
                     )}
                 </Box>
 
-                {/* Employee Summary */}
-                <Box className="ald-summary-card orange-line ald-animate ald-delay-5">
-                    <Group gap="xs" mb="md">
-                        <div className="ald-section-icon">👥</div>
-                        <Text fw={700} size="md" c="#1a1a2e">สรุปกิจกรรมพนักงาน</Text>
+                {/* Activity Status Chart */}
+                <Box className="ald-summary-card orange-line ald-animate ald-delay-5" style={{ display: 'flex', flexDirection: 'column' }}>
+                    <Group justify="space-between" align="center" mb="md" wrap="wrap">
+                        <Group gap="xs">
+                            <div className="ald-section-icon">📊</div>
+                            <Text fw={700} size="md" c="#1a1a2e">สรุปกิจกรรม (สถานะ)</Text>
+                        </Group>
+                        <Group gap="xs">
+                            <Select
+                                value={chartPeriod}
+                                onChange={(val) => {
+                                    setChartPeriod(val || '30')
+                                    if (val !== 'custom') setChartDate(null)
+                                    else setChartDate(new Date())
+                                }}
+                                data={[
+                                    { value: '1', label: 'วันนี้' },
+                                    { value: '7', label: '7 วันที่ผ่านมา' },
+                                    { value: '14', label: '14 วันที่ผ่านมา' },
+                                    { value: '30', label: '30 วันที่ผ่านมา' },
+                                    { value: 'custom', label: 'ระบุวันที่' },
+                                ]}
+                                size="xs"
+                                radius="md"
+                                style={{ width: 130 }}
+                                allowDeselect={false}
+                            />
+                            {chartPeriod === 'custom' && (
+                                <DatePickerInput
+                                    placeholder="เลือกวันที่"
+                                    value={chartDate}
+                                    onChange={setChartDate}
+                                    size="xs"
+                                    radius="md"
+                                    style={{ width: 140 }}
+                                    clearable
+                                    locale="th"
+                                    valueFormat="DD MMM BBBB"
+                                />
+                            )}
+                            <Select
+                                placeholder="ทุกหน้า"
+                                clearable
+                                value={chartPage}
+                                onChange={setChartPage}
+                                data={Object.entries(PAGE_LABELS).map(([k, v]) => ({ value: k, label: v }))}
+                                size="xs"
+                                radius="md"
+                                style={{ width: 120 }}
+                            />
+                            <Select
+                                placeholder="ผู้ตรวจ"
+                                clearable
+                                value={chartReviewer}
+                                onChange={setChartReviewer}
+                                data={users
+                                    .filter(u => ['admin', 'audit'].includes(u.role))
+                                    .map(u => ({ value: u.employee_id || u.id, label: formatUserName(u) }))}
+                                size="xs"
+                                radius="md"
+                                style={{ width: 140 }}
+                                searchable
+                            />
+                            <Select
+                                placeholder="ผู้ทำบัญชี"
+                                clearable
+                                value={chartAccountant}
+                                onChange={setChartAccountant}
+                                data={users
+                                    .filter(u => ['service', 'data_entry_and_service'].includes(u.role))
+                                    .map(u => ({ value: u.employee_id || u.id, label: formatUserName(u) }))}
+                                size="xs"
+                                radius="md"
+                                style={{ width: 140 }}
+                                searchable
+                            />
+                            <Button size="xs" radius="md" color="green" leftSection={<TbDownload size={14} />} onClick={() => setExportModalOpened(true)}>
+                                ส่งออก Excel
+                            </Button>
+                        </Group>
                     </Group>
 
-                    {employees.length > 0 ? (
-                        <ScrollArea h={300}>
-                            <div className="ald-table-wrap">
-                                <Table verticalSpacing="xs" horizontalSpacing="sm">
-                                    <Table.Thead>
-                                        <Table.Tr>
-                                            <Table.Th>พนักงาน</Table.Th>
-                                            <Table.Th style={{ textAlign: 'center' }}>ทั้งหมด</Table.Th>
-                                            <Table.Th style={{ textAlign: 'center' }}>สถานะ</Table.Th>
-                                            <Table.Th style={{ textAlign: 'center' }}>สร้าง</Table.Th>
-                                            <Table.Th style={{ textAlign: 'center' }}>แก้ไข</Table.Th>
-                                        </Table.Tr>
-                                    </Table.Thead>
-                                    <Table.Tbody>
-                                        {employees.map((e, i) => (
-                                            <Table.Tr key={i}>
-                                                <Table.Td>
-                                                    <Group gap="xs">
-                                                        <div className="ald-avatar"><span>{initial(e.user_name)}</span></div>
-                                                        <Text size="sm" fw={500}>{e.user_name || e.employee_id}</Text>
-                                                    </Group>
-                                                </Table.Td>
-                                                <Table.Td style={{ textAlign: 'center' }}>
-                                                    <Text fw={700} c="#FF6B35">{e.total_actions}</Text>
-                                                </Table.Td>
-                                                <Table.Td style={{ textAlign: 'center' }}>{e.status_updates}</Table.Td>
-                                                <Table.Td style={{ textAlign: 'center' }}>{e.data_creates}</Table.Td>
-                                                <Table.Td style={{ textAlign: 'center' }}>{e.data_edits}</Table.Td>
-                                            </Table.Tr>
+                    <div style={{ width: '100%', flex: 1, minHeight: 400 }}>
+                        {chartData.length > 0 ? (
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={chartData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                                    <XAxis dataKey="status" tickFormatter={(val) => DETAILS_STATUS_CONFIG[val] || val} tick={{ fill: '#888', fontSize: 12 }} axisLine={false} tickLine={false} />
+                                    <YAxis tick={{ fill: '#888', fontSize: 12 }} axisLine={false} tickLine={false} allowDecimals={false} />
+                                    <RechartsTooltip formatter={(value: number) => [value, 'จำนวน']} labelFormatter={(label) => DETAILS_STATUS_CONFIG[label] || label} cursor={{ fill: 'rgba(255, 107, 53, 0.05)' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
+                                    <Bar dataKey="count" fill="#FF6B35" radius={[4, 4, 0, 0]} maxBarSize={50} animationDuration={1000}>
+                                        {chartData.map((_, i) => (
+                                            <Cell key={`cell-${i}`} fill={i % 2 === 0 ? '#FF6B35' : '#FF8C66'} />
                                         ))}
-                                    </Table.Tbody>
-                                </Table>
-                            </div>
-                        </ScrollArea>
-                    ) : (
-                        <Center py={40}>
-                            <Stack align="center" gap="xs">
-                                <Text size="2rem">📋</Text>
-                                <Text size="sm" c="dimmed">ยังไม่มีข้อมูลพนักงาน</Text>
-                            </Stack>
-                        </Center>
-                    )}
+                                    </Bar>
+                                </BarChart>
+                            </ResponsiveContainer>
+                        ) : (
+                            <Center h="100%">
+                                <Text c="dimmed" size="sm">ไม่มีข้อมูลในวันที่เลือก</Text>
+                            </Center>
+                        )}
+                    </div>
                 </Box>
             </SimpleGrid>
 
@@ -400,7 +519,7 @@ export default function ActivityLogDashboard() {
                         onChange={(e) => { setSearch(e.currentTarget.value); setPage(1) }}
                         size="sm"
                         radius="md"
-                        style={{ flex: 1, minWidth: 180 }}
+                        style={{ flex: 1, minWidth: 150 }}
                         styles={{ input: { border: '1px solid #eee', '&:focus': { borderColor: '#FF8A5C' } } }}
                     />
                     <Select
@@ -411,14 +530,14 @@ export default function ActivityLogDashboard() {
                         data={Object.entries(PAGE_LABELS).map(([k, v]) => ({ value: k, label: v }))}
                         size="sm"
                         radius="md"
-                        style={{ minWidth: 160 }}
+                        style={{ minWidth: 140 }}
                     />
                     <Select
-                        placeholder="ทุกการกระทำ"
+                        placeholder="ทุกสถานะที่แก้ไข"
                         clearable
-                        value={filterAction}
-                        onChange={(v) => { setFilterAction(v); setPage(1) }}
-                        data={Object.entries(ACTION_CONFIG).map(([k, { label }]) => ({ value: k, label }))}
+                        value={filterDetailsStatus}
+                        onChange={(v) => { setFilterDetailsStatus(v); setPage(1) }}
+                        data={Object.entries(DETAILS_STATUS_CONFIG).map(([k, v]) => ({ value: k, label: v }))}
                         size="sm"
                         radius="md"
                         style={{ minWidth: 160 }}
@@ -463,7 +582,19 @@ export default function ActivityLogDashboard() {
                                 </Table.Tr>
                             </Table.Thead>
                             <Table.Tbody>
-                                {logs.length > 0 ? logs.map((log) => {
+                                {loadingLogs ? (
+                                    Array.from({ length: 5 }).map((_, i) => (
+                                        <Table.Tr key={`skel-${i}`}>
+                                            <Table.Td><Skeleton height={20} radius="xl" /></Table.Td>
+                                            <Table.Td><Skeleton height={20} radius="xl" /></Table.Td>
+                                            <Table.Td><Skeleton height={20} radius="xl" width={80} /></Table.Td>
+                                            <Table.Td><Skeleton height={20} radius="xl" width={80} /></Table.Td>
+                                            <Table.Td><Skeleton height={20} radius="xl" width={60} /></Table.Td>
+                                            <Table.Td><Skeleton height={20} radius="xl" /></Table.Td>
+                                            <Table.Td><Skeleton height={20} radius="xl" /></Table.Td>
+                                        </Table.Tr>
+                                    ))
+                                ) : logs.length > 0 ? logs.map((log) => {
                                     const ac = ACTION_CONFIG[log.action] || { label: log.action, cls: 'page-badge' }
                                     return (
                                         <Table.Tr key={log.id}>
@@ -479,10 +610,22 @@ export default function ActivityLogDashboard() {
                                                 </Group>
                                             </Table.Td>
                                             <Table.Td>
-                                                <span className={`ald-action-badge ${ac.cls}`}>{ac.label}</span>
+                                                <Badge
+                                                    size="sm"
+                                                    variant="light"
+                                                    color={
+                                                        ac.cls === 'status' || ac.cls === 'create' || ac.cls === 'edit' || ac.cls === 'listing'
+                                                            ? 'orange'
+                                                            : ac.cls === 'correction' ? 'red' : 'gray'
+                                                    }
+                                                >
+                                                    {ac.label}
+                                                </Badge>
                                             </Table.Td>
                                             <Table.Td>
-                                                <span className="ald-action-badge page-badge">{PAGE_LABELS[log.page] || log.page}</span>
+                                                <Badge size="sm" variant="light" color="gray">
+                                                    {PAGE_LABELS[log.page] || log.page}
+                                                </Badge>
                                             </Table.Td>
                                             <Table.Td>
                                                 <Text size="xs" ff="monospace" c="dimmed">{log.build || '-'}</Text>
@@ -513,31 +656,56 @@ export default function ActivityLogDashboard() {
                 </ScrollArea>
 
                 {/* Pagination */}
-                {totalPages >= 1 && (
-                    <Group justify="space-between" align="center" mt="md" wrap="wrap">
+                {!loadingLogs && totalPages >= 1 && (
+                    <Group justify="space-between" align="center" mt="xl" wrap="wrap">
                         <Text size="xs" c="dimmed">
                             แสดง {((page - 1) * limit) + 1}–{Math.min(page * limit, total)} จาก {total} รายการ
                         </Text>
-                        <div className="ald-pager">
-                            <button className="ald-pager-btn" disabled={page <= 1} onClick={() => setPage(page - 1)}>‹</button>
-                            {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
-                                const start = Math.max(1, Math.min(page - 2, totalPages - 4))
-                                const num = start + i
-                                if (num > totalPages) return null
-                                return (
-                                    <button
-                                        key={num}
-                                        className={`ald-pager-btn ${num === page ? 'active' : ''}`}
-                                        onClick={() => setPage(num)}
-                                    >{num}</button>
-                                )
-                            })}
-                            <Text size="xs" c="dimmed" mx={4}>/ {totalPages}</Text>
-                            <button className="ald-pager-btn" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>›</button>
-                        </div>
+                        <Pagination
+                            total={totalPages}
+                            value={page}
+                            onChange={setPage}
+                            size="sm"
+                            radius="xl"
+                            color="orange"
+                            withEdges
+                        />
                     </Group>
                 )}
             </Paper>
         </div>
+
+            {/* Export Modal */}
+            <Modal opened={exportModalOpened} onClose={() => setExportModalOpened(false)} title="ส่งออกข้อมูลกิจกรรม (Excel)" centered radius="md">
+                <Stack>
+                    <DatePickerInput
+                        label="วันที่เริ่มต้น"
+                        placeholder="เลือกวันที่"
+                        value={exportStart}
+                        onChange={setExportStart}
+                        radius="md"
+                        clearable
+                        locale="th"
+                        valueFormat="DD MMM BBBB"
+                    />
+                    <DatePickerInput
+                        label="วันที่สิ้นสุด"
+                        placeholder="เลือกวันที่"
+                        value={exportEnd}
+                        onChange={setExportEnd}
+                        radius="md"
+                        clearable
+                        locale="th"
+                        valueFormat="DD MMM BBBB"
+                    />
+                    <Group justify="flex-end" mt="md">
+                        <Button variant="default" onClick={() => setExportModalOpened(false)} radius="md">ยกเลิก</Button>
+                        <Button color="green" onClick={handleExportExcel} radius="md" leftSection={<TbDownload size={16} />}>
+                            ดาวน์โหลด
+                        </Button>
+                    </Group>
+                </Stack>
+            </Modal>
+        </>
     )
 }

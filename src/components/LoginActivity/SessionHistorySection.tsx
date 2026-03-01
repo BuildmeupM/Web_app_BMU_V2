@@ -30,7 +30,7 @@ export default function SessionHistorySection() {
     }
 
     return (
-        <Card shadow="sm" radius="lg" padding="md" withBorder>
+        <Card shadow="none" radius="xl" padding="md" withBorder style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.02)' }}>
             <Group justify="space-between" mb="md">
                 <Group gap="xs">
                     <TbLogin size={18} color="var(--mantine-color-violet-6)" />
@@ -70,19 +70,20 @@ export default function SessionHistorySection() {
                         return (
                             <Paper
                                 key={userId}
-                                radius="md"
+                                radius="lg"
                                 withBorder
-                                style={{ overflow: 'hidden' }}
+                                style={{ overflow: 'hidden', borderColor: isExpanded ? 'var(--mantine-color-violet-2)' : 'var(--mantine-color-gray-2)' }}
                             >
                                 {/* User Row — clickable */}
                                 <Box
                                     p="sm"
-                                    style={{
-                                        cursor: 'pointer',
-                                        backgroundColor: isExpanded
-                                            ? 'var(--mantine-color-violet-0)'
-                                            : undefined,
-                                    }}
+                                        style={{
+                                            cursor: 'pointer',
+                                            backgroundColor: isExpanded
+                                                ? 'var(--mantine-color-violet-0)'
+                                                : 'transparent',
+                                            transition: 'background-color 0.2s ease',
+                                        }}
                                     onClick={() => toggleUser(userId)}
                                 >
                                     <Group justify="space-between">
@@ -114,7 +115,7 @@ export default function SessionHistorySection() {
                                 {/* Expanded Sessions */}
                                 {isExpanded && (
                                     <Box px="sm" pb="sm">
-                                        <Table striped highlightOnHover>
+                                        <Table striped highlightOnHover verticalSpacing="sm">
                                             <Table.Thead>
                                                 <Table.Tr>
                                                     <Table.Th>Login</Table.Th>
@@ -147,7 +148,7 @@ export default function SessionHistorySection() {
                                                             <Table.Td>
                                                                 <Badge
                                                                     size="xs"
-                                                                    variant={s.session_status === 'active' ? 'filled' : 'light'}
+                                                                    variant={s.session_status === 'active' ? 'light' : 'dot'}
                                                                     color={statusInfo.color}
                                                                 >
                                                                     {statusInfo.label}

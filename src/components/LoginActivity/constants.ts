@@ -13,19 +13,8 @@ export const failureReasonLabels: Record<string, string> = {
 };
 
 /* ─────────────── IP Address Monitoring ─────────────── */
-export const KNOWN_INTERNAL_IPS = [
-  "171.7.95.152",
-  "110.169.43.81",
-  "127.0.0.1",
-  "::1",
-  "localhost",
-  "::ffff:127.0.0.1",
-];
-
-export function isInternalIP(ip: string | null | undefined): boolean {
-  if (!ip) return false;
-  return KNOWN_INTERNAL_IPS.includes(ip);
-}
+// KNOWN_INTERNAL_IPS moved to the backend
+// The backend now returns an `is_internal` boolean flag in the LoginAttempt.
 
 /* ─────────────── Session Status Label ─────────────── */
 export const sessionStatusMap: Record<

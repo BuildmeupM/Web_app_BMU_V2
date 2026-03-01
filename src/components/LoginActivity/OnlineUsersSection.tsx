@@ -14,7 +14,7 @@ import {
     Avatar,
     Badge,
 } from '@mantine/core'
-import { TbUserCheck, TbPoint } from 'react-icons/tb'
+import { TbUserCheck } from 'react-icons/tb'
 import type { OnlineUser } from '../../services/loginActivityService'
 
 /* ─── Online User Card ─── */
@@ -32,39 +32,40 @@ function OnlineUserCard({ user }: { user: OnlineUser }) {
             <Paper
                 p="xs"
                 radius="md"
-                shadow="xs"
                 style={{
-                    border: '2px solid var(--mantine-color-green-6)',
-                    backgroundColor: '#fff',
+                    padding: '10px 14px',
+                    border: '1px solid rgba(132, 94, 247, 0.2)',
+                    background: 'linear-gradient(135deg, var(--mantine-color-gray-0) 0%, #fff 100%)',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+                    position: 'relative',
+                    overflow: 'hidden',
                     cursor: 'default',
                     transition: 'transform 0.15s ease',
                 }}
                 onMouseEnter={(e) => {
-                    ; (e.currentTarget as HTMLElement).style.transform = 'scale(1.05)'
+                    (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)'
                 }}
                 onMouseLeave={(e) => {
-                    ; (e.currentTarget as HTMLElement).style.transform = 'scale(1)'
+                    (e.currentTarget as HTMLElement).style.transform = 'translateY(0)'
                 }}
             >
-                <Group gap={6} wrap="nowrap">
+                <Group wrap="nowrap" gap="sm">
                     <Box style={{ position: 'relative' }}>
-                        <Avatar
-                            size={28}
-                            radius="xl"
-                            color="green"
-                        >
-                            {(user.nick_name || user.user_name || user.username)
-                                ?.charAt(0)
-                                .toUpperCase()}
+                        <Avatar size="md" radius="xl" color="violet">
+                            {(user.nick_name || user.user_name || user.username)?.charAt(0).toUpperCase()}
                         </Avatar>
-                        <TbPoint
-                            size={12}
-                            color="#40c057"
-                            fill="#40c057"
+                        <Box
+                            className="pulse-dot"
                             style={{
                                 position: 'absolute',
-                                bottom: -1,
-                                right: -1,
+                                bottom: 0,
+                                right: 0,
+                                width: 12,
+                                height: 12,
+                                borderRadius: '50%',
+                                backgroundColor: 'var(--mantine-color-green-5)',
+                                border: '2px solid white',
+                                zIndex: 2,
                             }}
                         />
                     </Box>

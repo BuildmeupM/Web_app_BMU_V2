@@ -10,7 +10,7 @@
  *   - SessionHistorySection.tsx
  */
 
-import { useState, useMemo, useEffect, useRef } from 'react'
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import {
     Container,
     Title,
@@ -28,11 +28,9 @@ import {
     Tooltip,
     Avatar,
     Skeleton,
-    Box,
     Paper,
     Checkbox,
     Button,
-    Modal,
 } from '@mantine/core'
 import {
     TbLogin,
@@ -44,7 +42,6 @@ import {
     TbShieldX,
     TbTrash,
     TbTrashX,
-    TbAlertTriangle,
     TbChevronDown,
     TbChevronUp,
     TbArrowsSort,
@@ -57,9 +54,6 @@ import {
     type ChartDataPoint,
 } from '../services/loginActivityService'
 import {
-    failureReasonLabels,
-    KNOWN_INTERNAL_IPS,
-    isInternalIP,
     formatDateTime,
 } from '../components/LoginActivity/constants'
 import StatCard from '../components/LoginActivity/StatCard'
@@ -67,6 +61,11 @@ import LoginChart from '../components/LoginActivity/LoginChart'
 import OnlineUsersSection from '../components/LoginActivity/OnlineUsersSection'
 import SessionSummarySection from '../components/LoginActivity/SessionSummarySection'
 import SessionHistorySection from '../components/LoginActivity/SessionHistorySection'
+import LoginAttemptRow from '../components/LoginActivity/LoginAttemptRow'
+import DeleteConfirmModal from '../components/LoginActivity/DeleteConfirmModal'
+import ExternalIpAlertModal from '../components/LoginActivity/ExternalIpAlertModal'
+import { useTableResize } from '../hooks/useTableResize'
+import { getSocket } from '../services/socketService'
 import './LoginActivity.css'
 
 /* ═══════════════════════════════════════════════════
@@ -85,38 +84,7 @@ export default function LoginActivity() {
     const [externalIpAlerted, setExternalIpAlerted] = useState(false)
 
     // ─── Column resize ───
-    const tableRef = useRef<HTMLTableElement>(null)
-    const resizingCol = useRef<{ idx: number; startX: number; startW: number } | null>(null)
-
-    const onResizeMouseDown = (e: React.MouseEvent, colIdx: number) => {
-        e.preventDefault()
-        const th = (e.target as HTMLElement).closest('th') as HTMLTableCellElement
-        if (!th) return
-        resizingCol.current = { idx: colIdx, startX: e.clientX, startW: th.offsetWidth }
-
-        const onMove = (ev: MouseEvent) => {
-            if (!resizingCol.current || !tableRef.current) return
-            const delta = ev.clientX - resizingCol.current.startX
-            const newW = Math.max(60, resizingCol.current.startW + delta)
-            const ths = tableRef.current.querySelectorAll('thead th')
-            const target = ths[resizingCol.current.idx] as HTMLElement
-            if (target) {
-                target.style.width = `${newW}px`
-                target.style.minWidth = `${newW}px`
-            }
-        }
-        const onUp = () => {
-            resizingCol.current = null
-            document.removeEventListener('mousemove', onMove)
-            document.removeEventListener('mouseup', onUp)
-            document.body.style.cursor = ''
-            document.body.style.userSelect = ''
-        }
-        document.body.style.cursor = 'col-resize'
-        document.body.style.userSelect = 'none'
-        document.addEventListener('mousemove', onMove)
-        document.addEventListener('mouseup', onUp)
-    }
+    const { tableRef, onResizeMouseDown } = useTableResize()
 
     const [limit, setLimit] = useState(15)
     const [sortBy, setSortBy] = useState<string>('attempted_at')
@@ -152,6 +120,8 @@ export default function LoginActivity() {
     )
 
     // Fetch online users
+    // ✅ PERFORMANCE: Uses WebSocket for real-time updates via 'online-users:changed' event
+    // with a 60-second polling fallback.
     const {
         data: onlineData,
         isLoading: loadingOnline,
@@ -161,6 +131,27 @@ export default function LoginActivity() {
         retry: 1,
         refetchInterval: 60_000,
     })
+
+    // Listen to real-time online user changes via WebSockets
+    useEffect(() => {
+        const socket = getSocket()
+        if (!socket) return
+
+        socket.emit('subscribe:online-users')
+
+        const handleOnlineUsersChanged = () => {
+            console.log('📡 [WebSocket] Online users status changed. Refetching data...')
+            queryClient.invalidateQueries(['login-activity', 'online-users'])
+            queryClient.invalidateQueries(['login-activity', 'stats']) // Optional: refresh stats too
+        }
+
+        socket.on('online-users:changed', handleOnlineUsersChanged)
+
+        return () => {
+            socket.emit('unsubscribe:online-users')
+            socket.off('online-users:changed', handleOnlineUsersChanged)
+        }
+    }, [queryClient])
 
     // Fetch attempts
     const { data: attemptsData, isLoading: loadingAttempts } = useQuery(
@@ -197,7 +188,7 @@ export default function LoginActivity() {
     )
 
     const externalAttempts = externalIpData?.attempts || []
-    const externalAttemptsToday = externalIpTodayData?.attempts || []
+    const externalAttemptsToday = useMemo(() => externalIpTodayData?.attempts || [], [externalIpTodayData?.attempts])
     const [showAllExternal, setShowAllExternal] = useState(false)
 
     // Auto-popup when TODAY's external IPs detected
@@ -225,7 +216,7 @@ export default function LoginActivity() {
     }, [stats])
 
     // Selection handlers
-    const toggleSelectId = (id: string) => {
+    const toggleSelectId = useCallback((id: string) => {
         setSelectedIds((prev) => {
             const next = new Set(prev)
             if (next.has(id)) {
@@ -235,9 +226,9 @@ export default function LoginActivity() {
             }
             return next
         })
-    }
+    }, [])
 
-    const toggleSelectAll = () => {
+    const toggleSelectAll = useCallback(() => {
         if (!attemptsData?.attempts) return
         const currentPageIds = attemptsData.attempts.map((a) => a.id)
         const allSelected = currentPageIds.every((id) => selectedIds.has(id))
@@ -250,7 +241,12 @@ export default function LoginActivity() {
             }
             return next
         })
-    }
+    }, [attemptsData?.attempts, selectedIds])
+
+    const handleDeleteClick = useCallback((id: string) => {
+        setSingleDeleteId(id)
+        setDeleteModalType('single')
+    }, [])
 
     const isAllSelected =
         attemptsData?.attempts &&
@@ -280,188 +276,100 @@ export default function LoginActivity() {
     const handleDeleteSelected = async () => {
         if (selectedIds.size === 0) return
         const idsToDelete = Array.from(selectedIds)
-        // ซ่อนจาก UI ทันที
-        setDeletedIds(prev => {
-            const next = new Set(prev)
-            idsToDelete.forEach(id => next.add(id))
-            return next
-        })
-        setSelectedIds(new Set())
-        setDeleteModalType(null)
+        setDeleting(true)
         try {
             await loginActivityService.deleteAttempts(idsToDelete)
+            // ซ่อนจาก UI ทันที
+            setDeletedIds(prev => {
+                const next = new Set(prev)
+                idsToDelete.forEach(id => next.add(id))
+                return next
+            })
+            setSelectedIds(new Set())
+            setDeleteModalType(null)
         } catch (error) {
             console.error('Error deleting attempts:', error)
+        } finally {
+            setDeleting(false)
+            queryClient.invalidateQueries(['login-activity'])
         }
-        queryClient.invalidateQueries(['login-activity'])
     }
 
     const handleDeleteAll = async () => {
-        setSelectedIds(new Set())
-        setDeleteModalType(null)
-        setPage(1)
+        setDeleting(true)
         try {
             await loginActivityService.deleteAllAttempts()
+            setSelectedIds(new Set())
+            setDeleteModalType(null)
+            setPage(1)
         } catch (error) {
             console.error('Error deleting all attempts:', error)
+        } finally {
+            setDeleting(false)
+            queryClient.invalidateQueries(['login-activity'])
         }
-        queryClient.invalidateQueries(['login-activity'])
     }
 
     const handleDeleteSingle = async () => {
         if (!singleDeleteId) return
         const idToDelete = singleDeleteId
-        // ซ่อนจาก UI ทันที
-        setDeletedIds(prev => new Set(prev).add(idToDelete))
-        setSingleDeleteId(null)
-        setDeleteModalType(null)
+        setDeleting(true)
         try {
             await loginActivityService.deleteAttempt(idToDelete)
+            // ซ่อนจาก UI ทันที
+            setDeletedIds(prev => new Set(prev).add(idToDelete))
+            setSingleDeleteId(null)
+            setDeleteModalType(null)
         } catch (error) {
             console.error('Error deleting attempt:', error)
+        } finally {
+            setDeleting(false)
+            queryClient.invalidateQueries(['login-activity'])
         }
-        queryClient.invalidateQueries(['login-activity'])
     }
 
     return (
         <>
             {/* Delete Confirmation Modal */}
-            <Modal
+            <DeleteConfirmModal
                 opened={deleteModalType !== null}
-                onClose={() => setDeleteModalType(null)}
-                title={
-                    <Group gap="xs">
-                        <TbTrashX size={20} color="var(--mantine-color-red-6)" />
-                        <Text fw={600}>ยืนยันการลบ</Text>
-                    </Group>
+                onClose={() => {
+                    setDeleteModalType(null)
+                    setSingleDeleteId(null)
+                }}
+                type={deleteModalType}
+                selectedCount={selectedIds.size}
+                totalCount={attemptsData?.pagination.total ?? 0}
+                deleting={deleting}
+                onConfirm={
+                    deleteModalType === 'single'
+                        ? handleDeleteSingle
+                        : deleteModalType === 'selected' ? handleDeleteSelected : handleDeleteAll
                 }
-                centered
-                size="sm"
-            >
-                <Stack gap="md">
-                    <Text size="sm">
-                        {deleteModalType === 'single'
-                            ? 'คุณต้องการลบรายการนี้ใช่หรือไม่?'
-                            : deleteModalType === 'selected'
-                                ? `คุณต้องการลบรายการที่เลือก ${selectedIds.size} รายการ ใช่หรือไม่?`
-                                : `คุณต้องการลบรายการ Login Attempts ทั้งหมด (${attemptsData?.pagination.total ?? 0} รายการ) ใช่หรือไม่?`
-                        }
-                    </Text>
-                    <Text size="xs" c="red">
-                        ⚠️ การดำเนินการนี้ไม่สามารถย้อนกลับได้
-                    </Text>
-                    <Group justify="flex-end" gap="sm">
-                        <Button
-                            variant="default"
-                            size="sm"
-                            onClick={() => setDeleteModalType(null)}
-                            disabled={deleting}
-                        >
-                            ยกเลิก
-                        </Button>
-                        <Button
-                            color="red"
-                            size="sm"
-                            leftSection={<TbTrash size={16} />}
-                            loading={deleting}
-                            onClick={
-                                deleteModalType === 'single'
-                                    ? handleDeleteSingle
-                                    : deleteModalType === 'selected' ? handleDeleteSelected : handleDeleteAll
-                            }
-                        >
-                            {deleteModalType === 'single' ? 'ลบรายการ' : deleteModalType === 'selected' ? `ลบ ${selectedIds.size} รายการ` : 'ลบทั้งหมด'}
-                        </Button>
-                    </Group>
-                </Stack>
-            </Modal>
+            />
 
             {/* External IP Alert Modal — auto-popup (วันนี้เท่านั้น) */}
-            <Modal
+            <ExternalIpAlertModal
                 opened={externalIpModalOpen}
                 onClose={() => setExternalIpModalOpen(false)}
-                title={
-                    <Group gap="xs">
-                        <TbAlertTriangle size={22} color="var(--mantine-color-red-6)" />
-                        <Text fw={700} c="red">⚠ พบการเข้าสู่ระบบจาก IP ภายนอก! (วันนี้)</Text>
-                    </Group>
-                }
-                centered
-                size="lg"
-                overlayProps={{ backgroundOpacity: 0.4, blur: 3 }}
-                styles={{
-                    header: {
-                        backgroundColor: 'var(--mantine-color-red-0)',
-                        borderBottom: '2px solid var(--mantine-color-red-3)',
-                    },
-                    body: {
-                        backgroundColor: 'var(--mantine-color-red-0)',
-                    },
-                }}
-            >
-                <Stack gap="md">
-                    <Text size="sm" c="red.8" fw={500}>
-                        ตรวจพบ {externalAttemptsToday.length} รายการเข้าสู่ระบบจาก IP ภายนอกวันนี้:
-                    </Text>
+                externalAttemptsToday={externalAttemptsToday}
+            />
 
-                    <Stack gap="xs">
-                        {externalAttemptsToday.map((a) => (
-                            <Paper
-                                key={a.id}
-                                p="sm"
-                                radius="md"
-                                style={{
-                                    border: '1px solid var(--mantine-color-red-3)',
-                                    backgroundColor: '#fff',
-                                }}
-                            >
-                                <Group justify="space-between" wrap="nowrap">
-                                    <Group gap="sm" wrap="nowrap">
-                                        <Avatar size={32} radius="xl" color="red">
-                                            {(a.nick_name || a.user_name || a.username)?.charAt(0).toUpperCase()}
-                                        </Avatar>
-                                        <div>
-                                            <Text size="sm" fw={600}>
-                                                {a.nick_name || a.user_name || a.username}
-                                            </Text>
-                                            <Text size="xs" c="dimmed">@{a.username}</Text>
-                                        </div>
-                                    </Group>
-                                    <div style={{ textAlign: 'right' }}>
-                                        <Badge size="sm" variant="filled" color="red">
-                                            {a.ip_address}
-                                        </Badge>
-
-                                        <Text size="xs" c="dimmed" mt={2}>
-                                            {formatDateTime(a.attempted_at)}
-                                        </Text>
-                                    </div>
-                                </Group>
-                            </Paper>
-                        ))}
-                    </Stack>
-
-                    <Group justify="flex-end">
-                        <Button
-                            color="red"
-                            variant="light"
-                            onClick={() => setExternalIpModalOpen(false)}
-                        >
-                            รับทราบ
-                        </Button>
-                    </Group>
-                </Stack>
-            </Modal>
-
-            <Container size="xl">
+            <Container size="xl" py="xl" style={{ backgroundColor: 'var(--mantine-color-gray-0)', minHeight: '100vh', borderRadius: '16px' }}>
                 <Stack gap="xl">
                     {/* Header */}
-                    <Group justify="space-between">
+                    <Group justify="space-between" mb="xl">
                         <div>
-                            <Title order={1} mb="xs">
+                            <Title order={2} style={{
+                                background: 'linear-gradient(to right, var(--mantine-color-blue-7), var(--mantine-color-cyan-5))',
+                                WebkitBackgroundClip: 'text',
+                                WebkitTextFillColor: 'transparent'
+                            }}>
                                 ประวัติการเข้าสู่ระบบ
                             </Title>
-                            <Text c="dimmed">ตรวจสอบการ Login/Logout และสถานะออนไลน์ของผู้ใช้</Text>
+                            <Text c="dimmed" size="sm" mt={4}>
+                                ข้อมูลการ Login ย้อนหลัง กราฟแสดงแนวโน้ม และผู้ที่กำลังออนไลน์
+                            </Text>
                         </div>
                         <Tooltip label="รีเฟรชข้อมูล">
                             <ActionIcon variant="light" color="orange" size="lg" radius="xl" onClick={handleRefresh}>
@@ -485,7 +393,7 @@ export default function LoginActivity() {
                             value={stats?.failedToday ?? '–'}
                             icon={TbShieldX}
                             color="red"
-                            subtitle={`จาก ${(stats?.loginToday ?? 0) + (stats?.failedToday ?? 0)} พยายาม`}
+                            subtitle={`จาก ${(stats?.loginToday ?? 0) + (stats?.failedToday ?? 0)} ครั้ง`}
                             loading={loadingStats}
                         />
                         <StatCard
@@ -555,7 +463,7 @@ export default function LoginActivity() {
                                     color={externalAttempts.length > 0 ? 'red' : 'green'}
                                 >
                                     {externalAttempts.length > 0
-                                        ? `⚠ พบ ${externalAttempts.length} การเข้าสู่ระบบจากภายนอก`
+                                        ? `⚠ พบ ${externalAttempts.length} รายการจากภายนอก`
                                         : '✓ ปลอดภัย — เฉพาะ IP ภายใน'}
                                 </Badge>
                             </Group>
@@ -575,8 +483,18 @@ export default function LoginActivity() {
                                                 p="xs"
                                                 radius="md"
                                                 style={{
-                                                    border: '1px solid var(--mantine-color-red-3)',
-                                                    backgroundColor: '#fff',
+                                                    border: '1px solid rgba(255, 135, 135, 0.3)',
+                                                    backgroundColor: 'rgba(255, 245, 245, 0.8)',
+                                                    backdropFilter: 'blur(4px)',
+                                                    transition: 'transform 0.2s',
+                                                }}
+                                                onMouseEnter={(e) => {
+                                                    const el = e.currentTarget as HTMLElement
+                                                    el.style.transform = 'translateY(-2px)'
+                                                }}
+                                                onMouseLeave={(e) => {
+                                                    const el = e.currentTarget as HTMLElement
+                                                    el.style.transform = 'translateY(0)'
                                                 }}
                                             >
                                                 <Group gap={6} wrap="nowrap">
@@ -615,7 +533,7 @@ export default function LoginActivity() {
                             </Stack>
                         ) : (
                             <Text size="xs" c="green.7">
-                                ทุกการเข้าสู่ระบบมาจาก IP ภายในที่อนุญาต ({KNOWN_INTERNAL_IPS.filter(ip => !ip.startsWith('::') && ip !== 'localhost').join(', ')})
+                                ทุกการเข้าสู่ระบบมาจาก IP ภายในที่อนุญาต
                             </Text>
                         )}
                     </Card>
@@ -789,123 +707,13 @@ export default function LoginActivity() {
                                             </Table.Tr>
                                         ) : (
                                             visibleAttempts.map((attempt: LoginAttempt) => (
-                                                <Table.Tr
+                                                <LoginAttemptRow
                                                     key={attempt.id}
-                                                    style={{
-                                                        backgroundColor: selectedIds.has(attempt.id)
-                                                            ? 'var(--mantine-color-red-0)'
-                                                            : undefined,
-                                                    }}
-                                                >
-                                                    <Table.Td>
-                                                        <Checkbox
-                                                            size="xs"
-                                                            checked={selectedIds.has(attempt.id)}
-                                                            onChange={() => toggleSelectId(attempt.id)}
-                                                            aria-label={`เลือก ${attempt.username}`}
-                                                        />
-                                                    </Table.Td>
-                                                    <Table.Td>
-                                                        <Text size="xs" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{formatDateTime(attempt.attempted_at)}</Text>
-                                                    </Table.Td>
-                                                    <Table.Td style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                                        <Group gap="xs" wrap="nowrap">
-                                                            <Avatar size="xs" radius="xl" color="orange" style={{ flexShrink: 0 }}>
-                                                                {attempt.username.charAt(0).toUpperCase()}
-                                                            </Avatar>
-                                                            <div style={{ minWidth: 0 }}>
-                                                                <Text size="sm" fw={500} truncate>
-                                                                    {attempt.nick_name || attempt.user_name || attempt.username}
-                                                                </Text>
-                                                                {(attempt.nick_name || attempt.user_name) && (
-                                                                    <Text size="xs" c="dimmed" truncate>
-                                                                        @{attempt.username}
-                                                                    </Text>
-                                                                )}
-                                                            </div>
-                                                        </Group>
-                                                    </Table.Td>
-                                                    <Table.Td style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                                        {attempt.ip_address ? (
-                                                            isInternalIP(attempt.ip_address) ? (
-                                                                <Group gap={4} wrap="nowrap">
-                                                                    <Text size="xs" c="dimmed" truncate>
-                                                                        {attempt.ip_address}
-                                                                    </Text>
-                                                                    <Badge size="xs" variant="light" color="green" style={{ flexShrink: 0 }}>
-                                                                        ภายใน
-                                                                    </Badge>
-                                                                </Group>
-                                                            ) : (
-                                                                <Paper
-                                                                    p={4}
-                                                                    radius="sm"
-                                                                    style={{
-                                                                        backgroundColor: 'var(--mantine-color-red-0)',
-                                                                        border: '1px solid var(--mantine-color-red-3)',
-                                                                        overflow: 'hidden'
-                                                                    }}
-                                                                >
-                                                                    <Group gap={4} wrap="nowrap">
-                                                                        <Text size="xs" c="red" fw={600} truncate>
-                                                                            {attempt.ip_address}
-                                                                        </Text>
-                                                                        <Badge size="xs" variant="filled" color="red" style={{ flexShrink: 0 }}>
-                                                                            ภายนอก
-                                                                        </Badge>
-                                                                    </Group>
-
-                                                                </Paper>
-                                                            )
-                                                        ) : (
-                                                            <Text size="xs" c="dimmed">–</Text>
-                                                        )}
-                                                    </Table.Td>
-                                                    <Table.Td>
-                                                        {attempt.success ? (
-                                                            <Badge
-                                                                color="green"
-                                                                variant="light"
-                                                                size="sm"
-                                                                leftSection={<TbShieldCheck size={12} />}
-                                                            >
-                                                                สำเร็จ
-                                                            </Badge>
-                                                        ) : (
-                                                            <Badge
-                                                                color="red"
-                                                                variant="light"
-                                                                size="sm"
-                                                                leftSection={<TbShieldX size={12} />}
-                                                            >
-                                                                ล้มเหลว
-                                                            </Badge>
-                                                        )}
-                                                    </Table.Td>
-                                                    <Table.Td style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                                        <Text size="xs" c="dimmed" style={{ wordBreak: 'break-word' }}>
-                                                            {attempt.failure_reason
-                                                                ? failureReasonLabels[attempt.failure_reason] ||
-                                                                attempt.failure_reason
-                                                                : '–'}
-                                                        </Text>
-                                                    </Table.Td>
-                                                    <Table.Td>
-                                                        <Tooltip label="ลบรายการนี้">
-                                                            <ActionIcon
-                                                                variant="subtle"
-                                                                color="red"
-                                                                size="sm"
-                                                                onClick={() => {
-                                                                    setSingleDeleteId(attempt.id)
-                                                                    setDeleteModalType('single')
-                                                                }}
-                                                            >
-                                                                <TbTrash size={14} />
-                                                            </ActionIcon>
-                                                        </Tooltip>
-                                                    </Table.Td>
-                                                </Table.Tr>
+                                                    attempt={attempt}
+                                                    isSelected={selectedIds.has(attempt.id)}
+                                                    onToggleSelect={toggleSelectId}
+                                                    onDeleteClick={handleDeleteClick}
+                                                />
                                             ))
                                         )}
                                     </Table.Tbody>
@@ -953,7 +761,26 @@ export default function LoginActivity() {
                         )}
                     </Card>
                 </Stack>
-            </Container >
+            </Container>
+
+            {/* Put the Modal back here inside the Fragment */}
+            <DeleteConfirmModal
+                opened={deleteModalType !== null}
+                onClose={() => {
+                    setDeleteModalType(null)
+                    setSingleDeleteId(null)
+                }}
+                type={deleteModalType}
+                selectedCount={selectedIds.size}
+                totalCount={attemptsData?.pagination.total ?? 0}
+                deleting={deleting}
+                onConfirm={
+                    deleteModalType === 'single'
+                        ? handleDeleteSingle
+                        : deleteModalType === 'selected' ? handleDeleteSelected : handleDeleteAll
+                }
+            />
+
         </>
     )
 }
