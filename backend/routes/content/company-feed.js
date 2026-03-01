@@ -24,7 +24,7 @@ function uuid() {
  */
 router.get('/posts', authenticateToken, async (req, res) => {
     try {
-        const { category, page = 1, limit = 20 } = req.query
+        const { category, page = 1, limit = 20, search, startDate, endDate, myPosts } = req.query
         const offset = (parseInt(page) - 1) * parseInt(limit)
         const currentUserId = req.user.id
 
@@ -36,14 +36,36 @@ router.get('/posts', authenticateToken, async (req, res) => {
             params.push(category)
         }
 
+        if (myPosts === 'true') {
+            where += ' AND p.author_id = ?'
+            params.push(currentUserId)
+        }
+
+        if (search) {
+            where += ' AND (p.title LIKE ? OR p.content LIKE ? OR u.name LIKE ?)'
+            const searchStr = `%${search}%`
+            params.push(searchStr, searchStr, searchStr)
+        }
+
+        if (startDate && endDate) {
+            where += ' AND DATE(p.created_at) BETWEEN ? AND ?'
+            params.push(startDate, endDate)
+        } else if (startDate) {
+            where += ' AND DATE(p.created_at) >= ?'
+            params.push(startDate)
+        } else if (endDate) {
+            where += ' AND DATE(p.created_at) <= ?'
+            params.push(endDate)
+        }
+
         // Count total
         const [countResult] = await pool.execute(
-            `SELECT COUNT(*) as total FROM company_posts p WHERE ${where}`,
+            `SELECT COUNT(*) as total FROM company_posts p LEFT JOIN users u ON p.author_id = u.id WHERE ${where}`,
             params
         )
         const total = countResult[0].total
 
-        // Fetch posts with author info, comment count, reaction count
+        // Fetch posts with author info, comment count, reaction count, AND acknowledgement status
         const [posts] = await pool.execute(
             `SELECT 
         p.id, p.author_id, p.category, p.title, p.content,
@@ -54,13 +76,15 @@ router.get('/posts', authenticateToken, async (req, res) => {
         u.role as author_role,
         (SELECT COUNT(*) FROM post_comments c WHERE c.post_id = p.id AND c.deleted_at IS NULL) as comment_count,
         (SELECT COUNT(*) FROM post_reactions r WHERE r.post_id = p.id) as reaction_count,
-        (SELECT COUNT(*) FROM post_reactions r WHERE r.post_id = p.id AND r.user_id = ?) as user_reacted
+        (SELECT COUNT(*) FROM post_acknowledgements a WHERE a.post_id = p.id) as acknowledgement_count,
+        (SELECT COUNT(*) FROM post_reactions r WHERE r.post_id = p.id AND r.user_id = ?) as user_reacted,
+        (SELECT COUNT(*) FROM post_acknowledgements a WHERE a.post_id = p.id AND a.user_id = ?) as is_acknowledged
       FROM company_posts p
       LEFT JOIN users u ON p.author_id = u.id
       WHERE ${where}
       ORDER BY p.is_pinned DESC, p.created_at DESC
       LIMIT ? OFFSET ?`,
-            [currentUserId, ...params, parseInt(limit), offset]
+            [currentUserId, currentUserId, ...params, parseInt(limit), offset]
         )
 
         res.json({
@@ -113,7 +137,9 @@ router.post('/posts', authenticateToken, async (req, res) => {
         u.role as author_role,
         0 as comment_count,
         0 as reaction_count,
-        0 as user_reacted
+        0 as acknowledgement_count,
+        0 as user_reacted,
+        0 as is_acknowledged
       FROM company_posts p
       LEFT JOIN users u ON p.author_id = u.id
       WHERE p.id = ?`,
@@ -375,13 +401,47 @@ router.post('/posts/:postId/reactions', authenticateToken, async (req, res) => {
             // Add reaction
             const id = uuid()
             await pool.execute(
-                'INSERT INTO post_reactions (id, post_id, user_id, reaction_type) VALUES (?, ?, ?, ?)',
+                'INSERT IGNORE INTO post_reactions (id, post_id, user_id, reaction_type) VALUES (?, ?, ?, ?)',
                 [id, postId, userId, 'like']
             )
             res.json({ success: true, data: { reacted: true }, message: 'กดไลค์แล้ว' })
         }
     } catch (error) {
         console.error('Toggle reaction error:', error)
+        res.status(500).json({ success: false, message: 'Internal server error' })
+    }
+})
+
+/**
+ * POST /api/company-feed/posts/:postId/acknowledge
+ * กดรับทราบประกาศ (Acknowledge)
+ */
+router.post('/posts/:postId/acknowledge', authenticateToken, async (req, res) => {
+    try {
+        const { postId } = req.params
+        const userId = req.user.id
+
+        // ตรวจสอบว่ามี post อยู่จริงและเป็น announcement หรือเปล่า
+        const [post] = await pool.execute('SELECT category FROM company_posts WHERE id = ? AND deleted_at IS NULL', [postId])
+        if (post.length === 0) return res.status(404).json({ success: false, message: 'ไม่พบโพส' })
+        if (post[0].category !== 'announcement') return res.status(400).json({ success: false, message: 'โพอสนี้ไม่รองรับระบบรับทราบ' })
+
+        // Check if already acknowledged
+        const [existing] = await pool.execute(
+            'SELECT id FROM post_acknowledgements WHERE post_id = ? AND user_id = ?',
+            [postId, userId]
+        )
+
+        if (existing.length === 0) {
+            const id = uuid()
+            await pool.execute(
+                'INSERT INTO post_acknowledgements (id, post_id, user_id) VALUES (?, ?, ?)',
+                [id, postId, userId]
+            )
+        }
+        res.json({ success: true, data: { is_acknowledged: true }, message: 'รับทราบประกาศแล้ว' })
+    } catch (error) {
+        console.error('Acknowledge post error:', error)
         res.status(500).json({ success: false, message: 'Internal server error' })
     }
 })

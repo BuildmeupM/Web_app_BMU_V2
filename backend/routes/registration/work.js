@@ -169,7 +169,12 @@ router.put('/types/:id', authenticateToken, authorize('admin', 'registration'), 
                 sort_order = COALESCE(?, sort_order),
                 is_active = COALESCE(?, is_active)
              WHERE id = ?`,
-            [name, sort_order, is_active, id]
+            [
+                name !== undefined ? name : null,
+                sort_order !== undefined ? sort_order : null,
+                is_active !== undefined ? is_active : null,
+                id
+            ]
         )
 
         const [updated] = await pool.execute(
@@ -214,6 +219,32 @@ router.delete('/types/:id', authenticateToken, authorize('admin', 'registration'
         res.json({ success: true, message: 'ลบประเภทงานสำเร็จ' })
     } catch (error) {
         console.error('Delete work type error:', error)
+        res.status(500).json({ success: false, message: 'Internal server error' })
+    }
+})
+
+/**
+ * POST /api/registration-work/types/reorder
+ * จัดเรียงลำดับประเภทงาน
+ */
+router.post('/types/reorder', authenticateToken, authorize('admin', 'registration'), async (req, res) => {
+    try {
+        const { items } = req.body // Array of { id, sort_order }
+        
+        if (!items || !Array.isArray(items)) {
+            return res.status(400).json({ success: false, message: 'Invalid data format' })
+        }
+
+        for (const item of items) {
+            await pool.execute(
+                `UPDATE registration_work_types SET sort_order = ? WHERE id = ?`,
+                [item.sort_order, item.id]
+            )
+        }
+
+        res.json({ success: true, message: 'Reordered' })
+    } catch (error) {
+        console.error('Reorder types error:', error)
         res.status(500).json({ success: false, message: 'Internal server error' })
     }
 })
@@ -305,7 +336,12 @@ router.put('/sub-types/:id', authenticateToken, authorize('admin', 'registration
                 sort_order = COALESCE(?, sort_order),
                 is_active = COALESCE(?, is_active)
              WHERE id = ?`,
-            [name, sort_order, is_active, id]
+            [
+                name !== undefined ? name : null,
+                sort_order !== undefined ? sort_order : null,
+                is_active !== undefined ? is_active : null,
+                id
+            ]
         )
 
         const [updated] = await pool.execute(
@@ -348,6 +384,32 @@ router.delete('/sub-types/:id', authenticateToken, authorize('admin', 'registrat
         res.json({ success: true, message: 'ลบรายการย่อยสำเร็จ' })
     } catch (error) {
         console.error('Delete sub type error:', error)
+        res.status(500).json({ success: false, message: 'Internal server error' })
+    }
+})
+
+/**
+ * POST /api/registration-work/sub-types/reorder
+ * จัดเรียงลำดับรายการย่อย
+ */
+router.post('/sub-types/reorder', authenticateToken, authorize('admin', 'registration'), async (req, res) => {
+    try {
+        const { items } = req.body // Array of { id, sort_order }
+        
+        if (!items || !Array.isArray(items)) {
+            return res.status(400).json({ success: false, message: 'Invalid data format' })
+        }
+
+        for (const item of items) {
+            await pool.execute(
+                `UPDATE registration_work_sub_types SET sort_order = ? WHERE id = ?`,
+                [item.sort_order, item.id]
+            )
+        }
+
+        res.json({ success: true, message: 'Reordered' })
+    } catch (error) {
+        console.error('Reorder sub types error:', error)
         res.status(500).json({ success: false, message: 'Internal server error' })
     }
 })

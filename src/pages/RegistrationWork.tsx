@@ -8,13 +8,15 @@ import { useNavigate } from 'react-router-dom'
 import { useState, useCallback } from 'react'
 import {
     Container, Title, Stack, Card, Group, Text, Badge, Box, SimpleGrid,
-    ThemeIcon, Paper, Progress, RingProgress, Table, Tooltip, Loader,
-    Center, Skeleton, ActionIcon, Modal,
+    ThemeIcon, Paper, RingProgress, Table, Loader,
+    Center, Skeleton, ActionIcon, Modal, TextInput, Select, Pagination,
 } from '@mantine/core'
+import { DatePickerInput } from '@mantine/dates'
+import { useDebouncedValue } from '@mantine/hooks'
 import {
-    TbClipboardData, TbBuildingBank, TbReceiptTax, TbShieldCheck, TbUsers,
+    TbClipboardData, TbUsers,
     TbArrowRight, TbCircleDot, TbClock, TbCircleCheck, TbCash, TbUser,
-    TbCalendar, TbBriefcase, TbTruck, TbMapPin, TbRoute, TbRefresh,
+    TbCalendar, TbBriefcase, TbTruck, TbMapPin, TbRoute, TbRefresh, TbSearch,
 } from 'react-icons/tb'
 import { useQuery } from 'react-query'
 import {
@@ -27,6 +29,43 @@ import { DEPT_CONFIG, STATUS_LABELS, formatDate } from '../components/Registrati
 export default function RegistrationWork() {
     const navigate = useNavigate()
     const [workloadDeptFilter, setWorkloadDeptFilter] = useState<string>('all')
+
+    // Master Table States
+    const [searchQuery, setSearchQuery] = useState('')
+    const [debouncedSearchQuery] = useDebouncedValue(searchQuery, 500)
+    const [tableDeptFilter, setTableDeptFilter] = useState<string>('')
+    const [tableStatusFilter, setTableStatusFilter] = useState<string>('')
+    const [dateRange, setDateRange] = useState<[Date | null, Date | null]>([null, null])
+    const [masterPage, setMasterPage] = useState(1)
+
+    // Master Table Data Fetching
+    const { data: listResponse, isLoading: isTasksLoading } = useQuery(
+        ['registration-tasks-master', { 
+            dept: tableDeptFilter, 
+            status: tableStatusFilter, 
+            search: debouncedSearchQuery, 
+            dateRange, 
+            page: masterPage 
+        }],
+        () => {
+            const startStr = dateRange[0] ? new Date(dateRange[0].getTime() - (dateRange[0].getTimezoneOffset() * 60000)).toISOString().split('T')[0] : ''
+            const endStr = dateRange[1] ? new Date(dateRange[1].getTime() - (dateRange[1].getTimezoneOffset() * 60000)).toISOString().split('T')[0] : ''
+            return registrationTaskService.getList({
+                department: tableDeptFilter,
+                status: tableStatusFilter,
+                search: debouncedSearchQuery,
+                start_date: startStr,
+                end_date: endStr,
+                page: masterPage,
+                limit: 10,
+            })
+        },
+        { keepPreviousData: true }
+    )
+
+    const masterTasks = listResponse?.tasks || []
+    const totalTasksCount = listResponse?.count || 0
+    const totalPages = Math.max(1, Math.ceil(totalTasksCount / 10))
 
     // Payment detail modal
     const [paymentModalOpened, setPaymentModalOpened] = useState(false)
@@ -76,12 +115,10 @@ export default function RegistrationWork() {
         )
     }
 
-    const { totals, byDepartment, payment, workload, recentTasks, messengerSummary } = summary
+    const { totals, byDepartment, payment, workload, messengerSummary } = summary
 
     // Total payment for percentage calc
     const totalPayment = payment.reduce((sum, p) => sum + p.count, 0)
-    // Max workload for bar scale
-    const maxWorkload = Math.max(...workload.map(w => w.total), 1)
 
     return (
         <Container size="xl" py="md">
@@ -663,76 +700,157 @@ export default function RegistrationWork() {
                     </SimpleGrid>
                 </Paper>
 
-                {/* ===== Recent Tasks Table ===== */}
+                {/* ===== Master Data Table (ศูนย์รวมตารางงานทะเบียน) ===== */}
                 <Card withBorder radius="lg" p="md">
                     <Group gap="xs" mb="md" justify="space-between">
                         <Group gap="xs">
-                            <TbCalendar size={20} color="#37474f" />
-                            <Text fw={700} size="sm">งานล่าสุด</Text>
-                            <Badge size="xs" variant="light" color="gray">{recentTasks.length} รายการ</Badge>
+                            <TbClipboardData size={20} color="#37474f" />
+                            <Title order={4}>ศูนย์รวมตารางงานทะเบียน</Title>
+                            <Badge size="xs" variant="light" color="blue">ข้อมูลทั้งหมด</Badge>
                         </Group>
                     </Group>
-                    {recentTasks.length === 0 ? (
-                        <Center py="xl"><Text c="dimmed" size="sm">ยังไม่มีงาน</Text></Center>
+                    
+                    {/* Filters Container */}
+                    <Paper withBorder radius="md" p="sm" mb="md" bg="gray.0">
+                        <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }} spacing="md">
+                            <TextInput
+                                placeholder="ค้นหาชื่อลูกค้า, ประเภทงาน..."
+                                leftSection={<TbSearch size={16} />}
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.currentTarget.value)}
+                            />
+                            <Select
+                                placeholder="แผนกทั้งหมด"
+                                data={[
+                                    { value: '', label: 'แผนกทั้งหมด' },
+                                    { value: 'dbd', label: 'DBD' },
+                                    { value: 'rd', label: 'RD' },
+                                    { value: 'sso', label: 'SSO' },
+                                    { value: 'hr', label: 'HR' },
+                                ]}
+                                value={tableDeptFilter}
+                                onChange={(val) => setTableDeptFilter(val || '')}
+                                clearable
+                            />
+                            <Select
+                                placeholder="สถานะทั้งหมด"
+                                data={[
+                                    { value: '', label: 'สถานะทั้งหมด' },
+                                    { value: 'pending', label: 'รอดำเนินการ' },
+                                    { value: 'in_progress', label: 'กำลังดำเนินการ' },
+                                    { value: 'completed', label: 'เสร็จสิ้น' },
+                                ]}
+                                value={tableStatusFilter}
+                                onChange={(val) => setTableStatusFilter(val || '')}
+                                clearable
+                            />
+                            <DatePickerInput
+                                type="range"
+                                placeholder="ช่วงวันที่รับงาน"
+                                value={dateRange}
+                                onChange={setDateRange}
+                                clearable
+                                leftSection={<TbCalendar size={16} />}
+                            />
+                        </SimpleGrid>
+                    </Paper>
+
+                    {/* Unified Data Table */}
+                    {isTasksLoading ? (
+                        <Center py="xl"><Loader color="blue" /></Center>
+                    ) : masterTasks.length === 0 ? (
+                        <Center py="xl"><Text c="dimmed" size="sm">ไม่พบข้อมูลตามเงื่อนไขที่ค้นหา</Text></Center>
                     ) : (
-                        <Table highlightOnHover withTableBorder withColumnBorders={false}
-                            styles={{
-                                th: { fontSize: 12, fontWeight: 600, color: '#666', textTransform: 'uppercase' as const },
-                                td: { fontSize: 13 },
-                            }}
-                        >
-                            <Table.Thead>
-                                <Table.Tr>
-                                    <Table.Th>วันรับงาน</Table.Th>
-                                    <Table.Th>ลูกค้า</Table.Th>
-                                    <Table.Th>ประเภทงาน</Table.Th>
-                                    <Table.Th>หน่วยงาน</Table.Th>
-                                    <Table.Th>สถานะ</Table.Th>
-                                </Table.Tr>
-                            </Table.Thead>
-                            <Table.Tbody>
-                                {recentTasks.map((task) => {
-                                    const deptCfg = DEPT_CONFIG[task.department]
-                                    return (
-                                        <Table.Tr
-                                            key={task.id}
-                                            style={{ cursor: 'pointer' }}
-                                            onClick={() => deptCfg && navigate(deptCfg.path)}
-                                        >
-                                            <Table.Td>
-                                                <Text size="sm">{formatDate(task.received_date)}</Text>
-                                            </Table.Td>
-                                            <Table.Td>
-                                                <Text size="sm" fw={500}>{task.client_name}</Text>
-                                            </Table.Td>
-                                            <Table.Td>
-                                                <Text size="sm">{(task as any).job_type_name || task.job_type}</Text>
-                                            </Table.Td>
-                                            <Table.Td>
-                                                {deptCfg && (
-                                                    <Badge size="sm" variant="light" style={{
-                                                        backgroundColor: deptCfg.color + '18',
-                                                        color: deptCfg.color,
-                                                        borderColor: deptCfg.color + '30',
-                                                    }}>
-                                                        {deptCfg.shortLabel}
+                        <Box style={{ overflowX: 'auto' }}>
+                            <Table highlightOnHover withTableBorder withColumnBorders={false}
+                                styles={{
+                                    th: { fontSize: 13, fontWeight: 700, color: '#495057', backgroundColor: '#f8f9fa', whiteSpace: 'nowrap' },
+                                    td: { fontSize: 13, whiteSpace: 'nowrap' },
+                                }}
+                            >
+                                <Table.Thead>
+                                    <Table.Tr>
+                                        <Table.Th>วันรับงาน</Table.Th>
+                                        <Table.Th>ลูกค้า / บริษัท</Table.Th>
+                                        <Table.Th>หน่วยงาน</Table.Th>
+                                        <Table.Th>ประเภทงาน</Table.Th>
+                                        <Table.Th>ผู้รับผิดชอบ</Table.Th>
+                                        <Table.Th>สถานะงาน</Table.Th>
+                                    </Table.Tr>
+                                </Table.Thead>
+                                <Table.Tbody>
+                                    {masterTasks.map((task) => {
+                                        const deptCfg = DEPT_CONFIG[task.department as keyof typeof DEPT_CONFIG]
+                                        return (
+                                            <Table.Tr
+                                                key={task.id}
+                                                style={{ cursor: 'pointer' }}
+                                                onClick={() => deptCfg && navigate(deptCfg.path)}
+                                            >
+                                                <Table.Td>
+                                                    <Text size="sm">{formatDate(task.received_date)}</Text>
+                                                </Table.Td>
+                                                <Table.Td>
+                                                    <Text size="sm" fw={600} c="dark.8">{task.client_name}</Text>
+                                                </Table.Td>
+                                                <Table.Td>
+                                                    {deptCfg && (
+                                                        <Badge size="sm" variant="light" style={{
+                                                            backgroundColor: deptCfg.color + '18',
+                                                            color: deptCfg.color,
+                                                            border: `1px solid ${deptCfg.color}30`,
+                                                            fontWeight: 700,
+                                                        }}>
+                                                            {deptCfg.shortLabel}
+                                                        </Badge>
+                                                    )}
+                                                </Table.Td>
+                                                <Table.Td>
+                                                    <Text size="sm" c="dimmed">{task.job_type_name || task.job_type}</Text>
+                                                </Table.Td>
+                                                <Table.Td>
+                                                    <Group gap={6} wrap="nowrap">
+                                                        <Box style={{
+                                                            width: 24, height: 24, borderRadius: '50%',
+                                                            backgroundColor: '#e9ecef', color: '#495057',
+                                                            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700
+                                                        }}>
+                                                            {task.responsible_name.charAt(0)}
+                                                        </Box>
+                                                        <Text size="sm">{task.responsible_name}</Text>
+                                                    </Group>
+                                                </Table.Td>
+                                                <Table.Td>
+                                                    <Badge
+                                                        size="sm"
+                                                        variant="dot"
+                                                        color={task.status === 'completed' ? 'green' : task.status === 'in_progress' ? 'blue' : 'orange'}
+                                                    >
+                                                        {STATUS_LABELS[task.status] || task.status}
                                                     </Badge>
-                                                )}
-                                            </Table.Td>
-                                            <Table.Td>
-                                                <Badge
-                                                    size="sm"
-                                                    variant="light"
-                                                    color={task.status === 'completed' ? 'green' : task.status === 'in_progress' ? 'blue' : 'orange'}
-                                                >
-                                                    {STATUS_LABELS[task.status] || task.status}
-                                                </Badge>
-                                            </Table.Td>
-                                        </Table.Tr>
-                                    )
-                                })}
-                            </Table.Tbody>
-                        </Table>
+                                                </Table.Td>
+                                            </Table.Tr>
+                                        )
+                                    })}
+                                </Table.Tbody>
+                            </Table>
+                        </Box>
+                    )}
+
+                    {/* Pagination */}
+                    {totalPages > 1 && (
+                        <Group justify="space-between" mt="md" align="center">
+                            <Text size="sm" c="dimmed">
+                                แสดงข้อมูลหน้า {masterPage} จากทั้งหมด {totalPages} หน้า (รวม {totalTasksCount} รายการ)
+                            </Text>
+                            <Pagination
+                                value={masterPage}
+                                onChange={setMasterPage}
+                                total={totalPages}
+                                color="blue"
+                                radius="md"
+                            />
+                        </Group>
                     )}
                 </Card>
             </Stack>
@@ -799,7 +917,7 @@ export default function RegistrationWork() {
                                             <Text size="sm" fw={500}>{task.client_name}</Text>
                                         </Table.Td>
                                         <Table.Td>
-                                            <Text size="sm">{(task as any).job_type_name || task.job_type}</Text>
+                                            <Text size="sm">{task.job_type_name || task.job_type}</Text>
                                         </Table.Td>
                                         <Table.Td>
                                             {deptCfg && (

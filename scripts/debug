@@ -1,0 +1,23 @@
+/* eslint-disable */
+const tsc = require("typescript");
+const fs = require("fs");
+
+// Compile the TS file on the fly for testing
+const tsCode = fs.readFileSync("./src/utils/addressParser.ts", "utf8");
+const compiled = tsc.transpileModule(tsCode, {
+  compilerOptions: { module: tsc.ModuleKind.CommonJS },
+});
+fs.writeFileSync("./test-parser-compiled.js", compiled.outputText);
+
+const { parseThaiAddress } = require("./test-parser-compiled.js");
+
+const rawAddress =
+  "สิริกร 601 6 เลขที่ 114 ซอย หมู่ ถนน มหาเศรษฐ์ แขวง/ตำบล สี่พระยา อำเภอ/เขต บางรัก จังหวัด กรุงเทพมหานคร รหัสไปรษณีย์ 10500";
+const rawAddress2 =
+  "123/4 หมู่บ้านสุขสันต์ อาคารเอบีซี ห้อง 501 ชั้น 5 ซอยลาดพร้าว 1 หมู่ 3 ถนนลาดพร้าว แขวงจอมพล เขตจตุจักร กรุงเทพมหานคร 10900";
+
+console.log("Input 1:", rawAddress);
+console.log("Parsed 1:", parseThaiAddress(rawAddress));
+
+console.log("\nInput 2:", rawAddress2);
+console.log("Parsed 2:", parseThaiAddress(rawAddress2));

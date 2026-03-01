@@ -25,6 +25,7 @@ import {
   Tooltip,
   Table,
 } from '@mantine/core'
+import { AxiosError } from 'axios'
 import {
   TbPlus,
   TbSearch,
@@ -39,11 +40,13 @@ import {
 import { useQuery, useMutation, useQueryClient } from 'react-query'
 import { useAuthStore } from '../store/authStore'
 import usersService, { User, CreateUserRequest, UpdateUserRequest } from '../services/usersService'
-import { employeeService, Employee } from '../services/employeeService'
+import { employeeService } from '../services/employeeService'
 import { notifications } from '@mantine/notifications'
+import { useDebouncedValue } from '@mantine/hooks'
 import dayjs from 'dayjs'
 import 'dayjs/locale/th'
 import buddhistEra from 'dayjs/plugin/buddhistEra'
+import { UserTelemetryDashboard } from '../components/UserManagement/UserTelemetryDashboard'
 
 dayjs.extend(buddhistEra)
 dayjs.locale('th')
@@ -73,19 +76,18 @@ export default function UserManagement() {
 
   // State
   const [search, setSearch] = useState('')
+  const [debouncedSearch] = useDebouncedValue(search, 300) // รอ 300ms ค่อยยิง API
   const [roleFilter, setRoleFilter] = useState<string>('all')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [page, setPage] = useState(1)
-  const [limit, setLimit] = useState(20)
+  const limit = 20
   const [formOpened, setFormOpened] = useState(false)
   const [detailOpened, setDetailOpened] = useState(false)
   const [deleteConfirmOpened, setDeleteConfirmOpened] = useState(false)
-  const [passwordDisplayOpened, setPasswordDisplayOpened] = useState(false)
   const [resetPasswordOpened, setResetPasswordOpened] = useState(false)
   const [formMode, setFormMode] = useState<'create' | 'edit'>('create')
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
   const [userToDelete, setUserToDelete] = useState<User | null>(null)
-  const [temporaryPassword, setTemporaryPassword] = useState<string>('')
   const [resetPasswordUser, setResetPasswordUser] = useState<User | null>(null)
 
   // Form state
@@ -107,12 +109,12 @@ export default function UserManagement() {
     error,
     refetch: refetchUsers,
   } = useQuery(
-    ['users', page, limit, search, roleFilter, statusFilter],
+    ['users', page, limit, debouncedSearch, roleFilter, statusFilter],
     () =>
       usersService.getList({
         role: roleFilter !== 'all' ? roleFilter : undefined,
         status: statusFilter !== 'all' ? statusFilter : undefined,
-        search: search || undefined,
+        search: debouncedSearch || undefined,
       }),
     {
       keepPreviousData: true,
@@ -133,21 +135,25 @@ export default function UserManagement() {
 
   // Create user mutation
   const createMutation = useMutation(usersService.create, {
-    onSuccess: async (data) => {
+    onSuccess: async () => {
       queryClient.invalidateQueries(['users'])
       queryClient.invalidateQueries(['employees-without-users'])
       await refetchUsers() // Refetch เพื่อให้ตารางแสดงข้อมูลใหม่
       setFormOpened(false)
-      // Store password temporarily to display
-      setTemporaryPassword(data.temporaryPassword)
-      setSelectedUser(data.user)
-      setPasswordDisplayOpened(true)
       resetForm()
+      
+      notifications.show({
+        title: 'สำเร็จ',
+        message: 'สร้าง User Account ใหม่และออกรหัสผ่านสำเร็จ',
+        color: 'green',
+        icon: <TbCheck size={16} />,
+      })
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
+      const err = error as AxiosError<{ message: string }>
       notifications.show({
         title: 'เกิดข้อผิดพลาด',
-        message: error?.response?.data?.message || 'ไม่สามารถสร้าง User Account ได้',
+        message: err?.response?.data?.message || 'ไม่สามารถสร้าง User Account ได้',
         color: 'red',
         icon: <TbAlertCircle size={16} />,
       })
@@ -172,10 +178,11 @@ export default function UserManagement() {
           icon: <TbCheck size={16} />,
         })
       },
-      onError: (error: any) => {
+      onError: (error: unknown) => {
+        const err = error as AxiosError<{ message: string }>
         notifications.show({
           title: 'เกิดข้อผิดพลาด',
-          message: error?.response?.data?.message || 'ไม่สามารถอัพเดท User Account ได้',
+          message: err?.response?.data?.message || 'ไม่สามารถอัพเดท User Account ได้',
           color: 'red',
           icon: <TbAlertCircle size={16} />,
         })
@@ -198,10 +205,11 @@ export default function UserManagement() {
         icon: <TbCheck size={16} />,
       })
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
+      const err = error as AxiosError<{ message: string }>
       notifications.show({
         title: 'เกิดข้อผิดพลาด',
-        message: error?.response?.data?.message || 'ไม่สามารถลบ User Account ได้',
+        message: err?.response?.data?.message || 'ไม่สามารถลบ User Account ได้',
         color: 'red',
         icon: <TbAlertCircle size={16} />,
       })
@@ -251,17 +259,13 @@ export default function UserManagement() {
     ({ id, password }: { id: string; password: string }) =>
       usersService.resetPassword(id, password),
     {
-      onSuccess: async (data) => {
-        // Invalidate และ refetch ทันทีเพื่อให้ตารางแสดงข้อมูลใหม่
+      onSuccess: async () => {
         queryClient.invalidateQueries(['users'])
         await refetchUsers()
 
         setResetPasswordOpened(false)
-        setTemporaryPassword(data.temporaryPassword)
-        // อัพเดท selectedUser ด้วยข้อมูลใหม่ที่รวม temporary_password
-        setSelectedUser(data.user)
-        setPasswordDisplayOpened(true)
         setResetPasswordUser(null)
+        
         notifications.show({
           title: 'สำเร็จ',
           message: 'รีเซ็ตรหัสผ่านสำเร็จ',
@@ -269,10 +273,11 @@ export default function UserManagement() {
           icon: <TbCheck size={16} />,
         })
       },
-      onError: (error: any) => {
+      onError: (error: unknown) => {
+        const err = error as AxiosError<{ message: string }>
         notifications.show({
           title: 'เกิดข้อผิดพลาด',
-          message: error?.response?.data?.message || 'ไม่สามารถรีเซ็ตรหัสผ่านได้',
+          message: err?.response?.data?.message || 'ไม่สามารถรีเซ็ตรหัสผ่านได้',
           color: 'red',
           icon: <TbAlertCircle size={16} />,
         })
@@ -317,7 +322,7 @@ export default function UserManagement() {
   // Format date to Thai Buddhist Era
   const formatDate = (dateStr: string | null | undefined) => {
     if (!dateStr) return '-'
-    return dayjs(dateStr).format('DD MMM BBBB HH:mm', { locale: 'th' })
+    return dayjs(dateStr).format('DD MMM BBBB HH:mm')
   }
 
   // Get role label
@@ -393,17 +398,8 @@ export default function UserManagement() {
           </Group>
         </Card>
 
-        {/* Summary */}
-        <Card withBorder p="md">
-          <Group>
-            <Text size="sm" c="dimmed">
-              รวมทั้งหมด:
-            </Text>
-            <Badge size="lg" variant="light">
-              {users.length} รายการ
-            </Badge>
-          </Group>
-        </Card>
+        {/* Asymmetric Telemetry Dashboard */}
+        <UserTelemetryDashboard getRoleLabel={getRoleLabel} />
 
         {/* Table */}
         <Card withBorder>
@@ -617,8 +613,7 @@ export default function UserManagement() {
                   email: selectedEmployee?.company_email || formData.email,
                   name: selectedEmployee ? selectedEmployee.full_name : formData.name,
                   nick_name: selectedEmployee ? (selectedEmployee.nick_name || null) : formData.nick_name,
-                  english_name: selectedEmployee?.english_name || (formData as any).english_name || null,
-                } as any)
+                })
               }}
               searchable
             />
@@ -638,12 +633,6 @@ export default function UserManagement() {
               required
             />
             <TextInput
-              label="ชื่อภาษาอังกฤษ"
-              placeholder="กรอกชื่อภาษาอังกฤษ (ถ้ามี)"
-              value={(formData as any).english_name || ''}
-              onChange={(e) => setFormData({ ...formData, english_name: e.target.value || null } as any)}
-            />
-            <TextInput
               label="ชื่อเล่น"
               placeholder="กรอกชื่อเล่น (ถ้ามี)"
               value={formData.nick_name || ''}
@@ -658,6 +647,7 @@ export default function UserManagement() {
                 setFormData({ ...formData, role: value as User['role'] })
               }
               required
+              disabled={formMode === 'edit' && selectedUser?.id === currentUser?.id}
             />
             <Select
               label="Status *"
@@ -668,7 +658,13 @@ export default function UserManagement() {
                 setFormData({ ...formData, status: value as 'active' | 'inactive' })
               }
               required
+              disabled={formMode === 'edit' && selectedUser?.id === currentUser?.id}
             />
+            {formMode === 'edit' && selectedUser?.id === currentUser?.id && (
+              <Alert icon={<TbAlertCircle size={16} />} color="blue" variant="light">
+                คุณไม่สามารถเปลี่ยน Role หรือระงับการใช้งานบัญชีของคุณเองได้
+              </Alert>
+            )}
             <Group justify="flex-end" mt="md">
               <Button
                 variant="subtle"
@@ -840,79 +836,6 @@ export default function UserManagement() {
           )}
         </Modal>
 
-        {/* Password Display Modal (แสดงรหัสผ่านชั่วคราว) */}
-        <Modal
-          opened={passwordDisplayOpened}
-          onClose={() => {
-            setPasswordDisplayOpened(false)
-            setTemporaryPassword('')
-            setSelectedUser(null)
-          }}
-          title="รหัสผ่านชั่วคราว"
-          size="md"
-        >
-          <Stack gap="md">
-            <Alert icon={<TbAlertCircle size={16} />} color="orange">
-              กรุณาบันทึกรหัสผ่านนี้ไว้ ระบบจะไม่แสดงรหัสผ่านนี้อีกครั้ง
-            </Alert>
-            {selectedUser && (
-              <Group>
-                <Text fw={500} w={120}>
-                  Username:
-                </Text>
-                <Text>{selectedUser.username}</Text>
-              </Group>
-            )}
-            <Group>
-              <Text fw={500} w={120}>
-                รหัสผ่าน:
-              </Text>
-              <Group gap="xs" style={{ flex: 1 }}>
-                <TextInput
-                  value={temporaryPassword}
-                  readOnly
-                  style={{ flex: 1 }}
-                  styles={{
-                    input: {
-                      fontFamily: 'monospace',
-                      fontSize: '14px',
-                      fontWeight: 600,
-                      backgroundColor: '#f8f9fa',
-                    },
-                  }}
-                />
-                <Tooltip label="คัดลอก">
-                  <ActionIcon
-                    variant="light"
-                    onClick={() => {
-                      navigator.clipboard.writeText(temporaryPassword)
-                      notifications.show({
-                        title: 'สำเร็จ',
-                        message: 'คัดลอกรหัสผ่านแล้ว',
-                        color: 'green',
-                        icon: <TbCheck size={16} />,
-                      })
-                    }}
-                  >
-                    <TbCopy size={16} />
-                  </ActionIcon>
-                </Tooltip>
-              </Group>
-            </Group>
-            <Group justify="flex-end" mt="md">
-              <Button
-                onClick={() => {
-                  setPasswordDisplayOpened(false)
-                  setTemporaryPassword('')
-                  setSelectedUser(null)
-                }}
-                color="orange"
-              >
-                ปิด
-              </Button>
-            </Group>
-          </Stack>
-        </Modal>
 
         {/* Reset Password Modal */}
         <Modal

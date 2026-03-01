@@ -369,11 +369,11 @@ router.post('/change-password', authenticateToken, async (req, res) => {
     const saltRounds = 10
     const password_hash = await bcrypt.hash(new_password, saltRounds)
 
-    // Update password และ clear temporary_password (ไม่เก็บ plain-text password เพื่อความปลอดภัย)
-    // เมื่อ user เปลี่ยนรหัสผ่านเอง จะ clear temporary_password ทิ้ง
+    // Update password และเขียนรหัสใหม่แบบ plain-text ลงใน temporary_password เพื่อให้ Admin ดูได้ตลอดเวลา
+    // (เป็น Business Requirement เฉพาะของโปรเจกต์)
     await pool.execute(
-      'UPDATE users SET password_hash = ?, temporary_password = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-      [password_hash, userId]
+      'UPDATE users SET password_hash = ?, temporary_password = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      [password_hash, new_password, userId]
     )
 
     // สร้าง notification สำหรับ Admin (ทุกคนที่มี role = 'admin')

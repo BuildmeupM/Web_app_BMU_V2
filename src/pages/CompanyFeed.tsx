@@ -7,15 +7,16 @@ import { useState, useMemo, useCallback } from 'react'
 import {
     Container, Card, Group, Stack, Text, Title, Badge, Avatar,
     Button, Textarea, ActionIcon, Tooltip, Paper, Divider, Collapse,
-    Select, Loader, Center, TextInput,
+    Select, Loader, Center, TextInput, Checkbox, Popover,
     SegmentedControl, Menu
 } from '@mantine/core'
 import {
     TbSend, TbHeart, TbHeartFilled, TbMessageCircle, TbPin, TbPinFilled,
     TbTrash, TbDotsVertical, TbSpeakerphone, TbNews,
-    TbMessage2
+    TbMessage2, TbSearch, TbFilter
 } from 'react-icons/tb'
 import { useQuery, useMutation, useQueryClient } from 'react-query'
+import { useDebouncedValue } from '@mantine/hooks'
 import { useAuthStore } from '../store/authStore'
 import { companyFeedService, type Post, type Comment } from '../services/companyFeedService'
 
@@ -59,8 +60,13 @@ export default function CompanyFeed() {
     const queryClient = useQueryClient()
     const isAdmin = user?.role === 'admin'
 
-    // ── State ──
+    // ── Filter State ──
     const [categoryFilter, setCategoryFilter] = useState('all')
+    const [searchQuery, setSearchQuery] = useState('')
+    const [debouncedSearch] = useDebouncedValue(searchQuery, 400)
+    const [myPostsOnly, setMyPostsOnly] = useState(false)
+
+    // ── Input State ──
     const [newPostContent, setNewPostContent] = useState('')
     const [newPostCategory, setNewPostCategory] = useState<string>('discussion')
     const [newPostTitle, setNewPostTitle] = useState('')
@@ -70,14 +76,19 @@ export default function CompanyFeed() {
 
     // ── Queries ──
     const { data: postsData, isLoading: loadingPosts } = useQuery(
-        ['company-feed', 'posts', categoryFilter],
-        () => companyFeedService.getPosts({ category: categoryFilter !== 'all' ? categoryFilter : undefined, limit: 50 }),
+        ['company-feed', 'posts', categoryFilter, debouncedSearch, myPostsOnly],
+        () => companyFeedService.getPosts({ 
+            category: categoryFilter !== 'all' ? categoryFilter : undefined, 
+            search: debouncedSearch || undefined,
+            myPosts: myPostsOnly || undefined,
+            limit: 50 
+        }),
         { staleTime: 30_000 }
     )
 
-    const posts = postsData?.posts || []
-    const pinnedPosts = useMemo(() => posts.filter(p => p.is_pinned), [posts])
-    const regularPosts = useMemo(() => posts.filter(p => !p.is_pinned), [posts])
+    const posts = useMemo(() => postsData?.posts || [], [postsData?.posts])
+    const announcements = useMemo(() => posts.filter(p => p.category === 'announcement'), [posts])
+    const regularPosts = useMemo(() => posts.filter(p => p.category !== 'announcement'), [posts])
 
     // ── Mutations ──
     const createPostMut = useMutation(companyFeedService.createPost, {
@@ -100,7 +111,32 @@ export default function CompanyFeed() {
     )
 
     const toggleReactionMut = useMutation(companyFeedService.toggleReaction, {
-        onSuccess: () => queryClient.invalidateQueries(['company-feed', 'posts'])
+        onMutate: async (postId) => {
+            await queryClient.cancelQueries(['company-feed', 'posts'])
+            // use same qKey variables as fetching
+            const qKey = ['company-feed', 'posts', categoryFilter, debouncedSearch, myPostsOnly]
+            const prev = queryClient.getQueryData(qKey)
+            
+            console.log('[CompanyFeed] Optimistic React:', { postId, prev })
+
+            // optimistically update matching post's reaction tracking
+            queryClient.setQueryData(qKey, (old: { posts?: Post[]; pagination?: unknown } | undefined) => {
+                if (!old?.posts) return old
+                return {
+                    ...old,
+                    posts: old.posts.map((p: Post) => p.id === postId ? {
+                        ...p,
+                        user_reacted: p.user_reacted ? 0 : 1,
+                        reaction_count: p.user_reacted ? Math.max(0, p.reaction_count - 1) : p.reaction_count + 1,
+                    } : p)
+                }
+            })
+            return { prev, qKey }
+        },
+        onError: (_err, _vars, ctx) => {
+            if (ctx?.prev) queryClient.setQueryData(ctx.qKey, ctx.prev)
+        },
+        onSettled: () => queryClient.invalidateQueries(['company-feed', 'posts'])
     })
 
     // ── Handlers ──
@@ -198,33 +234,65 @@ export default function CompanyFeed() {
                     </Collapse>
                 </Card>
 
-                {/* ── Category Filter ── */}
-                <SegmentedControl
-                    value={categoryFilter}
-                    onChange={setCategoryFilter}
-                    data={[
-                        { value: 'all', label: 'ทั้งหมด' },
-                        { value: 'announcement', label: '📢 ประกาศ' },
-                        { value: 'news', label: '📰 ข่าวสาร' },
-                        { value: 'discussion', label: '💬 สนทนา' },
-                    ]}
-                    radius="md"
-                    size="xs"
-                    fullWidth
-                />
+                {/* ── Search & Filter Bar ── */}
+                <Group justify="space-between" align="center" gap="sm">
+                    <SegmentedControl
+                        value={categoryFilter}
+                        onChange={setCategoryFilter}
+                        data={[
+                            { value: 'all', label: 'ทั้งหมด' },
+                            { value: 'announcement', label: '📢 ประกาศ' },
+                            { value: 'news', label: '📰 ข่าวสาร' },
+                            { value: 'discussion', label: '💬 สนทนา' },
+                        ]}
+                        radius="md"
+                        size="xs"
+                        style={{ flex: 1, minWidth: 250 }}
+                    />
+                    
+                    <Group gap="xs" style={{ flexWrap: 'nowrap' }}>
+                        <TextInput
+                            placeholder="ค้นหาโพส, ชื่อ..."
+                            leftSection={<TbSearch size={14} />}
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.currentTarget.value)}
+                            radius="md"
+                            size="xs"
+                            w={{ base: 140, sm: 200 }}
+                        />
+                        <Popover width={200} position="bottom-end" shadow="md">
+                            <Popover.Target>
+                                <ActionIcon variant={myPostsOnly ? "light" : "default"} size="lg" radius="md" color={myPostsOnly ? "blue" : "gray"}>
+                                    <TbFilter size={16} />
+                                </ActionIcon>
+                            </Popover.Target>
+                            <Popover.Dropdown>
+                                <Stack gap="xs">
+                                    <Text size="xs" fw={600} c="dimmed">ตัวกรองเพิ่มเติม</Text>
+                                    <Checkbox
+                                        label="โพสของฉันเท่านั้น"
+                                        size="xs"
+                                        checked={myPostsOnly}
+                                        onChange={(event) => setMyPostsOnly(event.currentTarget.checked)}
+                                    />
+                                </Stack>
+                            </Popover.Dropdown>
+                        </Popover>
+                    </Group>
+                </Group>
 
-                {/* ── Pinned Posts ── */}
-                {pinnedPosts.length > 0 && (
-                    <Stack gap="xs">
-                        <Text size="xs" fw={700} c="dimmed" tt="uppercase">📌 ประกาศปักหมุด</Text>
-                        {pinnedPosts.map(post => (
+                {/* ── Announcements ── */}
+                {announcements.length > 0 && (
+                    <Stack gap="xs" mb="sm">
+                        <Text size="xs" fw={700} c="dimmed" tt="uppercase">📢 ประกาศจากบริษัท</Text>
+                        {announcements.map(post => (
                             <PostCard
                                 key={post.id}
                                 post={post}
                                 currentUserId={user?.id || ''}
                                 currentUserName={user?.name || ''}
                                 isAdmin={isAdmin}
-                                isPinned
+                                isPinned={post.is_pinned === 1 || post.is_pinned === true}
                                 onToggleComments={toggleComments}
                                 expandedComments={expandedComments}
                                 commentInputs={commentInputs}
@@ -245,7 +313,7 @@ export default function CompanyFeed() {
                 )}
 
                 {/* ── Empty State ── */}
-                {!loadingPosts && regularPosts.length === 0 && pinnedPosts.length === 0 && (
+                {!loadingPosts && regularPosts.length === 0 && announcements.length === 0 && (
                     <Card padding="xl" radius="lg" withBorder>
                         <Center>
                             <Stack align="center" gap="xs">
@@ -257,23 +325,28 @@ export default function CompanyFeed() {
                 )}
 
                 {/* ── Regular Posts ── */}
-                {regularPosts.map(post => (
-                    <PostCard
-                        key={post.id}
-                        post={post}
-                        currentUserId={user?.id || ''}
-                        currentUserName={user?.name || ''}
-                        isAdmin={isAdmin}
-                        isPinned={false}
-                        onToggleComments={toggleComments}
-                        expandedComments={expandedComments}
-                        commentInputs={commentInputs}
-                        setCommentInputs={setCommentInputs}
-                        onDelete={id => deletePostMut.mutate(id)}
-                        onPin={(id, pin) => pinPostMut.mutate({ id, pin })}
-                        onReact={id => toggleReactionMut.mutate(id)}
-                    />
-                ))}
+                {regularPosts.length > 0 && (
+                    <Stack gap="xs">
+                        <Text size="xs" fw={700} c="dimmed" tt="uppercase">💬 กระดานสนทนาและข่าวสาร</Text>
+                        {regularPosts.map(post => (
+                            <PostCard
+                                key={post.id}
+                                post={post}
+                                currentUserId={user?.id || ''}
+                                currentUserName={user?.name || ''}
+                                isAdmin={isAdmin}
+                                isPinned={post.is_pinned === 1 || post.is_pinned === true}
+                                onToggleComments={toggleComments}
+                                expandedComments={expandedComments}
+                                commentInputs={commentInputs}
+                                setCommentInputs={setCommentInputs}
+                                onDelete={id => deletePostMut.mutate(id)}
+                                onPin={(id, pin) => pinPostMut.mutate({ id, pin })}
+                                onReact={id => toggleReactionMut.mutate(id)}
+                            />
+                        ))}
+                    </Stack>
+                )}
             </Stack>
         </Container>
     )
@@ -320,6 +393,15 @@ function PostCard({
                 queryClient.invalidateQueries(['company-feed', 'comments', post.id])
                 queryClient.invalidateQueries(['company-feed', 'posts'])
                 setCommentInputs(prev => ({ ...prev, [post.id]: '' }))
+            }
+        }
+    )
+
+    const acknowledgeMut = useMutation(
+        (postId: string) => companyFeedService.acknowledgePost(postId),
+        {
+            onSuccess: () => {
+                queryClient.invalidateQueries(['company-feed', 'posts'])
             }
         }
     )
@@ -403,32 +485,48 @@ function PostCard({
             <Divider mb="xs" />
 
             {/* Actions */}
-            <Group gap="lg">
-                <Tooltip label={post.user_reacted ? 'ยกเลิกถูกใจ' : 'ถูกใจ'}>
+            <Group justify="space-between" align="center">
+                <Group gap="lg">
+                    <Tooltip label={post.user_reacted ? 'ยกเลิกถูกใจ' : 'ถูกใจ'}>
+                        <Group
+                            gap={4}
+                            style={{ cursor: 'pointer' }}
+                            onClick={() => onReact(post.id)}
+                        >
+                            {post.user_reacted ? (
+                                <TbHeartFilled size={18} color="var(--mantine-color-red-6)" />
+                            ) : (
+                                <TbHeart size={18} />
+                            )}
+                            <Text size="xs" c={post.user_reacted ? 'red' : 'dimmed'}>
+                                {post.reaction_count || ''}
+                            </Text>
+                        </Group>
+                    </Tooltip>
+
                     <Group
                         gap={4}
                         style={{ cursor: 'pointer' }}
-                        onClick={() => onReact(post.id)}
+                        onClick={() => onToggleComments(post.id)}
                     >
-                        {post.user_reacted ? (
-                            <TbHeartFilled size={18} color="var(--mantine-color-red-6)" />
-                        ) : (
-                            <TbHeart size={18} />
-                        )}
-                        <Text size="xs" c={post.user_reacted ? 'red' : 'dimmed'}>
-                            {post.reaction_count || ''}
-                        </Text>
+                        <TbMessageCircle size={18} />
+                        <Text size="xs" c="dimmed">{post.comment_count || ''}</Text>
                     </Group>
-                </Tooltip>
-
-                <Group
-                    gap={4}
-                    style={{ cursor: 'pointer' }}
-                    onClick={() => onToggleComments(post.id)}
-                >
-                    <TbMessageCircle size={18} />
-                    <Text size="xs" c="dimmed">{post.comment_count || ''}</Text>
                 </Group>
+
+                {post.category === 'announcement' && (
+                    <Button
+                        variant={post.is_acknowledged ? "light" : "filled"}
+                        color={post.is_acknowledged ? "teal" : "red"}
+                        size="xs"
+                        radius="md"
+                        onClick={() => acknowledgeMut.mutate(post.id)}
+                        disabled={!!post.is_acknowledged}
+                        loading={acknowledgeMut.isLoading}
+                    >
+                        {post.is_acknowledged ? `รับทราบแล้ว${post.acknowledgement_count && post.acknowledgement_count > 1 ? ` (ร่วมกับอีก ${post.acknowledgement_count - 1} คน)` : ''}` : 'กดเพื่อรับทราบ'}
+                    </Button>
+                )}
             </Group>
 
             {/* Comments */}

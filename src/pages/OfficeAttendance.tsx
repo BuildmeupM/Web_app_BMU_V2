@@ -150,10 +150,10 @@ function EmployeeStatusCard({ employee }: { employee: EmployeeAttendance }) {
           transition: 'transform 0.15s ease',
         }}
         onMouseEnter={(e) => {
-          ; (e.currentTarget as HTMLElement).style.transform = 'scale(1.05)'
+           (e.currentTarget as HTMLElement).style.transform = 'scale(1.05)'
         }}
         onMouseLeave={(e) => {
-          ; (e.currentTarget as HTMLElement).style.transform = 'scale(1)'
+           (e.currentTarget as HTMLElement).style.transform = 'scale(1)'
         }}
       >
         <Group gap={6} wrap="nowrap">

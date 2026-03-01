@@ -8,7 +8,7 @@ import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import {
     Container, Title, Stack, Card, Group, Text, Badge, Box, TextInput,
     Button, Table, ActionIcon, Modal, Select, Textarea, Tooltip,
-    Loader, Center, Alert, ScrollArea, Pagination, Progress, SimpleGrid,
+    Center, Alert, ScrollArea, Pagination, SimpleGrid,
 } from '@mantine/core'
 import { useDisclosure } from '@mantine/hooks'
 import { DatePickerInput } from '@mantine/dates'
@@ -78,7 +78,7 @@ interface AddClientModalProps {
     existingGroups: string[]
 }
 
-function AddClientModal({ opened, onClose, onCreated, existingGroups }: AddClientModalProps) {
+function AddClientModal({ opened, onClose, onCreated }: AddClientModalProps) {
     const queryClient = useQueryClient()
     const [formData, setFormData] = useState<RegistrationClientCreateData>({
         company_name: '',
@@ -315,7 +315,7 @@ function TaskFormModal({ opened, onClose, editingTask, clients, clientGroups, wo
         }
 
         return groups
-    }, [clients, mainClients, clientId])
+    }, [clients, mainClients])
 
     // Work type options (main types from settings API)
     const workTypeOptions = useMemo(() => {
@@ -560,11 +560,12 @@ export default function RegistrationDeptWork({ config }: { config: DeptConfig })
     )
 
     // Fetch tasks from API
-    const { data: taskData, isLoading: tasksLoading } = useQuery(
+    const { data: taskData } = useQuery(
         `registration-tasks-${department}`,
         () => registrationTaskService.getByDepartment(department),
     )
-    const tasks: DeptTask[] = (taskData?.tasks || []) as DeptTask[]
+    const taskDataSafe = useMemo(() => (taskData?.tasks || []) as DeptTask[], [taskData])
+    const tasks: DeptTask[] = taskDataSafe
 
     // Auto-open task detail from ?task=taskId (e.g. from payment detail modal)
     useEffect(() => {
@@ -579,14 +580,15 @@ export default function RegistrationDeptWork({ config }: { config: DeptConfig })
             // Clean URL without re-render
             window.history.replaceState({}, '', window.location.pathname)
         }
-    }, [tasks])
+    }, [tasks, openStatusModal])
 
     // Fetch real clients
     const { data: clientData } = useQuery(
         'registration-clients',
         () => registrationClientService.getAll()
     )
-    const clients = clientData?.clients || []
+    const clientDataSafe = useMemo(() => clientData?.clients || [], [clientData])
+    const clients = clientDataSafe
     const clientGroups = clientData?.groups || []
 
     // Find selected client for drawer
@@ -606,7 +608,8 @@ export default function RegistrationDeptWork({ config }: { config: DeptConfig })
         'users-registration-role',
         () => usersService.getList({ role: 'registration', status: 'active' })
     )
-    const users = userData?.data || []
+    const userDataSafe = useMemo(() => userData?.data || [], [userData])
+    const users = userDataSafe
 
     // Filter tasks
     const filteredTasks = useMemo(() => {
@@ -651,7 +654,9 @@ export default function RegistrationDeptWork({ config }: { config: DeptConfig })
         {
             onSuccess: () => {
                 queryClient.invalidateQueries(`registration-tasks-${department}`)
-                notifications.show({ title: 'สำเร็จ', message: 'เพิ่มงานใหม่เรียบร้อย', color: 'green' })
+                queryClient.invalidateQueries(`registration-tasks-master`)
+                notifications.show({ title: 'สำเร็จ', message: 'เพิ่มงานเรียบร้อย', color: 'green' })
+                closeFormModal()
             },
             onError: () => {
                 notifications.show({ title: 'ผิดพลาด', message: 'ไม่สามารถเพิ่มงานได้', color: 'red' })
@@ -665,7 +670,10 @@ export default function RegistrationDeptWork({ config }: { config: DeptConfig })
         {
             onSuccess: () => {
                 queryClient.invalidateQueries(`registration-tasks-${department}`)
+                queryClient.invalidateQueries(`registration-tasks-master`)
                 notifications.show({ title: 'สำเร็จ', message: 'แก้ไขงานเรียบร้อย', color: 'green' })
+                setEditingTask(null)
+                closeFormModal()
             },
             onError: () => {
                 notifications.show({ title: 'ผิดพลาด', message: 'ไม่สามารถแก้ไขงานได้', color: 'red' })
@@ -699,13 +707,13 @@ export default function RegistrationDeptWork({ config }: { config: DeptConfig })
         setDeleteConfirmId(null)
     }
 
-    const getJobTypeLabel = (task: any) => {
-        return task.job_type_name || task.job_type || '-'
+    const getJobTypeLabel = (task: DeptTask | Record<string, string>) => {
+        return (task as Record<string, string>).job_type_name || task.job_type || '-'
     }
 
-    const getSubTypeLabel = (task: any) => {
+    const getSubTypeLabel = (task: DeptTask | Record<string, string>) => {
         if (!task.job_type_sub) return '-'
-        return task.job_type_sub_name || task.job_type_sub
+        return (task as Record<string, string>).job_type_sub_name || task.job_type_sub
     }
 
     const formatDate = (dateStr: string) => {

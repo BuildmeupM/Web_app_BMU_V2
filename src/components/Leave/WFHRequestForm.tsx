@@ -376,7 +376,7 @@ export default function WFHRequestForm({ opened, onClose }: WFHRequestFormProps)
   useEffect(() => {
     if (!opened) return
 
-    let cleanupFunctions: Array<() => void> = []
+    const cleanupFunctions: Array<() => void> = []
 
     // Wait for Calendar to render
     const timer = setTimeout(() => {

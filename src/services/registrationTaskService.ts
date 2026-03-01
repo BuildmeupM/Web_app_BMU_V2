@@ -4,243 +4,290 @@
  * รวม Step Tracking + Comments
  */
 
-import api from './api'
-import type { Department } from './registrationWorkService'
+import api from "./api";
+import type { Department } from "./registrationWorkService";
 
 // ================== Types ==================
 
 export interface RegistrationTask {
-    id: string
-    department: Department
-    received_date: string
-    client_id: string
-    client_name: string
-    job_type: string
-    job_type_sub: string
-    responsible_id: string
-    responsible_name: string
-    status: 'pending' | 'in_progress' | 'completed'
-    notes: string
-    step_1: boolean
-    step_2: boolean
-    step_3: boolean
-    step_4: boolean
-    step_5: boolean
-    completion_date: string | null
-    invoice_url: string | null
-    // Messenger fields
-    needs_messenger: boolean
-    messenger_destination: string | null
-    messenger_details: string | null
-    messenger_notes: string | null
-    messenger_status: 'pending' | 'scheduled' | 'completed'
-    // Payment fields
-    payment_status: 'paid_full' | 'deposit' | 'free' | 'unpaid'
-    deposit_amount: number | null
-    // Team status fields
-    team_status: string | null
-    team_status_name: string | null
-    team_status_color: string | null
-    created_at: string
+  id: string;
+  department: Department;
+  received_date: string;
+  client_id: string;
+  client_name: string;
+  job_type: string;
+  job_type_sub: string;
+  job_type_name?: string;
+  job_type_sub_name?: string;
+  responsible_id: string;
+  responsible_name: string;
+  status: "pending" | "in_progress" | "completed";
+  notes: string;
+  step_1: boolean;
+  step_2: boolean;
+  step_3: boolean;
+  step_4: boolean;
+  step_5: boolean;
+  completion_date: string | null;
+  invoice_url: string | null;
+  // Messenger fields
+  needs_messenger: boolean;
+  messenger_destination: string | null;
+  messenger_details: string | null;
+  messenger_notes: string | null;
+  messenger_status: "pending" | "scheduled" | "completed";
+  // Payment fields
+  payment_status: "paid_full" | "deposit" | "free" | "unpaid";
+  deposit_amount: number | null;
+  // Team status fields
+  team_status: string | null;
+  team_status_name: string | null;
+  team_status_color: string | null;
+  created_at: string;
 }
 
 export interface RegistrationTaskCreateData {
-    department: Department
-    received_date: string
-    client_id: string
-    client_name: string
-    job_type: string
-    job_type_sub?: string
-    responsible_id: string
-    responsible_name: string
-    status?: string
-    notes?: string
+  department: Department;
+  received_date: string;
+  client_id: string;
+  client_name: string;
+  job_type: string;
+  job_type_sub?: string;
+  responsible_id: string;
+  responsible_name: string;
+  status?: string;
+  notes?: string;
 }
 
 export interface RegistrationTaskUpdateData {
-    received_date?: string
-    client_id?: string
-    client_name?: string
-    job_type?: string
-    job_type_sub?: string
-    responsible_id?: string
-    responsible_name?: string
-    status?: string
-    notes?: string
-    step_1?: boolean
-    step_2?: boolean
-    step_3?: boolean
-    step_4?: boolean
-    step_5?: boolean
-    completion_date?: string | null
-    invoice_url?: string | null
-    // Messenger fields
-    needs_messenger?: boolean
-    messenger_destination?: string | null
-    messenger_details?: string | null
-    messenger_notes?: string | null
-    messenger_status?: string | null
-    // Payment fields
-    payment_status?: string | null
-    deposit_amount?: number | null
-    // Team status
-    team_status?: string | null
+  received_date?: string;
+  client_id?: string;
+  client_name?: string;
+  job_type?: string;
+  job_type_sub?: string;
+  responsible_id?: string;
+  responsible_name?: string;
+  status?: string;
+  notes?: string;
+  step_1?: boolean;
+  step_2?: boolean;
+  step_3?: boolean;
+  step_4?: boolean;
+  step_5?: boolean;
+  completion_date?: string | null;
+  invoice_url?: string | null;
+  // Messenger fields
+  needs_messenger?: boolean;
+  messenger_destination?: string | null;
+  messenger_details?: string | null;
+  messenger_notes?: string | null;
+  messenger_status?: string | null;
+  // Payment fields
+  payment_status?: string | null;
+  deposit_amount?: number | null;
+  // Team status
+  team_status?: string | null;
 }
 
 export interface TaskComment {
-    id: string
-    task_id: string
-    user_id: string
-    user_name: string
-    user_color?: string
-    message: string
-    created_at: string
+  id: string;
+  task_id: string;
+  user_id: string;
+  user_name: string;
+  user_color?: string;
+  message: string;
+  created_at: string;
 }
 
 export interface RegistrationTaskListResponse {
-    tasks: RegistrationTask[]
-    count: number
+  tasks: RegistrationTask[];
+  count: number;
 }
 
 // ================== Service ==================
 
 export const registrationTaskService = {
-    /**
-     * ดึงรายการงานทั้งหมด (กรองตาม department)
-     */
-    getByDepartment: async (department: Department): Promise<RegistrationTaskListResponse> => {
-        const response = await api.get(`/registration-tasks?department=${department}&_t=${Date.now()}`)
-        return response.data.data
-    },
+  /**
+   * ดึงรายการงานทั้งหมดตามฟิลเตอร์ (รองรับ Pagination)
+   */
+  getList: async (
+    params?: Partial<{
+      department: string;
+      status: string;
+      search: string;
+      client_id: string;
+      payment_status: string;
+      start_date: string;
+      end_date: string;
+      page: number;
+      limit: number;
+    }>,
+  ): Promise<RegistrationTaskListResponse> => {
+    const response = await api.get("/registration-tasks", {
+      params: { ...params, _t: Date.now() },
+    });
+    return response.data.data;
+  },
 
-    /**
-     * ดึงงานทั้งหมดของลูกค้า (ข้ามหน่วยงาน)
-     */
-    getByClientId: async (clientId: string): Promise<RegistrationTask[]> => {
-        const response = await api.get(`/registration-tasks?client_id=${clientId}&_t=${Date.now()}`)
-        return response.data.data?.tasks || response.data.data || []
-    },
+  /**
+   * ดึงรายการงานทั้งหมด (กรองตาม department) - (Legacy Support)
+   */
+  getByDepartment: async (
+    department: Department,
+  ): Promise<RegistrationTaskListResponse> => {
+    const response = await api.get(
+      `/registration-tasks?department=${department}&_t=${Date.now()}`,
+    );
+    return response.data.data;
+  },
 
-    /**
-     * สร้างรายการงานใหม่
-     */
-    create: async (data: RegistrationTaskCreateData): Promise<RegistrationTask> => {
-        const response = await api.post('/registration-tasks', data)
-        return response.data.data.task
-    },
+  /**
+   * ดึงงานทั้งหมดของลูกค้า (ข้ามหน่วยงาน)
+   */
+  getByClientId: async (clientId: string): Promise<RegistrationTask[]> => {
+    const response = await api.get(
+      `/registration-tasks?client_id=${clientId}&_t=${Date.now()}`,
+    );
+    return response.data.data?.tasks || response.data.data || [];
+  },
 
-    /**
-     * แก้ไขรายการงาน (รวม steps + completion)
-     */
-    update: async (id: string, data: RegistrationTaskUpdateData): Promise<RegistrationTask> => {
-        const response = await api.put(`/registration-tasks/${id}`, data)
-        return response.data.data.task
-    },
+  /**
+   * สร้างรายการงานใหม่
+   */
+  create: async (
+    data: RegistrationTaskCreateData,
+  ): Promise<RegistrationTask> => {
+    const response = await api.post("/registration-tasks", data);
+    return response.data.data.task;
+  },
 
-    /**
-     * ลบรายการงาน (soft delete)
-     */
-    delete: async (id: string): Promise<void> => {
-        await api.delete(`/registration-tasks/${id}`)
-    },
+  /**
+   * แก้ไขรายการงาน (รวม steps + completion)
+   */
+  update: async (
+    id: string,
+    data: RegistrationTaskUpdateData,
+  ): Promise<RegistrationTask> => {
+    const response = await api.put(`/registration-tasks/${id}`, data);
+    return response.data.data.task;
+  },
 
-    // ============== Comments ==============
+  /**
+   * ลบรายการงาน (soft delete)
+   */
+  delete: async (id: string): Promise<void> => {
+    await api.delete(`/registration-tasks/${id}`);
+  },
 
-    /**
-     * ดึงความเห็นทั้งหมดของงาน
-     */
-    getComments: async (taskId: string): Promise<TaskComment[]> => {
-        const response = await api.get(`/registration-tasks/${taskId}/comments?_t=${Date.now()}`)
-        return response.data.data.comments
-    },
+  // ============== Comments ==============
 
-    /**
-     * เพิ่มความเห็นใหม่
-     */
-    addComment: async (taskId: string, message: string): Promise<TaskComment> => {
-        const response = await api.post(`/registration-tasks/${taskId}/comments`, { message })
-        return response.data.data.comment
-    },
+  /**
+   * ดึงความเห็นทั้งหมดของงาน
+   */
+  getComments: async (taskId: string): Promise<TaskComment[]> => {
+    const response = await api.get(
+      `/registration-tasks/${taskId}/comments?_t=${Date.now()}`,
+    );
+    return response.data.data.comments;
+  },
 
-    /**
-     * ลบความเห็น
-     */
-    deleteComment: async (taskId: string, commentId: string): Promise<void> => {
-        await api.delete(`/registration-tasks/${taskId}/comments/${commentId}`)
-    },
+  /**
+   * เพิ่มความเห็นใหม่
+   */
+  addComment: async (taskId: string, message: string): Promise<TaskComment> => {
+    const response = await api.post(`/registration-tasks/${taskId}/comments`, {
+      message,
+    });
+    return response.data.data.comment;
+  },
 
-    // ============== Dashboard ==============
+  /**
+   * ลบความเห็น
+   */
+  deleteComment: async (taskId: string, commentId: string): Promise<void> => {
+    await api.delete(`/registration-tasks/${taskId}/comments/${commentId}`);
+  },
 
-    /**
-     * ดึงงานตาม payment status
-     */
-    getByPaymentStatus: async (paymentStatus: string): Promise<RegistrationTask[]> => {
-        const response = await api.get(`/registration-tasks?payment_status=${paymentStatus}&_t=${Date.now()}`)
-        return response.data.data?.tasks || []
-    },
+  // ============== Dashboard ==============
 
-    /**
-     * ดึงข้อมูลสรุปสำหรับ Dashboard
-     */
-    getDashboardSummary: async (): Promise<DashboardSummary> => {
-        const response = await api.get(`/registration-tasks/dashboard-summary?_t=${Date.now()}`)
-        return response.data.data
-    },
-}
+  /**
+   * ดึงงานตาม payment status
+   */
+  getByPaymentStatus: async (
+    paymentStatus: string,
+  ): Promise<RegistrationTask[]> => {
+    const response = await api.get(
+      `/registration-tasks?payment_status=${paymentStatus}&_t=${Date.now()}`,
+    );
+    return response.data.data?.tasks || [];
+  },
+
+  /**
+   * ดึงข้อมูลสรุปสำหรับ Dashboard
+   */
+  getDashboardSummary: async (): Promise<DashboardSummary> => {
+    const response = await api.get(
+      `/registration-tasks/dashboard-summary?_t=${Date.now()}`,
+    );
+    return response.data.data;
+  },
+};
 
 // ================== Dashboard Types ==================
 
 export interface DeptStatusCount {
-    pending: number
-    in_progress: number
-    completed: number
-    total: number
+  pending: number;
+  in_progress: number;
+  completed: number;
+  total: number;
 }
 
 export interface WorkloadItem {
-    name: string
-    total: number
-    completed: number
-    in_progress: number
-    pending: number
-    departments?: Record<string, { total: number; completed: number; in_progress: number; pending: number }>
+  name: string;
+  total: number;
+  completed: number;
+  in_progress: number;
+  pending: number;
+  departments?: Record<
+    string,
+    { total: number; completed: number; in_progress: number; pending: number }
+  >;
 }
 
 export interface PaymentItem {
-    status: string
-    count: number
+  status: string;
+  count: number;
 }
 
 export interface RecentTask {
-    id: string
-    client_name: string
-    job_type: string
-    department: string
-    status: string
-    received_date: string
+  id: string;
+  client_name: string;
+  job_type: string;
+  department: string;
+  status: string;
+  received_date: string;
 }
 
 export interface DashboardSummary {
-    totals: {
-        all: number
-        pending: number
-        in_progress: number
-        completed: number
-        clients: number
-    }
-    byDepartment: Record<string, DeptStatusCount>
-    payment: PaymentItem[]
-    workload: WorkloadItem[]
-    recentTasks: RecentTask[]
-    messengerSummary: MessengerSummary
+  totals: {
+    all: number;
+    pending: number;
+    in_progress: number;
+    completed: number;
+    clients: number;
+  };
+  byDepartment: Record<string, DeptStatusCount>;
+  payment: PaymentItem[];
+  workload: WorkloadItem[];
+  recentTasks: RecentTask[];
+  messengerSummary: MessengerSummary;
 }
 
 export interface MessengerSummary {
-    total_routes: number
-    completed_routes: number
-    active_routes: number
-    planned_routes: number
-    total_distance: number
-    pending_tasks: number
+  total_routes: number;
+  completed_routes: number;
+  active_routes: number;
+  planned_routes: number;
+  total_distance: number;
+  pending_tasks: number;
 }
-

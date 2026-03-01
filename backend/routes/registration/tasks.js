@@ -334,30 +334,31 @@ router.get('/', authenticateToken, authorize('admin', 'registration'), async (re
         const withTeamStatus = await checkTeamStatusColumn()
         const TASK_COLUMNS = getTaskColumns(withSteps, withMessenger, withPayment, withTeamStatus)
         const TASK_FROM_Q = getTaskFrom(withTeamStatus)
-        const { department, status, search } = req.query
-
-        let query = `SELECT ${TASK_COLUMNS} ${TASK_FROM_Q} WHERE t.deleted_at IS NULL`
+        const { department, status, search, limit, page, start_date, end_date } = req.query
+        
+        // Base Query
+        let baseCondition = `WHERE t.deleted_at IS NULL`
         const params = []
 
         if (department) {
-            query += ` AND t.department = ?`
+            baseCondition += ` AND t.department = ?`
             params.push(department)
         }
 
         // Filter by client_id (for cross-department client history)
         const { client_id } = req.query
         if (client_id) {
-            query += ` AND t.client_id = ?`
+            baseCondition += ` AND t.client_id = ?`
             params.push(client_id)
         }
 
         if (status) {
-            query += ` AND t.status = ?`
+            baseCondition += ` AND t.status = ?`
             params.push(status)
         }
 
         if (search) {
-            query += ` AND (t.client_name LIKE ? OR t.responsible_name LIKE ? OR t.notes LIKE ?)`
+            baseCondition += ` AND (t.client_name LIKE ? OR t.responsible_name LIKE ? OR t.notes LIKE ?)`
             const searchPattern = `%${search}%`
             params.push(searchPattern, searchPattern, searchPattern)
         }
@@ -365,11 +366,35 @@ router.get('/', authenticateToken, authorize('admin', 'registration'), async (re
         // Filter by payment_status
         const { payment_status } = req.query
         if (payment_status) {
-            query += ` AND COALESCE(t.payment_status, 'unpaid') = ?`
+            baseCondition += ` AND COALESCE(t.payment_status, 'unpaid') = ?`
             params.push(payment_status)
         }
 
-        query += ` ORDER BY t.received_date DESC, t.created_at DESC`
+        // Date Range Filters
+        if (start_date) {
+            baseCondition += ` AND t.received_date >= ?`
+            params.push(start_date)
+        }
+        if (end_date) {
+            baseCondition += ` AND t.received_date <= ?`
+            params.push(end_date)
+        }
+
+        // Calculate Total Count First (for pagination)
+        const countQuery = `SELECT COUNT(*) as totalCount ${TASK_FROM_Q} ${baseCondition}`
+        const [countResult] = await pool.execute(countQuery, params)
+        const totalCount = countResult[0].totalCount
+
+        // Set up Pagination
+        let query = `SELECT ${TASK_COLUMNS} ${TASK_FROM_Q} ${baseCondition} ORDER BY t.received_date DESC, t.created_at DESC`
+        
+        if (limit) {
+            const limitVal = parseInt(limit, 10) || 10
+            const pageVal = parseInt(page, 10) || 1
+            const offset = (pageVal - 1) * limitVal
+            query += ` LIMIT ? OFFSET ?`
+            params.push(limitVal, offset)
+        }
 
         const [tasks] = await pool.execute(query, params)
 
@@ -407,7 +432,7 @@ router.get('/', authenticateToken, authorize('admin', 'registration'), async (re
             success: true,
             data: {
                 tasks: enrichedTasks,
-                count: tasks.length,
+                count: totalCount || tasks.length,
             },
         })
     } catch (error) {

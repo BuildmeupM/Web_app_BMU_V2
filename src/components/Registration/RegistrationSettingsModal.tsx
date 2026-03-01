@@ -11,12 +11,13 @@ import {
 import { notifications } from '@mantine/notifications'
 import {
     TbPlus, TbTrash, TbEdit, TbCheck, TbX, TbBuildingBank, TbReceiptTax,
-    TbShieldCheck, TbUsers, TbSettings, TbListDetails
+    TbShieldCheck, TbUsers, TbSettings, TbListDetails, TbGridDots
 } from 'react-icons/tb'
+import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd'
 import {
     WorkType, WorkSubType, Department,
     getWorkTypes, createWorkType, updateWorkType, deleteWorkType,
-    createSubType, updateSubType, deleteSubType
+    createSubType, updateSubType, deleteSubType, reorderWorkTypes, reorderSubTypes
 } from '../../services/registrationWorkService'
 
 interface RegistrationSettingsModalProps {
@@ -183,6 +184,55 @@ export default function RegistrationSettingsModal({ opened, onClose, onDataChang
         }
     }
 
+    const handleDragEnd = async (result: DropResult) => {
+        if (!result.destination) return
+
+        const { source, destination, type } = result
+
+        if (source.droppableId === destination.droppableId && source.index === destination.index) {
+            return
+        }
+
+        if (type === 'WORK_TYPE') {
+            const items = Array.from(workTypes)
+            const [reorderedItem] = items.splice(source.index, 1)
+            items.splice(destination.index, 0, reorderedItem)
+
+            const sortedItems = items.map((item, index) => ({ ...item, sort_order: index + 1 }))
+            setWorkTypes(sortedItems)
+
+            try {
+                await reorderWorkTypes(sortedItems.map(item => ({ id: item.id, sort_order: item.sort_order })))
+                onDataChanged?.()
+            } catch (error) {
+                notifications.show({ title: 'เกิดข้อผิดพลาด', message: 'ไม่สามารถจัดเรียงได้', color: 'red' })
+                fetchTypes()
+            }
+        } else if (type === 'SUB_TYPE') {
+            const parentId = source.droppableId
+            const parentIndex = workTypes.findIndex(wt => wt.id === parentId)
+            if (parentIndex === -1) return
+
+            const items = Array.from(workTypes[parentIndex].sub_types)
+            const [reorderedItem] = items.splice(source.index, 1)
+            items.splice(destination.index, 0, reorderedItem)
+
+            const sortedItems = items.map((item, index) => ({ ...item, sort_order: index + 1 }))
+            
+            const newWorkTypes = [...workTypes]
+            newWorkTypes[parentIndex] = { ...newWorkTypes[parentIndex], sub_types: sortedItems }
+            setWorkTypes(newWorkTypes)
+
+            try {
+                await reorderSubTypes(sortedItems.map(item => ({ id: item.id, sort_order: item.sort_order })))
+                onDataChanged?.()
+            } catch (error) {
+                notifications.show({ title: 'เกิดข้อผิดพลาด', message: 'ไม่สามารถจัดเรียงได้', color: 'red' })
+                fetchTypes()
+            }
+        }
+    }
+
     const currentDept = departmentConfig.find(d => d.key === activeTab)
 
     return (
@@ -256,141 +306,179 @@ export default function RegistrationSettingsModal({ opened, onClose, onDataChang
 
                             {/* Work Types List */}
                             {!loading && workTypes.length > 0 && (
-                                <Accordion variant="separated" radius="md">
-                                    {workTypes.map(type => (
-                                        <Accordion.Item key={type.id} value={type.id}>
-                                            <Accordion.Control>
-                                                <Group justify="space-between" wrap="nowrap" pr="xs">
-                                                    {editingTypeId === type.id ? (
-                                                        <Group gap="xs" style={{ flex: 1 }} onClick={(e) => e.stopPropagation()}>
-                                                            <TextInput
-                                                                value={editTypeName}
-                                                                onChange={(e) => { const val = e.currentTarget.value; setEditTypeName(val) }}
-                                                                onKeyDown={(e) => {
-                                                                    if (e.key === 'Enter') handleUpdateType(type.id)
-                                                                    if (e.key === 'Escape') setEditingTypeId(null)
-                                                                }}
-                                                                size="xs"
-                                                                style={{ flex: 1 }}
-                                                                autoFocus
-                                                            />
-                                                            <ActionIcon size="sm" color="green" variant="light" onClick={() => handleUpdateType(type.id)}>
-                                                                <TbCheck size={14} />
-                                                            </ActionIcon>
-                                                            <ActionIcon size="sm" color="gray" variant="light" onClick={() => setEditingTypeId(null)}>
-                                                                <TbX size={14} />
-                                                            </ActionIcon>
-                                                        </Group>
-                                                    ) : (
-                                                        <Group gap="sm">
-                                                            <Text fw={600} size="sm">{type.name}</Text>
-                                                            <Badge size="xs" variant="light" color={currentDept?.color}>
-                                                                {type.sub_types.length} รายการย่อย
-                                                            </Badge>
-                                                        </Group>
-                                                    )}
-                                                    {editingTypeId !== type.id && (
-                                                        <Group gap={4} onClick={(e) => e.stopPropagation()}>
-                                                            <Tooltip label="แก้ไข">
-                                                                <ActionIcon size="sm" variant="subtle" color="blue" onClick={() => {
-                                                                    setEditingTypeId(type.id)
-                                                                    setEditTypeName(type.name)
-                                                                }}>
-                                                                    <TbEdit size={14} />
-                                                                </ActionIcon>
-                                                            </Tooltip>
-                                                            <Tooltip label="ลบ">
-                                                                <ActionIcon size="sm" variant="subtle" color="red" onClick={() => handleDeleteType(type.id, type.name)}>
-                                                                    <TbTrash size={14} />
-                                                                </ActionIcon>
-                                                            </Tooltip>
-                                                        </Group>
-                                                    )}
-                                                </Group>
-                                            </Accordion.Control>
-                                            <Accordion.Panel>
-                                                <Stack gap="xs">
-                                                    {/* Sub types list */}
-                                                    {type.sub_types.map(sub => (
-                                                        <Group key={sub.id} gap="xs" justify="space-between"
-                                                            style={{
-                                                                padding: '6px 12px',
-                                                                borderRadius: 8,
-                                                                backgroundColor: '#f8f9fa',
-                                                            }}
-                                                        >
-                                                            {editingSubId === sub.id ? (
-                                                                <Group gap="xs" style={{ flex: 1 }}>
-                                                                    <TextInput
-                                                                        value={editSubName}
-                                                                        onChange={(e) => { const val = e.currentTarget.value; setEditSubName(val) }}
-                                                                        onKeyDown={(e) => {
-                                                                            if (e.key === 'Enter') handleUpdateSub(sub.id)
-                                                                            if (e.key === 'Escape') setEditingSubId(null)
-                                                                        }}
-                                                                        size="xs"
-                                                                        style={{ flex: 1 }}
-                                                                        autoFocus
-                                                                    />
-                                                                    <ActionIcon size="sm" color="green" variant="light" onClick={() => handleUpdateSub(sub.id)}>
-                                                                        <TbCheck size={14} />
-                                                                    </ActionIcon>
-                                                                    <ActionIcon size="sm" color="gray" variant="light" onClick={() => setEditingSubId(null)}>
-                                                                        <TbX size={14} />
-                                                                    </ActionIcon>
-                                                                </Group>
-                                                            ) : (
-                                                                <>
-                                                                    <Text size="sm">• {sub.name}</Text>
-                                                                    <Group gap={4}>
-                                                                        <ActionIcon size="xs" variant="subtle" color="blue" onClick={() => {
-                                                                            setEditingSubId(sub.id)
-                                                                            setEditSubName(sub.name)
-                                                                        }}>
-                                                                            <TbEdit size={12} />
-                                                                        </ActionIcon>
-                                                                        <ActionIcon size="xs" variant="subtle" color="red" onClick={() => handleDeleteSub(sub.id, sub.name)}>
-                                                                            <TbTrash size={12} />
-                                                                        </ActionIcon>
-                                                                    </Group>
-                                                                </>
+                                <DragDropContext onDragEnd={handleDragEnd}>
+                                    <Droppable droppableId="work-types" type="WORK_TYPE">
+                                        {(provided) => (
+                                            <div ref={provided.innerRef} {...provided.droppableProps}>
+                                                <Accordion variant="separated" radius="md">
+                                                    {workTypes.map((type, index) => (
+                                                        <Draggable key={type.id} draggableId={type.id} index={index}>
+                                                            {(provided) => (
+                                                                <div ref={provided.innerRef} {...provided.draggableProps}>
+                                                                    <Accordion.Item value={type.id}>
+                                                                        <Accordion.Control>
+                                                                            <Group justify="space-between" wrap="nowrap" pr="xs">
+                                                                                {editingTypeId === type.id ? (
+                                                                                    <Group gap="xs" style={{ flex: 1 }} onClick={(e) => e.stopPropagation()}>
+                                                                                        <TextInput
+                                                                                            value={editTypeName}
+                                                                                            onChange={(e) => { const val = e.currentTarget.value; setEditTypeName(val) }}
+                                                                                            onKeyDown={(e) => {
+                                                                                                if (e.key === 'Enter') handleUpdateType(type.id)
+                                                                                                if (e.key === 'Escape') setEditingTypeId(null)
+                                                                                            }}
+                                                                                            size="xs"
+                                                                                            style={{ flex: 1 }}
+                                                                                            autoFocus
+                                                                                        />
+                                                                                        <ActionIcon size="sm" color="green" variant="light" onClick={() => handleUpdateType(type.id)}>
+                                                                                            <TbCheck size={14} />
+                                                                                        </ActionIcon>
+                                                                                        <ActionIcon size="sm" color="gray" variant="light" onClick={() => setEditingTypeId(null)}>
+                                                                                            <TbX size={14} />
+                                                                                        </ActionIcon>
+                                                                                    </Group>
+                                                                                ) : (
+                                                                                    <Group gap="sm" wrap="nowrap">
+                                                                                        <div {...provided.dragHandleProps} onClick={(e) => e.stopPropagation()} style={{ cursor: 'grab', display: 'flex', alignItems: 'center' }}>
+                                                                                            <TbGridDots size={16} color="gray" />
+                                                                                        </div>
+                                                                                        <Text fw={600} size="sm">{type.name}</Text>
+                                                                                        <Badge size="xs" variant="light" color={currentDept?.color}>
+                                                                                            {type.sub_types.length} รายการย่อย
+                                                                                        </Badge>
+                                                                                    </Group>
+                                                                                )}
+                                                                                {editingTypeId !== type.id && (
+                                                                                    <Group gap={4} onClick={(e) => e.stopPropagation()}>
+                                                                                        <Tooltip label="แก้ไข">
+                                                                                            <ActionIcon size="sm" variant="subtle" color="blue" onClick={() => {
+                                                                                                setEditingTypeId(type.id)
+                                                                                                setEditTypeName(type.name)
+                                                                                            }}>
+                                                                                                <TbEdit size={14} />
+                                                                                            </ActionIcon>
+                                                                                        </Tooltip>
+                                                                                        <Tooltip label="ลบ">
+                                                                                            <ActionIcon size="sm" variant="subtle" color="red" onClick={() => handleDeleteType(type.id, type.name)}>
+                                                                                                <TbTrash size={14} />
+                                                                                            </ActionIcon>
+                                                                                        </Tooltip>
+                                                                                    </Group>
+                                                                                )}
+                                                                            </Group>
+                                                                        </Accordion.Control>
+                                                                        <Accordion.Panel>
+                                                                            <Stack gap="xs">
+                                                                                {/* Sub types list */}
+                                                                                <Droppable droppableId={type.id} type="SUB_TYPE">
+                                                                                    {(provided) => (
+                                                                                        <div ref={provided.innerRef} {...provided.droppableProps}>
+                                                                                            <Stack gap="xs">
+                                                                                                {type.sub_types.map((sub, idx) => (
+                                                                                                    <Draggable key={sub.id} draggableId={sub.id} index={idx}>
+                                                                                                        {(provided) => (
+                                                                                                            <div ref={provided.innerRef} {...provided.draggableProps}>
+                                                                                                                <Group justify="space-between"
+                                                                                                                    style={{
+                                                                                                                        padding: '6px 12px',
+                                                                                                                        borderRadius: 8,
+                                                                                                                        backgroundColor: '#f8f9fa',
+                                                                                                                    }}
+                                                                                                                >
+                                                                                                                    {editingSubId === sub.id ? (
+                                                                                                                        <Group gap="xs" style={{ flex: 1 }}>
+                                                                                                                            <TextInput
+                                                                                                                                value={editSubName}
+                                                                                                                                onChange={(e) => { const val = e.currentTarget.value; setEditSubName(val) }}
+                                                                                                                                onKeyDown={(e) => {
+                                                                                                                                    if (e.key === 'Enter') handleUpdateSub(sub.id)
+                                                                                                                                    if (e.key === 'Escape') setEditingSubId(null)
+                                                                                                                                }}
+                                                                                                                                size="xs"
+                                                                                                                                style={{ flex: 1 }}
+                                                                                                                                autoFocus
+                                                                                                                            />
+                                                                                                                            <ActionIcon size="sm" color="green" variant="light" onClick={() => handleUpdateSub(sub.id)}>
+                                                                                                                                <TbCheck size={14} />
+                                                                                                                            </ActionIcon>
+                                                                                                                            <ActionIcon size="sm" color="gray" variant="light" onClick={() => setEditingSubId(null)}>
+                                                                                                                                <TbX size={14} />
+                                                                                                                            </ActionIcon>
+                                                                                                                        </Group>
+                                                                                                                    ) : (
+                                                                                                                        <>
+                                                                                                                            <Group gap="xs" wrap="nowrap">
+                                                                                                                                <div {...provided.dragHandleProps} style={{ cursor: 'grab', display: 'flex', alignItems: 'center' }}>
+                                                                                                                                    <TbGridDots size={14} color="gray" />
+                                                                                                                                </div>
+                                                                                                                                <Text size="sm">{sub.name}</Text>
+                                                                                                                            </Group>
+                                                                                                                            <Group gap={4}>
+                                                                                                                                <ActionIcon size="xs" variant="subtle" color="blue" onClick={() => {
+                                                                                                                                    setEditingSubId(sub.id)
+                                                                                                                                    setEditSubName(sub.name)
+                                                                                                                                }}>
+                                                                                                                                    <TbEdit size={12} />
+                                                                                                                                </ActionIcon>
+                                                                                                                                <ActionIcon size="xs" variant="subtle" color="red" onClick={() => handleDeleteSub(sub.id, sub.name)}>
+                                                                                                                                    <TbTrash size={12} />
+                                                                                                                                </ActionIcon>
+                                                                                                                            </Group>
+                                                                                                                        </>
+                                                                                                                    )}
+                                                                                                                </Group>
+                                                                                                            </div>
+                                                                                                        )}
+                                                                                                    </Draggable>
+                                                                                                ))}
+                                                                                                {provided.placeholder}
+                                                                                            </Stack>
+                                                                                        </div>
+                                                                                    )}
+                                                                                </Droppable>
+
+                                                                                {type.sub_types.length === 0 && (
+                                                                                    <Text size="xs" c="dimmed" ta="center" py="xs">
+                                                                                        ยังไม่มีรายการย่อย
+                                                                                    </Text>
+                                                                                )}
+
+                                                                                {/* Add sub type */}
+                                                                                <Divider />
+                                                                                <Group gap="xs">
+                                                                                    <TextInput
+                                                                                        placeholder="เพิ่มรายการย่อย..."
+                                                                                        value={newSubName[type.id] || ''}
+                                                                                        onChange={(e) => { const val = e.currentTarget.value; setNewSubName(prev => ({ ...prev, [type.id]: val })) }}
+                                                                                        onKeyDown={(e) => e.key === 'Enter' && handleAddSub(type.id)}
+                                                                                        size="xs"
+                                                                                        style={{ flex: 1 }}
+                                                                                    />
+                                                                                    <Button
+                                                                                        size="xs"
+                                                                                        variant="light"
+                                                                                        leftSection={<TbPlus size={14} />}
+                                                                                        onClick={() => handleAddSub(type.id)}
+                                                                                        loading={addingSubFor === type.id}
+                                                                                        disabled={!newSubName[type.id]?.trim()}
+                                                                                    >
+                                                                                        เพิ่ม
+                                                                                    </Button>
+                                                                                </Group>
+                                                                            </Stack>
+                                                                        </Accordion.Panel>
+                                                                    </Accordion.Item>
+                                                                </div>
                                                             )}
-                                                        </Group>
+                                                        </Draggable>
                                                     ))}
-
-                                                    {type.sub_types.length === 0 && (
-                                                        <Text size="xs" c="dimmed" ta="center" py="xs">
-                                                            ยังไม่มีรายการย่อย
-                                                        </Text>
-                                                    )}
-
-                                                    {/* Add sub type */}
-                                                    <Divider />
-                                                    <Group gap="xs">
-                                                        <TextInput
-                                                            placeholder="เพิ่มรายการย่อย..."
-                                                            value={newSubName[type.id] || ''}
-                                                            onChange={(e) => { const val = e.currentTarget.value; setNewSubName(prev => ({ ...prev, [type.id]: val })) }}
-                                                            onKeyDown={(e) => e.key === 'Enter' && handleAddSub(type.id)}
-                                                            size="xs"
-                                                            style={{ flex: 1 }}
-                                                        />
-                                                        <Button
-                                                            size="xs"
-                                                            variant="light"
-                                                            leftSection={<TbPlus size={14} />}
-                                                            onClick={() => handleAddSub(type.id)}
-                                                            loading={addingSubFor === type.id}
-                                                            disabled={!newSubName[type.id]?.trim()}
-                                                        >
-                                                            เพิ่ม
-                                                        </Button>
-                                                    </Group>
-                                                </Stack>
-                                            </Accordion.Panel>
-                                        </Accordion.Item>
-                                    ))}
-                                </Accordion>
+                                                    {provided.placeholder}
+                                                </Accordion>
+                                            </div>
+                                        )}
+                                    </Droppable>
+                                </DragDropContext>
                             )}
                         </Stack>
                     </Tabs.Panel>

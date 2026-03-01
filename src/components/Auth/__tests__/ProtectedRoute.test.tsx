@@ -29,7 +29,7 @@ describe('ProtectedRoute', () => {
 
   it('should render children when user is authenticated', () => {
     // Mock authenticated user
-    ;(useAuthStore as any).mockReturnValue({
+    (useAuthStore as any).mockReturnValue({
       isAuthenticated: true,
       token: 'mock-token',
     })
@@ -45,7 +45,7 @@ describe('ProtectedRoute', () => {
 
   it('should redirect to login when user is not authenticated', () => {
     // Mock unauthenticated user
-    ;(useAuthStore as any).mockReturnValue({
+    (useAuthStore as any).mockReturnValue({
       isAuthenticated: false,
       token: null,
     })
@@ -63,7 +63,7 @@ describe('ProtectedRoute', () => {
 
   it('should redirect to login when token is missing', () => {
     // Mock user without token
-    ;(useAuthStore as any).mockReturnValue({
+    (useAuthStore as any).mockReturnValue({
       isAuthenticated: true,
       token: null,
     })

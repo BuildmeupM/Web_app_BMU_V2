@@ -1,8 +1,9 @@
 /**
  * FeedPostCard — compact card in feed list
  */
+import { memo } from 'react'
 import {
-  Card, Group, Text, Badge, Avatar, ActionIcon, Tooltip, Divider, Menu,
+  Card, Group, Text, Badge, Avatar, ActionIcon, Tooltip, Divider, Menu, Button
 } from '@mantine/core'
 import {
   TbHeart, TbHeartFilled, TbMessageCircle, TbPin, TbPinFilled,
@@ -21,11 +22,13 @@ export interface FeedPostCardProps {
   onDelete: (id: string) => void
   onPin: (id: string, pin: boolean) => void
   onReact: (id: string) => void
+  onAcknowledge?: (id: string) => void
+  isAcknowledging?: boolean
 }
 
-export default function FeedPostCard({
+export default memo(function FeedPostCard({
   post, currentUserId, isAdmin, isPinned, isActive,
-  onSelect, onDelete, onPin, onReact
+  onSelect, onDelete, onPin, onReact, onAcknowledge = () => {}, isAcknowledging = false
 }: FeedPostCardProps) {
   const cat = CATEGORY_MAP[post.category] || CATEGORY_MAP.discussion
   const isOwn = post.author_id === currentUserId
@@ -83,22 +86,40 @@ export default function FeedPostCard({
       <Divider mb="xs" />
 
       {/* Actions */}
-      <Group gap="lg">
-        <Tooltip label={post.user_reacted ? 'ยกเลิกถูกใจ' : 'ถูกใจ'}>
-          <Group gap={4} style={{ cursor: 'pointer' }} onClick={() => onReact(post.id)}>
-            {post.user_reacted ? <TbHeartFilled size={18} color="var(--mantine-color-red-6)" /> : <TbHeart size={18} />}
-            <Text size="xs" c={post.user_reacted ? 'red' : 'dimmed'}>{post.reaction_count || ''}</Text>
-          </Group>
-        </Tooltip>
-        <Tooltip label="ความคิดเห็น">
-          <Group gap={4} style={{ cursor: 'pointer' }} onClick={onSelect}>
-            <TbMessageCircle size={18} color={isActive ? 'var(--mantine-color-blue-6)' : undefined} />
-            <Text size="xs" c={isActive ? 'blue' : 'dimmed'} fw={isActive ? 600 : undefined}>
-              {post.comment_count || ''} {isActive ? '' : ''}
-            </Text>
-          </Group>
-        </Tooltip>
+      <Group justify="space-between" align="center">
+        <Group gap="lg">
+          <Tooltip label={post.user_reacted ? 'ยกเลิกถูกใจ' : 'ถูกใจ'}>
+            <Group gap={4} style={{ cursor: 'pointer' }} onClick={() => onReact(post.id)}>
+              {post.user_reacted ? <TbHeartFilled size={18} color="var(--mantine-color-red-6)" /> : <TbHeart size={18} />}
+              <Text size="xs" c={post.user_reacted ? 'red' : 'dimmed'}>{post.reaction_count || ''}</Text>
+            </Group>
+          </Tooltip>
+          <Tooltip label="ความคิดเห็น">
+            <Group gap={4} style={{ cursor: 'pointer' }} onClick={onSelect}>
+              <TbMessageCircle size={18} color={isActive ? 'var(--mantine-color-blue-6)' : undefined} />
+              <Text size="xs" c={isActive ? 'blue' : 'dimmed'} fw={isActive ? 600 : undefined}>
+                {post.comment_count || ''} {isActive ? '' : ''}
+              </Text>
+            </Group>
+          </Tooltip>
+        </Group>
+
+        {post.category === 'announcement' && (
+          <Button
+            variant={post.is_acknowledged ? "light" : "filled"}
+            color={post.is_acknowledged ? "teal" : "red"}
+            size="xs"
+            radius="md"
+            onClick={() => onAcknowledge(post.id)}
+            disabled={!!post.is_acknowledged}
+            loading={isAcknowledging}
+          >
+            {post.is_acknowledged ? `รับทราบแล้ว${post.acknowledgement_count && post.acknowledgement_count > 1 ? ` (ร่วมกับอีก ${post.acknowledgement_count - 1} คน)` : ''}` : 'กดเพื่อรับทราบ'}
+          </Button>
+        )}
       </Group>
     </Card>
   )
-}
+}, (prev, next) => {
+  return prev.post === next.post && prev.isActive === next.isActive && prev.isPinned === next.isPinned && prev.isAcknowledging === next.isAcknowledging
+})

@@ -72,7 +72,7 @@ describe('authService', () => {
     })
 
     it('should throw when API returns success: false', async () => {
-      ;(api.post as any).mockResolvedValue({
+      (api.post as any).mockResolvedValue({
         data: {
           success: false,
           message: 'Account locked',
@@ -87,7 +87,7 @@ describe('authService', () => {
 
   describe('logout', () => {
     it('should logout successfully', async () => {
-      ;(api.post as any).mockResolvedValue({ data: { message: 'Logged out' } })
+      (api.post as any).mockResolvedValue({ data: { message: 'Logged out' } })
 
       await authService.logout()
 
@@ -95,7 +95,7 @@ describe('authService', () => {
     })
 
     it('should not throw when logout API fails', async () => {
-      ;(api.post as any).mockRejectedValue(new Error('Network error'))
+      (api.post as any).mockRejectedValue(new Error('Network error'))
 
       await expect(authService.logout()).resolves.not.toThrow()
     })
@@ -125,7 +125,7 @@ describe('authService', () => {
     })
 
     it('should throw when API returns success: false', async () => {
-      ;(api.get as any).mockResolvedValue({
+      (api.get as any).mockResolvedValue({
         data: { success: false },
       })
 

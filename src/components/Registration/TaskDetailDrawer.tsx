@@ -144,6 +144,7 @@ export default function TaskDetailDrawer({
         {
             onSuccess: () => {
                 queryClient.invalidateQueries(`registration-tasks-${task?.department}`)
+                queryClient.invalidateQueries(`registration-tasks-master`)
                 notifications.show({ title: 'สำเร็จ', message: 'อัพเดทสถานะเรียบร้อย', color: 'green' })
                 onUpdated?.()
                 onClose()

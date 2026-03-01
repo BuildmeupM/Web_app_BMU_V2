@@ -142,85 +142,134 @@ export default function AccountingDashboard() {
     // ────────────────────────────────────────────
 
     return (
-        <Box p="md" className="acct-dashboard">
-            {/* Header */}
-            <div className="acct-header acct-animate acct-animate-1">
+        <Box p="xl" className="acct-dashboard" style={{ background: '#fafbfc', minHeight: '100vh', padding: '32px' }}>
+            {/* Header - Premium Minimal White/Orange */}
+            <div className="acct-header acct-animate acct-animate-1" style={{
+                background: '#ffffff',
+                borderRadius: '16px',
+                padding: '24px 32px',
+                boxShadow: '0 8px 30px rgba(255,107,53,0.06)',
+                border: '1px solid rgba(255,107,53,0.1)',
+                marginBottom: '24px'
+            }}>
                 <Group justify="space-between" wrap="wrap" style={{ position: 'relative', zIndex: 1 }}>
-                    {/* Tabs */}
-                    <Group gap={6}>
+                    {/* Tabs (Hierarchy focus) */}
+                    <Group gap={8}>
                         {TAB_CONFIG.map(tab => (
                             <div
                                 key={tab.key}
                                 onClick={() => setActiveTab(tab.key)}
-                                className={`acct-tab-pill ${activeTab === tab.key ? 'acct-tab-pill--active' : ''}`}
+                                style={{
+                                    padding: '8px 20px',
+                                    borderRadius: '12px',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.3s ease',
+                                    background: activeTab === tab.key ? 'linear-gradient(135deg, #FF8C42, #FF6B35)' : '#f4f5f7',
+                                    boxShadow: activeTab === tab.key ? '0 4px 15px rgba(255,107,53,0.2)' : 'none',
+                                    color: activeTab === tab.key ? '#fff' : '#666',
+                                    fontWeight: activeTab === tab.key ? 700 : 500,
+                                }}
                             >
-                                <Text
-                                    size="sm"
-                                    fw={activeTab === tab.key ? 700 : 500}
-                                    c={activeTab === tab.key ? '#ff6b35' : 'white'}
-                                >
-                                    {tab.label}
-                                </Text>
+                                <Text size="sm">{tab.label}</Text>
                             </div>
                         ))}
                     </Group>
 
-                    {/* Filters */}
-                    <Group gap="sm" className="acct-filter-group">
+                    {/* Filters & Actions */}
+                    <Group gap="md">
                         <Select
-                            size="xs"
-                            w={120}
+                            size="md"
+                            radius="md"
+                            w={140}
                             value={selectedMonth}
                             onChange={(v) => v && setSelectedMonth(v)}
                             data={monthOptions}
                             styles={{
-                                input: { background: 'rgba(255,255,255,0.9)', borderColor: 'rgba(255,255,255,0.3)', borderRadius: 8 },
-                                option: { '&[data-selected]': { background: '#ff6b35' } },
+                                input: {
+                                    fontSize: '14px',
+                                    fontWeight: 500,
+                                    borderColor: '#eaeaea',
+                                    background: '#fafbfc',
+                                    transition: 'border-color 0.2s',
+                                    '&:focus': { borderColor: '#FF8C42' }
+                                }
                             }}
                         />
                         <Select
-                            size="xs"
-                            w={90}
+                            size="md"
+                            radius="md"
+                            w={110}
                             value={selectedYear}
                             onChange={(v) => v && setSelectedYear(v)}
                             data={yearOptions}
                             styles={{
-                                input: { background: 'rgba(255,255,255,0.9)', borderColor: 'rgba(255,255,255,0.3)', borderRadius: 8 },
-                                option: { '&[data-selected]': { background: '#ff6b35' } },
+                                input: {
+                                    fontSize: '14px',
+                                    fontWeight: 500,
+                                    borderColor: '#eaeaea',
+                                    background: '#fafbfc',
+                                    transition: 'border-color 0.2s',
+                                    '&:focus': { borderColor: '#FF8C42' }
+                                }
                             }}
                         />
-                        <Tooltip label="รีเฟรช">
-                            <ActionIcon
-                                variant="subtle"
-                                color="white"
-                                onClick={handleRefresh}
-                                loading={isLoading}
-                            >
-                                <TbRefresh size={18} />
-                            </ActionIcon>
-                        </Tooltip>
-                        <Switch
-                            size="xs"
-                            label={<Text size="xs" c="white">Auto</Text>}
-                            checked={autoRefresh}
-                            onChange={(e) => setAutoRefresh(e.currentTarget.checked)}
-                            color="orange"
-                        />
+                        
+                        {/* Action Container */}
+                        <Group gap={8} style={{ background: '#f8f9fa', padding: '4px 12px', borderRadius: '12px' }}>
+                            <Tooltip label="รีเฟรชข้อมูล">
+                                <ActionIcon
+                                    variant="subtle"
+                                    color="orange"
+                                    size="lg"
+                                    radius="md"
+                                    onClick={handleRefresh}
+                                    loading={isLoading}
+                                    style={{ transition: 'transform 0.2s', '&:hover': { transform: 'rotate(180deg)' } } as any}
+                                >
+                                    <TbRefresh size={22} />
+                                </ActionIcon>
+                            </Tooltip>
+                            
+                            <Switch
+                                size="sm"
+                                label={<Text size="sm" fw={600} c="dimmed">Auto</Text>}
+                                checked={autoRefresh}
+                                onChange={(e) => setAutoRefresh(e.currentTarget.checked)}
+                                color="orange"
+                                style={{ marginLeft: '4px' }}
+                            />
+                        </Group>
                     </Group>
                 </Group>
 
-                {/* Summary info */}
-                <Group gap="lg" mt="sm" style={{ position: 'relative', zIndex: 1 }}>
-                    <Badge size="sm" variant="filled" color="rgba(255,255,255,0.25)" style={{ color: 'white' }}>
-                        📅 {THAI_MONTHS[parseInt(selectedMonth) - 1]} {parseInt(selectedYear) + 543}
-                    </Badge>
-                    <Text size="xs" c="white" style={{ opacity: 0.9 }}>
-                        ข้อมูลทั้งหมด: {records.length} บริษัท
-                    </Text>
+                {/* Summary / Context Information */}
+                <Group gap="xl" mt="xl" style={{ position: 'relative', zIndex: 1, borderTop: '1px solid #f0f0f0', paddingTop: '16px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ padding: '6px', background: 'rgba(255,107,53,0.1)', borderRadius: '8px' }}>
+                            <Text size="sm">📊</Text>
+                        </div>
+                        <div>
+                            <Text size="xs" c="dimmed" fw={600} tt="uppercase" lts={1}>รอบบิลบัญชี</Text>
+                            <Text size="md" fw={700} c="#333">
+                                {THAI_MONTHS[parseInt(selectedMonth) - 1]} {parseInt(selectedYear) + 543}
+                            </Text>
+                        </div>
+                    </div>
+                    
+                    <div style={{ width: '1px', height: '30px', background: '#eaeaea' }} />
+                    
+                    <div>
+                        <Text size="xs" c="dimmed" fw={600} tt="uppercase" lts={1}>จำนวนลูกค้าทั้งหมด</Text>
+                        <Text size="md" fw={700} c="#FF6B35">{records.length} บริษัท</Text>
+                    </div>
+
                     {autoRefresh && (
-                        <Text size="xs" c="white" style={{ opacity: 0.8 }}>
-                            🔄 รีเฟรชอัตโนมัติทุก 30 วินาที
-                        </Text>
+                        <>
+                            <div style={{ width: '1px', height: '30px', background: '#eaeaea' }} />
+                            <Badge size="md" variant="light" color="orange" radius="sm">
+                                🔄 30s Auto-sync Active
+                            </Badge>
+                        </>
                     )}
                 </Group>
             </div>
@@ -235,6 +284,7 @@ export default function AccountingDashboard() {
                 </Center>
             ) : isError ? (
                 <Alert icon={<TbAlertCircle />} title="เกิดข้อผิดพลาด" color="red" radius="lg">
+                    {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                     {(error as any)?.message || 'ไม่สามารถโหลดข้อมูลได้'}
                 </Alert>
             ) : records.length === 0 ? (
