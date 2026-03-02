@@ -125,26 +125,38 @@ router.post('/', authenticateToken, authorize('admin', 'hr'), async (req, res) =
             })
         }
 
-        // Check for duplicate
+        // Check for duplicate (including soft-deleted)
         const [existing] = await pool.execute(
-            `SELECT id FROM holidays WHERE holiday_date = ? AND deleted_at IS NULL`,
+            `SELECT id, deleted_at FROM holidays WHERE holiday_date = ?`,
             [holiday_date]
         )
 
+        let resolvedId;
+
         if (existing.length > 0) {
-            return res.status(400).json({
-                success: false,
-                message: 'วันที่นี้มีการกำหนดเป็นวันหยุดแล้ว'
-            })
+            if (existing[0].deleted_at === null) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'วันที่นี้มีการกำหนดเป็นวันหยุดแล้ว'
+                })
+            } else {
+                // If it was soft-deleted, reactivate it instead of inserting a new row 
+                // to avoid UNIQUE constraint violation on holiday_date
+                resolvedId = existing[0].id
+                await pool.execute(
+                    `UPDATE holidays SET name = ?, name_en = ?, year = ?, is_active = TRUE, deleted_at = NULL WHERE id = ?`,
+                    [name, name_en || null, year, resolvedId]
+                )
+            }
+        } else {
+            // New record
+            resolvedId = generateUUID()
+            await pool.execute(
+                `INSERT INTO holidays (id, holiday_date, name, name_en, year, is_active)
+           VALUES (?, ?, ?, ?, ?, TRUE)`,
+                [resolvedId, holiday_date, name, name_en || null, year]
+            )
         }
-
-        const id = generateUUID()
-
-        await pool.execute(
-            `INSERT INTO holidays (id, holiday_date, name, name_en, year, is_active)
-       VALUES (?, ?, ?, ?, ?, TRUE)`,
-            [id, holiday_date, name, name_en || null, year]
-        )
 
         const [created] = await pool.execute(
             `SELECT 
@@ -155,7 +167,7 @@ router.post('/', authenticateToken, authorize('admin', 'hr'), async (req, res) =
         year,
         is_active
        FROM holidays WHERE id = ?`,
-            [id]
+            [resolvedId]
         )
 
         res.status(201).json({
@@ -198,15 +210,21 @@ router.put('/:id', authenticateToken, authorize('admin', 'hr'), async (req, res)
         // Check for duplicate date (if changing)
         if (holiday_date) {
             const [duplicate] = await pool.execute(
-                `SELECT id FROM holidays WHERE holiday_date = ? AND id != ? AND deleted_at IS NULL`,
+                `SELECT id, deleted_at FROM holidays WHERE holiday_date = ? AND id != ?`,
                 [holiday_date, id]
             )
 
             if (duplicate.length > 0) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'วันที่นี้มีการกำหนดเป็นวันหยุดแล้ว'
-                })
+                if (duplicate[0].deleted_at === null) {
+                    return res.status(400).json({
+                        success: false,
+                        message: 'วันที่นี้มีการกำหนดเป็นวันหยุดแล้ว'
+                    })
+                } else {
+                    // There is a soft-deleted row blocking the date change from succeeding
+                    // Permanently delete it so the UNIQUE constraint validation passes
+                    await pool.execute(`DELETE FROM holidays WHERE id = ?`, [duplicate[0].id])
+                }
             }
         }
 

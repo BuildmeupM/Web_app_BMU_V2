@@ -24,6 +24,7 @@ import workAssignmentsRoutes from './routes/work-assignments/index.js'
 import monthlyTaxDataRoutes from './routes/monthly-tax-data/index.js'
 import documentEntryWorkRoutes from './routes/document-entry-work/index.js'
 import accountingMarketplaceRoutes from './routes/accounting/marketplace.js'
+import accountingFeeNotesRoutes from './routes/accounting/fee-notes.js'
 import usersRoutes from './routes/system/users.js'
 import notificationsRoutes, { cleanupExpiredNotifications } from './routes/system/notifications.js'
 import holidaysRoutes from './routes/content/holidays.js'
@@ -277,6 +278,7 @@ app.use('/api/monthly-tax-data', monthlyTaxDataRoutes)
 app.use('/api/document-entry-work', documentEntryWorkRoutes)
 // Accounting Marketplace Routes
 app.use('/api/accounting-marketplace', accountingMarketplaceRoutes)
+app.use('/api/accounting-fee-notes', accountingFeeNotesRoutes)
 app.use('/api/users', usersRoutes)
 app.use('/api/notifications', notificationsRoutes)
 app.use('/api/holidays', holidaysRoutes)

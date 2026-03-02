@@ -372,7 +372,7 @@ export default function AccountingFeesManagement() {
                                                         <Text size="sm" fw={500}>{client.peak_code || '—'}</Text>
                                                     </Table.Td>
                                                     <Table.Td style={{ textAlign: 'center' }}>
-                                                        <Text size="sm">{client.accounting_start_date ? new Date(client.accounting_start_date).toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'}</Text>
+                                                        <Text size="sm">{client.accounting_start_date ? (() => { const m = client.accounting_start_date.match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? `${m[3]}/${m[2]}/${m[1]}` : client.accounting_start_date; })() : '—'}</Text>
                                                     </Table.Td>
                                                     <Table.Td style={{ textAlign: 'center' }}>
                                                         {fees === undefined ? (

@@ -605,7 +605,9 @@ router.get('/dashboard/daily', authenticateToken, authorize('admin', 'hr'), asyn
         COUNT(DISTINCT CASE WHEN wr.status = 'อนุมัติแล้ว' THEN wr.employee_id END) as approved_employee_count,
         COUNT(DISTINCT CASE WHEN wr.status = 'รออนุมัติ' THEN wr.employee_id END) as pending_employee_count,
         COUNT(CASE WHEN wr.status = 'อนุมัติแล้ว' THEN 1 END) as approved_count,
-        COUNT(CASE WHEN wr.status = 'รออนุมัติ' THEN 1 END) as pending_count
+        COUNT(CASE WHEN wr.status = 'รออนุมัติ' THEN 1 END) as pending_count,
+        GROUP_CONCAT(DISTINCT CASE WHEN wr.status = 'อนุมัติแล้ว' THEN CONCAT(e.full_name, COALESCE(CONCAT(' (', e.nick_name, ')'), '')) END SEPARATOR ', ') as approved_employee_names,
+        GROUP_CONCAT(DISTINCT CASE WHEN wr.status = 'รออนุมัติ' THEN CONCAT(e.full_name, COALESCE(CONCAT(' (', e.nick_name, ')'), '')) END SEPARATOR ', ') as pending_employee_names
        FROM (
          SELECT DATE_ADD(?, INTERVAL seq.seq DAY) as date
          FROM (
@@ -624,6 +626,7 @@ router.get('/dashboard/daily', authenticateToken, authorize('admin', 'hr'), asyn
          AND wr.deleted_at IS NULL
          AND DATE(dates.date) = DATE(wr.wfh_date)
        )
+       LEFT JOIN employees e ON wr.employee_id = e.employee_id
        GROUP BY dates.date
        ORDER BY wfh_date ASC`,
       [firstDayStr, firstDayStr, lastDayStr]

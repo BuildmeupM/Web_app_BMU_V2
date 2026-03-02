@@ -23,6 +23,7 @@ export default function LeaveDashboard() {
   const isAdmin = user?.role === 'admin' || user?.role === 'hr'
   const [comparePrevious, setComparePrevious] = useState(false)
   const [selectedMonth, setSelectedMonth] = useState<string>(dayjs().format('YYYY-MM'))
+  const [filterDays, setFilterDays] = useState<string>('all') // '3', '7', '14', '30', 'all'
 
   // Only fetch dashboard summary for non-admin users (for byType and upcomingLeaves)
   // Admin users don't need this data as they use daily stats instead
@@ -70,7 +71,6 @@ export default function LeaveDashboard() {
     )
   }
 
-  const summary = data?.data.summary
   const byType = data?.data.by_type || {}
 
   // Format Thai date helper for chart (short format)
@@ -125,13 +125,13 @@ export default function LeaveDashboard() {
       const normalizedDateStr = normalizeDate(dateStr)
 
       // Find matching data - handle both string and Date object formats
-      const currentDayData = currentMonth.daily_stats.find((d: any) => {
-        const normalizedLeaveDate = normalizeDate(d.leave_date)
+      const currentDayData = currentMonth.daily_stats.find((d: Record<string, unknown>) => {
+        const normalizedLeaveDate = normalizeDate(d.leave_date as string)
         return normalizedLeaveDate === normalizedDateStr
       })
 
-      const prevDayData = previousMonth?.daily_stats.find((d: any) => {
-        const dDate = dayjs(d.leave_date)
+      const prevDayData = previousMonth?.daily_stats.find((d: Record<string, unknown>) => {
+        const dDate = dayjs(d.leave_date as string)
         return dDate.date() === day && dDate.month() === (month === 1 ? 11 : month - 2)
       })
 
@@ -141,8 +141,12 @@ export default function LeaveDashboard() {
         label: formatThaiDateShort(dateStr),
         current: currentDayData ? Number(currentDayData.approved_employee_count) || 0 : 0,
         currentPending: currentDayData ? Number(currentDayData.pending_employee_count) || 0 : 0,
+        currentApprovedNames: currentDayData?.approved_employee_names || '',
+        currentPendingNames: currentDayData?.pending_employee_names || '',
         previous: comparePrevious && prevDayData ? Number(prevDayData.approved_employee_count) || 0 : null,
         previousPending: comparePrevious && prevDayData ? Number(prevDayData.pending_employee_count) || 0 : null,
+        previousApprovedNames: comparePrevious && prevDayData?.approved_employee_names || '',
+        previousPendingNames: comparePrevious && prevDayData?.pending_employee_names || '',
       })
     }
 
@@ -150,6 +154,19 @@ export default function LeaveDashboard() {
   }
 
   const chartData = prepareChartData()
+
+  // Apply day filter ONLY to employee list (not the chart)
+  const filteredListData = (() => {
+    if (filterDays === 'all') return chartData
+    const daysToKeep = parseInt(filterDays, 10)
+    const targetDate = dayjs().subtract(daysToKeep, 'day')
+    const today = dayjs()
+    return chartData.filter(d => {
+      const itemDate = dayjs(d.date)
+      return (itemDate.isAfter(targetDate, 'day') || itemDate.isSame(targetDate, 'day')) &&
+             (itemDate.isBefore(today, 'day') || itemDate.isSame(today, 'day'))
+    })
+  })()
 
   // Generate month options (last 12 months)
   const monthOptions = Array.from({ length: 12 }, (_, i) => {
@@ -267,7 +284,7 @@ export default function LeaveDashboard() {
       {isAdmin && (
         <Card withBorder padding="lg" radius="md">
           <Group justify="space-between" mb="md">
-            <Title order={3}>ข้อมูลการลาของเดือนปัจจุบัน</Title>
+            <Title order={3}>ข้อมูลการลาของเดือน{dayjs(selectedMonth + '-01').format('MMMM')} {dayjs(selectedMonth + '-01').year() + 543}</Title>
             <Group>
               <Select
                 value={selectedMonth}
@@ -287,8 +304,9 @@ export default function LeaveDashboard() {
             <Text>กำลังโหลดข้อมูลกราฟ...</Text>
           ) : dailyStatsData?.data ? (
             chartData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={400}>
-                <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+              <>
+                <ResponsiveContainer width="100%" height={400}>
+                  <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis
                     dataKey="day"
@@ -299,11 +317,24 @@ export default function LeaveDashboard() {
                   />
                   <YAxis allowDecimals={false} />
                   <Tooltip
-                    formatter={(value: number, name: string) => {
-                      if (name === 'current') return [`${value} คน`, 'อนุมัติแล้ว - เดือนปัจจุบัน']
-                      if (name === 'currentPending') return [`${value} คน`, 'รออนุมัติ - เดือนปัจจุบัน']
-                      if (name === 'previous') return [`${value} คน`, 'อนุมัติแล้ว - เดือนก่อนหน้า']
-                      if (name === 'previousPending') return [`${value} คน`, 'รออนุมัติ - เดือนก่อนหน้า']
+                    formatter={(value: number, name: string, props: Record<string, unknown>) => {
+                      const payload = props.payload as Record<string, unknown> | undefined
+                      const currentApprovedNames = payload?.currentApprovedNames as string | undefined
+                      const currentPendingNames = payload?.currentPendingNames as string | undefined
+                      
+                      const names =
+                        name === 'current' ? props.payload.currentApprovedNames
+                          : name === 'currentPending' ? props.payload.currentPendingNames
+                            : name === 'previous' ? props.payload.previousApprovedNames
+                              : name === 'previousPending' ? props.payload.previousPendingNames
+                                : '';
+
+                      const textValue = names ? `${value} คน (${names})` : `${value} คน`;
+
+                      if (name === 'current') return [textValue, 'อนุมัติแล้ว - เดือนปัจจุบัน']
+                      if (name === 'currentPending') return [textValue, 'รออนุมัติ - เดือนปัจจุบัน']
+                      if (name === 'previous') return [textValue, 'อนุมัติแล้ว - เดือนก่อนหน้า']
+                      if (name === 'previousPending') return [textValue, 'รออนุมัติ - เดือนก่อนหน้า']
                       return value
                     }}
                     labelFormatter={(label) => {
@@ -346,6 +377,62 @@ export default function LeaveDashboard() {
                   )}
                 </BarChart>
               </ResponsiveContainer>
+
+              {dailyStatsData?.data && filteredListData.some(d => d.currentApprovedNames || d.currentPendingNames) && (
+                <Stack mt="xl" gap="sm">
+                  <Group justify="space-between" align="center">
+                    <Text fw={600} size="md">รายชื่อพนักงานที่ลาในเดือนนี้</Text>
+                    <Select
+                      value={filterDays}
+                      onChange={(val) => setFilterDays(val || 'all')}
+                      data={[
+                        { value: 'all', label: 'ทั้งหมดของเดือน' },
+                        { value: '3', label: 'ย้อนหลัง 3 วัน' },
+                        { value: '7', label: 'ย้อนหลัง 7 วัน' },
+                        { value: '14', label: 'ย้อนหลัง 14 วัน' },
+                        { value: '30', label: 'ย้อนหลัง 30 วัน' },
+                      ]}
+                      style={{ width: 160 }}
+                      size="sm"
+                    />
+                  </Group>
+                  <Stack gap="md">
+                    {filteredListData.filter(d => d.currentApprovedNames || d.currentPendingNames).map((data, idx) => (
+                      <Card 
+                        withBorder 
+                        radius="md" 
+                        p="md" 
+                        shadow="sm" 
+                        key={idx}
+                        style={{ borderLeft: '4px solid #ff6b35' }}
+                      >
+                        <Group justify="space-between" align="flex-start" wrap="nowrap">
+                          <Stack gap={4} style={{ flex: '0 0 120px' }}>
+                            <Text fw={700} size="md" c="dark.7">วันที่ {data.day}</Text>
+                            <Text size="xs" c="dimmed">{data.label}</Text>
+                          </Stack>
+                          
+                          <Stack gap="sm" style={{ flex: 1 }}>
+                            {data.currentApprovedNames && (
+                              <Group justify="space-between" wrap="nowrap" align="flex-start">
+                                <Text size="sm" style={{ wordBreak: 'break-word', lineHeight: 1.4, flex: 1 }}>{data.currentApprovedNames}</Text>
+                                <Badge color="green" size="sm" variant="dot" mt={3} style={{ flexShrink: 0 }}>อนุมัติแล้ว</Badge>
+                              </Group>
+                            )}
+                            {data.currentPendingNames && (
+                              <Group justify="space-between" wrap="nowrap" align="flex-start">
+                                <Text size="sm" style={{ wordBreak: 'break-word', lineHeight: 1.4, flex: 1 }}>{data.currentPendingNames}</Text>
+                                <Badge color="yellow" size="sm" variant="dot" mt={3} style={{ flexShrink: 0 }}>รออนุมัติ</Badge>
+                              </Group>
+                            )}
+                          </Stack>
+                        </Group>
+                      </Card>
+                    ))}
+                  </Stack>
+                </Stack>
+              )}
+              </>
             ) : (
               <Alert color="blue">ไม่พบข้อมูลการลาในเดือนนี้</Alert>
             )

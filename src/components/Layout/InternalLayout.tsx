@@ -39,7 +39,6 @@ const internalMenuItems = [
         path: '/accounting-fee-notifications',
         label: 'รับแจ้งเรื่องค่าทำบัญชี',
         icon: TbBellRinging,
-        comingSoon: true,
         allowedRoles: ['admin', 'registration'] as string[],
     },
 ]

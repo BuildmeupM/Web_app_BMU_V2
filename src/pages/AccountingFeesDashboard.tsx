@@ -82,6 +82,7 @@ interface CompareData {
     month_a: string
     month_b: string
     clients: CompareClient[]
+    totalClients: number
     totals: {
         acc_month_a: number
         acc_month_b: number
@@ -228,12 +229,18 @@ function MonthComparisonSection({ feeYear }: { feeYear: number }) {
     const [monthA, setMonthA] = useState<string>(MONTH_KEYS[prevMonth])
     const [monthB, setMonthB] = useState<string>(MONTH_KEYS[currentMonth])
     const [searchTerm, setSearchTerm] = useState('')
+    const [displayLimit, setDisplayLimit] = useState<string>('20')
 
     const { data: compareData, isLoading: isCompareLoading } = useQuery<CompareData>(
-        ['accounting-fees-compare', feeYear, monthA, monthB],
+        ['accounting-fees-compare', feeYear, monthA, monthB, displayLimit],
         async () => {
             const response = await api.get('/clients/accounting-fees-compare', {
-                params: { fee_year: feeYear, month_a: monthA, month_b: monthB },
+                params: {
+                    fee_year: feeYear,
+                    month_a: monthA,
+                    month_b: monthB,
+                    ...(displayLimit !== 'all' ? { limit: parseInt(displayLimit) } : {}),
+                },
             })
             return response.data.data
         },
@@ -300,6 +307,20 @@ function MonthComparisonSection({ feeYear }: { feeYear: number }) {
                             onChange={(val) => val && setMonthB(val)}
                             size="xs"
                             w={100}
+                            styles={{ label: { fontSize: 11 } }}
+                        />
+                        <Select
+                            label="แสดง"
+                            data={[
+                                { value: '20', label: '20 รายการ' },
+                                { value: '50', label: '50 รายการ' },
+                                { value: '100', label: '100 รายการ' },
+                                { value: 'all', label: 'ทั้งหมด' },
+                            ]}
+                            value={displayLimit}
+                            onChange={(val) => val && setDisplayLimit(val)}
+                            size="xs"
+                            w={120}
                             styles={{ label: { fontSize: 11 } }}
                         />
                     </Group>
@@ -464,7 +485,12 @@ function MonthComparisonSection({ feeYear }: { feeYear: number }) {
                                     {filteredClients.length > 0 && (
                                         <Table.Tr style={{ backgroundColor: '#e8eaf6' }}>
                                             <Table.Td colSpan={3}>
-                                                <Text size="xs" fw={700} ta="center">รวมทั้งหมด ({filteredClients.length} บริษัท)</Text>
+                                                <Text size="xs" fw={700} ta="center">
+                                                    รวมทั้งหมด ({compareData.totalClients} บริษัท)
+                                                    {compareData.totalClients > filteredClients.length && (
+                                                        <Text span size="xs" c="dimmed" fw={400}> — แสดง {filteredClients.length} รายการ</Text>
+                                                    )}
+                                                </Text>
                                             </Table.Td>
                                             <Table.Td style={{ textAlign: 'right' }}>
                                                 <Text size="xs" fw={700}>{formatCurrency(compareData.totals.acc_month_a)}</Text>

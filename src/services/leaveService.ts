@@ -207,6 +207,8 @@ export const leaveService = {
             pending_employee_count: number
             approved_count: number
             pending_count: number
+            approved_employee_names: string | null
+            pending_employee_names: string | null
           }>
         }
         previous_month: {
@@ -217,6 +219,8 @@ export const leaveService = {
             pending_employee_count: number
             approved_count: number
             pending_count: number
+            approved_employee_names: string | null
+            pending_employee_names: string | null
           }>
         } | null
       }
@@ -348,6 +352,8 @@ export const wfhService = {
             pending_employee_count: number
             approved_count: number
             pending_count: number
+            approved_employee_names: string | null
+            pending_employee_names: string | null
           }>
         }
       }

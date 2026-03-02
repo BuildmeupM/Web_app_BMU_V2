@@ -422,18 +422,9 @@ router.post('/', authenticateToken, authorize('admin', 'hr'), async (req, res) =
       })
     }
 
-    // Check if legal_entity_number already exists
-    const [existingLegalEntity] = await pool.execute(
-      'SELECT id FROM clients WHERE legal_entity_number = ? AND deleted_at IS NULL',
-      [legal_entity_number]
-    )
-
-    if (existingLegalEntity.length > 0) {
-      return res.status(409).json({
-        success: false,
-        message: 'Legal entity number already exists',
-      })
-    }
+    // Check if legal_entity_number already exists (REMOVED)
+    // Note: We allow duplicate legal entity numbers because branch offices (e.g. 122.1, 122.2) 
+    // mathematically share the identical 13-digit tax ID with the head office (122).
 
     const id = generateUUID()
 
@@ -684,20 +675,9 @@ router.put('/:build', authenticateToken, authorize('admin', 'hr'), async (req, r
       })
     }
 
-    // Check if legal_entity_number already exists (for another client)
-    if (legal_entity_number) {
-      const [existingLegalEntity] = await pool.execute(
-        'SELECT id FROM clients WHERE legal_entity_number = ? AND build != ? AND deleted_at IS NULL',
-        [legal_entity_number, build]
-      )
-
-      if (existingLegalEntity.length > 0) {
-        return res.status(409).json({
-          success: false,
-          message: 'Legal entity number already exists for another client',
-        })
-      }
-    }
+    // Check if legal_entity_number already exists (for another client) - REMOVED
+    // Note: We allow duplicate legal entity numbers because branch offices (e.g. 122.1, 122.2) 
+    // mathematically share the identical 13-digit tax ID with the head office (122).
 
     // Update client
     await pool.execute(

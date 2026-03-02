@@ -19,7 +19,7 @@ import {
   ScrollArea,
 } from '@mantine/core'
 import { DateInput, DatesProvider } from '@mantine/dates'
-import { TbAlertCircle, TbX, TbCheck, TbClock, TbAlertTriangle } from 'react-icons/tb'
+import { TbAlertCircle, TbX, TbCheck, TbClock } from 'react-icons/tb'
 import { useQuery } from 'react-query'
 import { wfhService, WFHRequest } from '../../services/leaveService'
 import { useAuthStore } from '../../store/authStore'
@@ -40,6 +40,7 @@ export default function WFHDashboard() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [calendarMonth, setCalendarMonth] = useState<Date>(new Date())
   const [chartMonth, setChartMonth] = useState<string>(dayjs().format('YYYY-MM'))
+  const [filterDays, setFilterDays] = useState<string>('all') // '3', '7', '14', '30', 'all'
   const [filterCalendarMonth, setFilterCalendarMonth] = useState<Date>(new Date())
   const [filterSelectedDate, setFilterSelectedDate] = useState<Date | null>(null)
 
@@ -237,12 +238,12 @@ export default function WFHDashboard() {
     const map = new Map<string, number>()
 
     // Helper function to process calendar data
-    const processCalendarData = (data: any) => {
+    const processCalendarData = (data: { data?: { calendar?: { date: string, requests: { status: string }[] }[] } } | undefined) => {
       if (data?.data?.calendar) {
-        data.data.calendar.forEach((day: any) => {
+        data.data.calendar.forEach((day) => {
           // Count only pending requests (รออนุมัติ) for dashboard display
           const pendingCount = day.requests?.filter(
-            (req: any) => req.status === 'รออนุมัติ'
+            (req) => req.status === 'รออนุมัติ'
           ).length || 0
           map.set(day.date, pendingCount)
         })
@@ -250,9 +251,9 @@ export default function WFHDashboard() {
     }
 
     // Process all calendar data
-    processCalendarData(calendarData)
-    processCalendarData(prevCalendarData)
-    processCalendarData(nextCalendarData)
+    processCalendarData(calendarData as { data?: { calendar?: { date: string, requests: { status: string }[] }[] } } | undefined)
+    processCalendarData(prevCalendarData as { data?: { calendar?: { date: string, requests: { status: string }[] }[] } } | undefined)
+    processCalendarData(nextCalendarData as { data?: { calendar?: { date: string, requests: { status: string }[] }[] } } | undefined)
 
     return map
   }, [calendarData, prevCalendarData, nextCalendarData])
@@ -308,9 +309,9 @@ export default function WFHDashboard() {
     for (let day = 1; day <= daysInMonth; day++) {
       const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
       // Try to find matching data - handle both date string formats
-      const dayData = currentMonth.daily_stats.find((d: any) => {
+      const dayData = currentMonth.daily_stats.find((d: Record<string, unknown>) => {
         // Normalize both dates for comparison
-        const dDate = dayjs(d.wfh_date).format('YYYY-MM-DD')
+        const dDate = dayjs(d.wfh_date as string | Date).format('YYYY-MM-DD')
         return dDate === dateStr
       })
 
@@ -320,13 +321,28 @@ export default function WFHDashboard() {
         label: formatThaiDateShort(dateStr),
         approved: dayData ? Number(dayData.approved_employee_count) || 0 : 0,
         pending: dayData ? Number(dayData.pending_employee_count) || 0 : 0,
+        approvedNames: dayData?.approved_employee_names || '',
+        pendingNames: dayData?.pending_employee_names || '',
       })
     }
-
+    
     return chartData
   }
 
   const chartData = prepareChartData()
+
+  // Apply day filter ONLY to employee list (not the chart)
+  const filteredListData = (() => {
+    if (filterDays === 'all') return chartData
+    const daysToKeep = parseInt(filterDays, 10)
+    const targetDate = dayjs().subtract(daysToKeep, 'day')
+    const today = dayjs()
+    return chartData.filter(d => {
+      const itemDate = dayjs(d.date)
+      return (itemDate.isAfter(targetDate, 'day') || itemDate.isSame(targetDate, 'day')) &&
+             (itemDate.isBefore(today, 'day') || itemDate.isSame(today, 'day'))
+    })
+  })()
 
   // Generate month options for chart
   const monthOptions = Array.from({ length: 12 }, (_, i) => {
@@ -350,9 +366,18 @@ export default function WFHDashboard() {
       }>
     >()
     if (filterCalendarData?.data?.calendar) {
-      filterCalendarData.data.calendar.forEach((day: any) => {
-        if (day.requests && day.requests.length > 0) {
-          map.set(day.date, day.requests)
+      filterCalendarData.data.calendar.forEach((day: Record<string, unknown>) => {
+        if (day.requests && Array.isArray(day.requests) && day.requests.length > 0) {
+          map.set(
+            day.date as string,
+            day.requests as Array<{
+              employee_id: string
+              employee_name: string
+              employee_nick_name?: string
+              employee_position?: string
+              status: string
+            }>
+          )
         }
       })
     }
@@ -736,7 +761,7 @@ export default function WFHDashboard() {
       {/* WFH Monthly Chart */}
       <Card withBorder padding="lg" radius="md">
         <Group justify="space-between" mb="md">
-          <Title order={3}>ข้อมูลการ WFH ของเดือนปัจจุบัน</Title>
+          <Title order={3}>ข้อมูลการ WFH ของเดือน{dayjs(chartMonth + '-01').format('MMMM')} {dayjs(chartMonth + '-01').year() + 543}</Title>
           <Select
             value={chartMonth}
             onChange={(value) => setChartMonth(value || dayjs().format('YYYY-MM'))}
@@ -749,8 +774,9 @@ export default function WFHDashboard() {
           <Text>กำลังโหลดข้อมูลกราฟ...</Text>
         ) : dailyStatsData?.data ? (
           chartData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={400}>
-              <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+            <>
+              <ResponsiveContainer width="100%" height={400}>
+                <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis
                   dataKey="day"
@@ -761,9 +787,16 @@ export default function WFHDashboard() {
                 />
                 <YAxis allowDecimals={false} />
                 <Tooltip
-                  formatter={(value: number, name: string) => {
-                    if (name === 'approved') return [`${value} คน`, 'อนุมัติแล้ว']
-                    if (name === 'pending') return [`${value} คน`, 'รออนุมัติ']
+                  formatter={(value: number, name: string, props: { payload: { approvedNames?: string; pendingNames?: string } }) => {
+                    const names =
+                      name === 'approved' ? props.payload.approvedNames
+                        : name === 'pending' ? props.payload.pendingNames
+                          : '';
+
+                    const textValue = names ? `${value} คน (${names})` : `${value} คน`;
+
+                    if (name === 'approved') return [textValue, 'อนุมัติแล้ว']
+                    if (name === 'pending') return [textValue, 'รออนุมัติ']
                     return value
                   }}
                   labelFormatter={(label) => {
@@ -790,6 +823,62 @@ export default function WFHDashboard() {
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
+            
+            {dailyStatsData?.data && filteredListData.some(d => d.approvedNames || d.pendingNames) && (
+              <Stack mt="xl" gap="sm">
+                <Group justify="space-between" align="center">
+                  <Text fw={600} size="md">รายชื่อพนักงานที่ขอ WFH ในเดือนนี้</Text>
+                  <Select
+                    value={filterDays}
+                    onChange={(val) => setFilterDays(val || 'all')}
+                    data={[
+                      { value: 'all', label: 'ทั้งหมดของเดือน' },
+                      { value: '3', label: 'ย้อนหลัง 3 วัน' },
+                      { value: '7', label: 'ย้อนหลัง 7 วัน' },
+                      { value: '14', label: 'ย้อนหลัง 14 วัน' },
+                      { value: '30', label: 'ย้อนหลัง 30 วัน' },
+                    ]}
+                    style={{ width: 160 }}
+                    size="sm"
+                  />
+                </Group>
+                <Stack gap="md">
+                  {filteredListData.filter(d => d.approvedNames || d.pendingNames).map((data, idx) => (
+                    <Card 
+                      withBorder 
+                      radius="md" 
+                      p="md" 
+                      shadow="sm"
+                      key={idx}
+                      style={{ borderLeft: '4px solid #ff6b35' }}
+                    >
+                      <Group justify="space-between" align="flex-start" wrap="nowrap">
+                        <Stack gap={4} style={{ flex: '0 0 120px' }}>
+                          <Text fw={700} size="md" c="dark.7">วันที่ {data.day}</Text>
+                          <Text size="xs" c="dimmed">{dayjs(data.date).format('dddd')}</Text>
+                        </Stack>
+
+                        <Stack gap="sm" style={{ flex: 1 }}>
+                          {data.approvedNames && (
+                            <Group justify="space-between" wrap="nowrap" align="flex-start">
+                              <Text size="sm" style={{ wordBreak: 'break-word', lineHeight: 1.4, flex: 1 }}>{data.approvedNames}</Text>
+                              <Badge color="green" size="sm" variant="dot" mt={3} style={{ flexShrink: 0 }}>อนุมัติแล้ว</Badge>
+                            </Group>
+                          )}
+                          {data.pendingNames && (
+                            <Group justify="space-between" wrap="nowrap" align="flex-start">
+                              <Text size="sm" style={{ wordBreak: 'break-word', lineHeight: 1.4, flex: 1 }}>{data.pendingNames}</Text>
+                              <Badge color="yellow" size="sm" variant="dot" mt={3} style={{ flexShrink: 0 }}>รออนุมัติ</Badge>
+                            </Group>
+                          )}
+                        </Stack>
+                      </Group>
+                    </Card>
+                  ))}
+                </Stack>
+              </Stack>
+            )}
+            </>
           ) : (
             <Alert color="blue">ไม่พบข้อมูลการ WFH ในเดือนนี้</Alert>
           )
@@ -850,7 +939,7 @@ export default function WFHDashboard() {
                 <Badge color="green" size="lg">
                   {filterSelectedDate
                     ? workReportsData?.data?.submitted?.filter(
-                      (r: any) => r.wfh_date === dayjs(filterSelectedDate).format('YYYY-MM-DD')
+                      (r: WFHRequest) => dayjs(r.wfh_date as string).format('YYYY-MM-DD') === dayjs(filterSelectedDate).format('YYYY-MM-DD')
                     ).length || 0
                     : workReportsData?.data?.summary?.submitted || 0}{' '}
                   รายการ
@@ -862,18 +951,18 @@ export default function WFHDashboard() {
               ) : (() => {
                 const submittedData = filterSelectedDate
                   ? workReportsData?.data?.submitted?.filter(
-                    (r: any) => r.wfh_date === dayjs(filterSelectedDate).format('YYYY-MM-DD')
+                    (r: WFHRequest) => dayjs(r.wfh_date as string).format('YYYY-MM-DD') === dayjs(filterSelectedDate).format('YYYY-MM-DD')
                   ) || []
                   : workReportsData?.data?.submitted || []
 
                 return submittedData.length > 0 ? (
                   <ScrollArea h={400}>
                     <Stack gap="xs">
-                      {submittedData.map((report: any) => (
+                      {submittedData.map((report: WFHRequest) => (
                         <Card key={report.id} withBorder padding="sm" radius="md">
                           <Group gap="xs" mb="xs">
                             <Text fw={500} size="sm">
-                              {report.employee_name}
+                              {report.employee_name as string}
                               {report.employee_nick_name && ` (${report.employee_nick_name})`}
                             </Text>
                             <Badge color="green" size="sm">
@@ -881,14 +970,14 @@ export default function WFHDashboard() {
                             </Badge>
                           </Group>
                           <Text size="xs" c="dimmed">
-                            {report.employee_position} • {report.employee_id}
+                            {report.employee_position as string} • {report.employee_id as string}
                           </Text>
                           <Text size="xs" c="dimmed" mt="xs">
-                            วันที่ WFH: {formatThaiDate(report.wfh_date)}
+                            วันที่ WFH: {formatThaiDate(report.wfh_date as string)}
                           </Text>
                           {report.work_report_submitted_at && (
                             <Text size="xs" c="dimmed">
-                              ส่งเมื่อ: {dayjs(report.work_report_submitted_at).format('DD/MM/YYYY HH:mm')}
+                              ส่งเมื่อ: {dayjs(report.work_report_submitted_at as string).format('DD/MM/YYYY HH:mm')}
                             </Text>
                           )}
                         </Card>
@@ -915,10 +1004,10 @@ export default function WFHDashboard() {
                 <Badge color="orange" size="lg">
                   {filterSelectedDate
                     ? (workReportsData?.data?.not_submitted?.filter(
-                      (r: any) => r.wfh_date === dayjs(filterSelectedDate).format('YYYY-MM-DD')
+                      (r: WFHRequest) => dayjs(r.wfh_date as string).format('YYYY-MM-DD') === dayjs(filterSelectedDate).format('YYYY-MM-DD')
                     ).length || 0) +
                     (workReportsData?.data?.overdue?.filter(
-                      (r: any) => r.wfh_date === dayjs(filterSelectedDate).format('YYYY-MM-DD')
+                      (r: WFHRequest) => dayjs(r.wfh_date as string).format('YYYY-MM-DD') === dayjs(filterSelectedDate).format('YYYY-MM-DD')
                     ).length || 0)
                     : workReportsData?.data?.summary?.not_submitted || 0}{' '}
                   รายการ
@@ -930,13 +1019,13 @@ export default function WFHDashboard() {
               ) : (() => {
                 const notSubmittedData = filterSelectedDate
                   ? workReportsData?.data?.not_submitted?.filter(
-                    (r: any) => r.wfh_date === dayjs(filterSelectedDate).format('YYYY-MM-DD')
+                    (r: WFHRequest) => dayjs(r.wfh_date as string).format('YYYY-MM-DD') === dayjs(filterSelectedDate).format('YYYY-MM-DD')
                   ) || []
                   : workReportsData?.data?.not_submitted || []
 
                 const overdueData = filterSelectedDate
                   ? workReportsData?.data?.overdue?.filter(
-                    (r: any) => r.wfh_date === dayjs(filterSelectedDate).format('YYYY-MM-DD')
+                    (r: WFHRequest) => dayjs(r.wfh_date as string).format('YYYY-MM-DD') === dayjs(filterSelectedDate).format('YYYY-MM-DD')
                   ) || []
                   : workReportsData?.data?.overdue || []
 
@@ -945,8 +1034,8 @@ export default function WFHDashboard() {
                 return allNotSubmitted.length > 0 ? (
                   <ScrollArea h={400}>
                     <Stack gap="xs">
-                      {allNotSubmitted.map((report: any) => {
-                        const wfhDate = new Date(report.wfh_date)
+                      {allNotSubmitted.map((report: WFHRequest) => {
+                        const wfhDate = new Date(report.wfh_date as string)
                         wfhDate.setHours(0, 0, 0, 0)
                         const today = new Date()
                         today.setHours(0, 0, 0, 0)
@@ -957,7 +1046,7 @@ export default function WFHDashboard() {
                           <Card key={report.id} withBorder padding="sm" radius="md">
                             <Group gap="xs" mb="xs">
                               <Text fw={500} size="sm">
-                                {report.employee_name}
+                                {report.employee_name as string}
                                 {report.employee_nick_name && ` (${report.employee_nick_name})`}
                               </Text>
                               <Badge color={canStillSubmit ? 'orange' : 'red'} size="sm">

@@ -26,6 +26,42 @@ import { useForm } from '@mantine/form'
 import { TbCopy } from 'react-icons/tb'
 import { AccountingFees } from '../../services/clientsService'
 
+/** Format Date to YYYY-MM-DD using local timezone (avoids UTC shift) */
+function formatLocalDate(date: Date): string {
+    const y = date.getFullYear()
+    const m = String(date.getMonth() + 1).padStart(2, '0')
+    const d = String(date.getDate()).padStart(2, '0')
+    return `${y}-${m}-${d}`
+}
+
+/** Parse date string to local Date (avoids UTC midnight shift) */
+function parseLocalDate(dateStr: string): Date {
+    // Handle ISO format "YYYY-MM-DD" or "YYYY-MM-DDT..."
+    const isoMatch = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/)
+    if (isoMatch) {
+        return new Date(Number(isoMatch[1]), Number(isoMatch[2]) - 1, Number(isoMatch[3]))
+    }
+    return new Date(dateStr)
+}
+
+/** Parse typed date input: dd/mm/yyyy, dd.mm.yyyy, ddmmyyyy → Date */
+function dateParser(input: string): Date {
+    const trimmed = input.trim()
+    // dd/mm/yyyy or dd.mm.yyyy
+    const slashDot = trimmed.match(/^(\d{1,2})[/.]((\d{1,2}))[/.]((\d{4}))$/)
+    if (slashDot) {
+        return new Date(Number(slashDot[4]), Number(slashDot[2]) - 1, Number(slashDot[1]))
+    }
+    // ddmmyyyy (8 digits)
+    if (/^\d{8}$/.test(trimmed)) {
+        const dd = Number(trimmed.slice(0, 2))
+        const mm = Number(trimmed.slice(2, 4))
+        const yyyy = Number(trimmed.slice(4, 8))
+        return new Date(yyyy, mm - 1, dd)
+    }
+    return new Date(trimmed)
+}
+
 interface MonthlyFeesFormProps {
     opened: boolean
     onClose: () => void
@@ -115,8 +151,8 @@ export default function MonthlyFeesForm({
                 form.setValues({
                     fee_year: data.fee_year || new Date().getFullYear(),
                     peak_code: data.peak_code || '',
-                    accounting_start_date: data.accounting_start_date ? new Date(data.accounting_start_date) : null,
-                    accounting_end_date: data.accounting_end_date ? new Date(data.accounting_end_date) : null,
+                    accounting_start_date: data.accounting_start_date ? parseLocalDate(data.accounting_start_date) : null,
+                    accounting_end_date: data.accounting_end_date ? parseLocalDate(data.accounting_end_date) : null,
                     accounting_end_reason: data.accounting_end_reason || '',
                     accounting_fee_jan: data.accounting_fee_jan ?? '',
                     accounting_fee_feb: data.accounting_fee_feb ?? '',
@@ -159,10 +195,10 @@ export default function MonthlyFeesForm({
             fee_year: values.fee_year,
             peak_code: values.peak_code || null,
             accounting_start_date: values.accounting_start_date
-                ? values.accounting_start_date.toISOString().split('T')[0]
+                ? formatLocalDate(values.accounting_start_date)
                 : undefined,
             accounting_end_date: values.accounting_end_date
-                ? values.accounting_end_date.toISOString().split('T')[0]
+                ? formatLocalDate(values.accounting_end_date)
                 : undefined,
             accounting_end_reason: values.accounting_end_reason || null,
             accounting_fee_jan: values.accounting_fee_jan !== '' ? Number(values.accounting_fee_jan) : null,
@@ -237,6 +273,7 @@ export default function MonthlyFeesForm({
                                 label="วันเริ่มทำบัญชี"
                                 placeholder="เลือกวันที่"
                                 valueFormat="DD/MM/YYYY"
+                                dateParser={dateParser}
                                 withAsterisk
                                 clearable
                                 {...form.getInputProps('accounting_start_date')}
@@ -247,6 +284,7 @@ export default function MonthlyFeesForm({
                                 label="วันสิ้นสุดทำบัญชี"
                                 placeholder="เลือกวันที่"
                                 valueFormat="DD/MM/YYYY"
+                                dateParser={dateParser}
                                 clearable
                                 {...form.getInputProps('accounting_end_date')}
                             />

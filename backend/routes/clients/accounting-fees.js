@@ -139,7 +139,7 @@ router.get('/accounting-fees-dashboard', authenticateToken, async (req, res) => 
  */
 router.get('/accounting-fees-compare', authenticateToken, async (req, res) => {
   try {
-    const { fee_year, month_a, month_b } = req.query
+    const { fee_year, month_a, month_b, limit } = req.query
     const currentYear = fee_year || new Date().getFullYear()
 
     if (!month_a || !month_b) {
@@ -177,7 +177,7 @@ router.get('/accounting-fees-compare', authenticateToken, async (req, res) => {
       [currentYear]
     )
 
-    // Calculate totals
+    // Calculate totals from ALL rows (always accurate)
     const totals = rows.reduce((acc, r) => ({
       acc_month_a: acc.acc_month_a + Number(r.acc_month_a),
       acc_month_b: acc.acc_month_b + Number(r.acc_month_b),
@@ -185,13 +185,19 @@ router.get('/accounting-fees-compare', authenticateToken, async (req, res) => {
       hr_month_b: acc.hr_month_b + Number(r.hr_month_b),
     }), { acc_month_a: 0, acc_month_b: 0, hr_month_a: 0, hr_month_b: 0 })
 
+    // Apply limit to clients array (if specified)
+    const totalClients = rows.length
+    const limitNum = limit ? parseInt(limit) : 0
+    const limitedClients = limitNum > 0 ? rows.slice(0, limitNum) : rows
+
     res.json({
       success: true,
       data: {
         fee_year: parseInt(currentYear),
         month_a,
         month_b,
-        clients: rows,
+        clients: limitedClients,
+        totalClients,
         totals,
       },
     })
