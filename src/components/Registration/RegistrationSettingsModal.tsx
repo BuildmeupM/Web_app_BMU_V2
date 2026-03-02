@@ -6,7 +6,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
     Modal, Stack, Group, Text, TextInput, Button, ActionIcon, Card, Badge,
-    Tabs, Box, Loader, Accordion, Tooltip, Divider, ThemeIcon
+    Tabs, Box, Loader, Accordion, Tooltip, Divider
 } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import {
@@ -15,7 +15,7 @@ import {
 } from 'react-icons/tb'
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd'
 import {
-    WorkType, WorkSubType, Department,
+    WorkType, Department,
     getWorkTypes, createWorkType, updateWorkType, deleteWorkType,
     createSubType, updateSubType, deleteSubType, reorderWorkTypes, reorderSubTypes
 } from '../../services/registrationWorkService'
@@ -26,7 +26,7 @@ interface RegistrationSettingsModalProps {
     onDataChanged?: () => void
 }
 
-const departmentConfig: { key: Department; label: string; icon: React.ComponentType<any>; color: string }[] = [
+const departmentConfig: { key: Department; label: string; icon: React.ElementType; color: string }[] = [
     { key: 'dbd', label: 'DBD', icon: TbBuildingBank, color: '#1565c0' },
     { key: 'rd', label: 'RD', icon: TbReceiptTax, color: '#e65100' },
     { key: 'sso', label: 'SSO', icon: TbShieldCheck, color: '#2e7d32' },
@@ -51,7 +51,8 @@ export default function RegistrationSettingsModal({ opened, onClose, onDataChang
         try {
             const types = await getWorkTypes(activeTab as Department)
             setWorkTypes(types)
-        } catch (error: any) {
+        } catch (err: unknown) {
+            const error = err as Record<string, any>;
             console.error('Fetch work types error:', error)
             notifications.show({
                 title: 'เกิดข้อผิดพลาด',
@@ -82,7 +83,8 @@ export default function RegistrationSettingsModal({ opened, onClose, onDataChang
             notifications.show({ title: 'สำเร็จ', message: 'เพิ่มประเภทงานแล้ว', color: 'green' })
             fetchTypes()
             onDataChanged?.()
-        } catch (error: any) {
+        } catch (err: unknown) {
+            const error = err as Record<string, any>;
             notifications.show({
                 title: 'เกิดข้อผิดพลาด',
                 message: error?.response?.data?.message || 'ไม่สามารถเพิ่มได้',
@@ -101,7 +103,8 @@ export default function RegistrationSettingsModal({ opened, onClose, onDataChang
             notifications.show({ title: 'สำเร็จ', message: 'แก้ไขประเภทงานแล้ว', color: 'green' })
             fetchTypes()
             onDataChanged?.()
-        } catch (error: any) {
+        } catch (err: unknown) {
+            const error = err as Record<string, any>;
             notifications.show({
                 title: 'เกิดข้อผิดพลาด',
                 message: error?.response?.data?.message || 'ไม่สามารถแก้ไขได้',
@@ -117,7 +120,8 @@ export default function RegistrationSettingsModal({ opened, onClose, onDataChang
             notifications.show({ title: 'สำเร็จ', message: 'ลบประเภทงานแล้ว', color: 'green' })
             fetchTypes()
             onDataChanged?.()
-        } catch (error: any) {
+        } catch (err: unknown) {
+            const error = err as Record<string, any>;
             notifications.show({
                 title: 'เกิดข้อผิดพลาด',
                 message: error?.response?.data?.message || 'ไม่สามารถลบได้',
@@ -140,7 +144,8 @@ export default function RegistrationSettingsModal({ opened, onClose, onDataChang
             notifications.show({ title: 'สำเร็จ', message: 'เพิ่มรายการย่อยแล้ว', color: 'green' })
             fetchTypes()
             onDataChanged?.()
-        } catch (error: any) {
+        } catch (err: unknown) {
+            const error = err as Record<string, any>;
             notifications.show({
                 title: 'เกิดข้อผิดพลาด',
                 message: error?.response?.data?.message || 'ไม่สามารถเพิ่มได้',
@@ -159,7 +164,8 @@ export default function RegistrationSettingsModal({ opened, onClose, onDataChang
             notifications.show({ title: 'สำเร็จ', message: 'แก้ไขรายการย่อยแล้ว', color: 'green' })
             fetchTypes()
             onDataChanged?.()
-        } catch (error: any) {
+        } catch (err: unknown) {
+            const error = err as Record<string, any>;
             notifications.show({
                 title: 'เกิดข้อผิดพลาด',
                 message: error?.response?.data?.message || 'ไม่สามารถแก้ไขได้',
@@ -175,7 +181,8 @@ export default function RegistrationSettingsModal({ opened, onClose, onDataChang
             notifications.show({ title: 'สำเร็จ', message: 'ลบรายการย่อยแล้ว', color: 'green' })
             fetchTypes()
             onDataChanged?.()
-        } catch (error: any) {
+        } catch (err: unknown) {
+            const error = err as Record<string, any>;
             notifications.show({
                 title: 'เกิดข้อผิดพลาด',
                 message: error?.response?.data?.message || 'ไม่สามารถลบได้',
