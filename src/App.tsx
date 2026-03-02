@@ -66,9 +66,9 @@ function App() {
   useEffect(() => {
     if (!_hasHydrated) {
       const timer = setTimeout(() => {
-        // ตรวจสอบว่า localStorage มีข้อมูลหรือไม่
+        // ตรวจสอบว่า sessionStorage มีข้อมูลหรือไม่
         // ถ้ามีก็ถือว่า hydration ควรเสร็จแล้ว แต่ callback อาจไม่ทำงาน
-        const stored = localStorage.getItem('auth-storage')
+        const stored = sessionStorage.getItem('auth-storage')
         if (stored) {
           try {
             const parsed = JSON.parse(stored)

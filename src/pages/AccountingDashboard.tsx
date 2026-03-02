@@ -79,8 +79,9 @@ export default function AccountingDashboard() {
             staleTime: 60_000,
             cacheTime: 5 * 60_000,
             refetchOnWindowFocus: false,
-            retry: (failureCount: number, err: any) => {
-                if (err?.response?.status >= 400 && err?.response?.status < 500) return false
+            retry: (failureCount: number, err: unknown) => {
+                const axiosError = err as { response?: { status?: number } }
+                if (axiosError?.response?.status && axiosError.response.status >= 400 && axiosError.response.status < 500) return false
                 return failureCount < 2
             },
         }
@@ -224,7 +225,7 @@ export default function AccountingDashboard() {
                                     radius="md"
                                     onClick={handleRefresh}
                                     loading={isLoading}
-                                    style={{ transition: 'transform 0.2s', '&:hover': { transform: 'rotate(180deg)' } } as any}
+                                    styles={{ root: { transition: 'transform 0.2s', '&:hover': { transform: 'rotate(180deg)' } } }}
                                 >
                                     <TbRefresh size={22} />
                                 </ActionIcon>
@@ -284,8 +285,7 @@ export default function AccountingDashboard() {
                 </Center>
             ) : isError ? (
                 <Alert icon={<TbAlertCircle />} title="เกิดข้อผิดพลาด" color="red" radius="lg">
-                    {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                    {(error as any)?.message || 'ไม่สามารถโหลดข้อมูลได้'}
+                    {(error as Error)?.message || 'ไม่สามารถโหลดข้อมูลได้'}
                 </Alert>
             ) : records.length === 0 ? (
                 <Center h={300}>

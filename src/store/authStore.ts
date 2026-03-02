@@ -50,8 +50,8 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'auth-storage',
-      // ใช้ localStorage เพื่อจำ login เมื่อปิดแท็บ (ร่วมกับ reopenCount เพื่อบังคับ re-login หลังปิด-เปิดเกิน 3 ครั้ง)
-      storage: createJSONStorage(() => localStorage),
+      // ใช้ sessionStorage เพื่อให้แต่ละแท็บมี session แยกกัน (แก้ปัญหาคนอื่นเปิดเว็บแล้วติด login เดิม)
+      storage: createJSONStorage(() => sessionStorage),
       // ✅ BUG-168: สำคัญ: รอ hydration เสร็จก่อนตรวจสอบ auth state
       // เพิ่ม error handling เพื่อป้องกันปัญหาที่ callback ไม่ทำงาน
       onRehydrateStorage: () => (state, error) => {
