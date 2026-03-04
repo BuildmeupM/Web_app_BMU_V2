@@ -12,37 +12,39 @@ import WFHDashboard from '../components/Leave/WFHDashboard'
 
 export default function LeaveManagement() {
   const [searchParams, setSearchParams] = useSearchParams()
-  
+
   const user = useAuthStore((state) => state.user)
   // Check if admin/hr role or specific permission based on roles
   const isAdmin = user?.role === 'admin' || user?.role === 'hr'
-  
+  const isAudit = user?.role === 'audit'
+  const canApprove = isAdmin || isAudit;
+
   // State for forms
   const [leaveFormOpened, setLeaveFormOpened] = useState(false)
   const [wfhFormOpened, setWfhFormOpened] = useState(false)
 
   // Derived state from URL search params
   const activeMainTab = searchParams.get('tab') || 'leave'
-  
+
   // Default sub-tabs depending on role
-  const defaultLeaveSubTab = isAdmin ? 'dashboard' : 'history'
+  const defaultLeaveSubTab = canApprove ? 'dashboard' : 'history'
   const activeLeaveSubTab = searchParams.get('sub-leave') || defaultLeaveSubTab
 
-  const defaultWfhSubTab = isAdmin ? 'dashboard' : 'work-report'
+  const defaultWfhSubTab = canApprove ? 'dashboard' : 'work-report'
   const activeWfhSubTab = searchParams.get('sub-wfh') || defaultWfhSubTab
 
   // Update URL purely on parameter change without navigating away from the page
   const handleMainTabChange = (value: string | null) => {
     if (!value) return
     searchParams.set('tab', value)
-    
+
     // Set appropriate default sub-tab when main tab changes
     if (value === 'leave' && !searchParams.has('sub-leave')) {
       searchParams.set('sub-leave', defaultLeaveSubTab)
     } else if (value === 'wfh' && !searchParams.has('sub-wfh')) {
       searchParams.set('sub-wfh', defaultWfhSubTab)
     }
-    
+
     setSearchParams(searchParams)
   }
 
@@ -67,12 +69,12 @@ export default function LeaveManagement() {
       currentParams.set('tab', 'leave')
       shouldUpdate = true
     }
-    
+
     if (currentParams.get('tab') === 'leave' && !currentParams.has('sub-leave')) {
       currentParams.set('sub-leave', defaultLeaveSubTab)
       shouldUpdate = true
     }
-    
+
     if (currentParams.get('tab') === 'wfh' && !currentParams.has('sub-wfh')) {
       currentParams.set('sub-wfh', defaultWfhSubTab)
       shouldUpdate = true
@@ -89,7 +91,7 @@ export default function LeaveManagement() {
         {/* Header */}
         <Group justify="space-between" align="center">
           <Title order={1}>ลางาน / สลับที่ทำงาน (WFH)</Title>
-          
+
           <Menu shadow="md" width={200} position="bottom-end">
             <Menu.Target>
               <Button
@@ -104,13 +106,13 @@ export default function LeaveManagement() {
 
             <Menu.Dropdown>
               <Menu.Label>เลือกประเภทคำร้อง</Menu.Label>
-              <Menu.Item 
+              <Menu.Item
                 leftSection={<TbBeach size={16} />}
                 onClick={() => setLeaveFormOpened(true)}
               >
                 ยื่นขอลางาน
               </Menu.Item>
-              <Menu.Item 
+              <Menu.Item
                 leftSection={<TbHome size={16} />}
                 onClick={() => setWfhFormOpened(true)}
               >
@@ -131,12 +133,12 @@ export default function LeaveManagement() {
           <Tabs.Panel value="leave" pt="lg">
             <Tabs value={activeLeaveSubTab} onChange={handleLeaveSubTabChange} variant="pills" radius="sm">
               <Tabs.List mb="md">
-                {isAdmin && <Tabs.Tab value="dashboard">Dashboard - ลางาน</Tabs.Tab>}
+                {canApprove && <Tabs.Tab value="dashboard">Dashboard - ลางาน</Tabs.Tab>}
                 <Tabs.Tab value="history">ข้อมูลการลางาน</Tabs.Tab>
-                {isAdmin && <Tabs.Tab value="pending">คำขอที่รออนุมัติ</Tabs.Tab>}
+                {canApprove && <Tabs.Tab value="pending">คำขอที่รออนุมัติ</Tabs.Tab>}
               </Tabs.List>
 
-              {isAdmin && (
+              {canApprove && (
                 <Tabs.Panel value="dashboard">
                   <LeaveDashboard />
                 </Tabs.Panel>
@@ -146,7 +148,7 @@ export default function LeaveManagement() {
                 <LeaveRequestList />
               </Tabs.Panel>
 
-              {isAdmin && (
+              {canApprove && (
                 <Tabs.Panel value="pending">
                   <LeaveRequestList pendingOnly />
                 </Tabs.Panel>
@@ -158,13 +160,13 @@ export default function LeaveManagement() {
           <Tabs.Panel value="wfh" pt="lg">
             <Tabs value={activeWfhSubTab} onChange={handleWfhSubTabChange} variant="pills" radius="sm">
               <Tabs.List mb="md">
-                {isAdmin && <Tabs.Tab value="dashboard">Dashboard - WFH</Tabs.Tab>}
+                {canApprove && <Tabs.Tab value="dashboard">Dashboard - WFH</Tabs.Tab>}
                 <Tabs.Tab value="work-report">รายงานการทำงาน</Tabs.Tab>
                 <Tabs.Tab value="history">ข้อมูลการ WFH</Tabs.Tab>
-                {isAdmin && <Tabs.Tab value="pending">คำขอที่รออนุมัติ</Tabs.Tab>}
+                {canApprove && <Tabs.Tab value="pending">คำขอที่รออนุมัติ</Tabs.Tab>}
               </Tabs.List>
 
-              {isAdmin && (
+              {canApprove && (
                 <Tabs.Panel value="dashboard">
                   <WFHDashboard />
                 </Tabs.Panel>
@@ -178,7 +180,7 @@ export default function LeaveManagement() {
                 <WFHRequestList />
               </Tabs.Panel>
 
-              {isAdmin && (
+              {canApprove && (
                 <Tabs.Panel value="pending">
                   <WFHRequestList pendingOnly />
                 </Tabs.Panel>

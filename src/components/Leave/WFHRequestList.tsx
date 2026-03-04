@@ -41,11 +41,13 @@ const WFHRequestList = memo(function WFHRequestList({ pendingOnly = false, showW
   const [endDate, setEndDate] = useState<Date | null>(null)
   const [approvalModalOpened, setApprovalModalOpened] = useState(false)
   const [selectedRequest, setSelectedRequest] = useState<WFHRequest | null>(null)
-  const [approvalMode, setApprovalMode] = useState<'approve' | 'reject'>('approve')
+  const [approvalMode, setApprovalMode] = useState<'approve' | 'reject' | 'vote_approve' | 'vote_reject'>('approve')
   const [workReportModalOpened, setWorkReportModalOpened] = useState(false)
   const [selectedWorkReportRequest, setSelectedWorkReportRequest] = useState<WFHRequest | null>(null)
   const user = useAuthStore((state) => state.user)
   const isAdmin = user?.role === 'admin' || user?.role === 'hr'
+  const isAudit = user?.role === 'audit'
+  const canApprove = isAdmin || isAudit
 
   // Fetch WFH requests
   // For "ข้อมูลการ WFH" (history tab), always show only own data
@@ -73,7 +75,7 @@ const WFHRequestList = memo(function WFHRequestList({ pendingOnly = false, showW
         end_date: endDate ? endDate.toISOString().split('T')[0] : undefined,
       }),
     {
-      enabled: !pendingOnly || isAdmin,
+      enabled: !pendingOnly || canApprove,
     }
   )
 
@@ -82,7 +84,7 @@ const WFHRequestList = memo(function WFHRequestList({ pendingOnly = false, showW
     ['wfh-requests', 'pending', page, limit],
     () => wfhService.getPending({ page, limit }),
     {
-      enabled: pendingOnly && isAdmin,
+      enabled: pendingOnly && canApprove,
     }
   )
 
@@ -143,6 +145,10 @@ const WFHRequestList = memo(function WFHRequestList({ pendingOnly = false, showW
         return 'red'
       case 'รออนุมัติ':
         return 'yellow'
+      case 'รออนุมัติ (ผู้บริหาร)':
+      case 'รอตรวจสอบ':
+      case 'รอโหวต':
+        return 'orange'
       default:
         return 'gray'
     }
@@ -255,7 +261,7 @@ const WFHRequestList = memo(function WFHRequestList({ pendingOnly = false, showW
                 <Table.Th>วันที่ WFH</Table.Th>
                 <Table.Th>สถานะ</Table.Th>
                 <Table.Th>รายงานการทำงาน</Table.Th>
-                {isAdmin && <Table.Th>จัดการ</Table.Th>}
+                {canApprove && pendingOnly && <Table.Th>จัดการ</Table.Th>}
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
@@ -335,38 +341,70 @@ const WFHRequestList = memo(function WFHRequestList({ pendingOnly = false, showW
                         <Text size="sm" c="dimmed">-</Text>
                       )}
                     </Table.Td>
-                    {isAdmin && (
+                    {canApprove && pendingOnly && (
                       <Table.Td>
-                        {request.status === 'รออนุมัติ' && (
-                          <Group gap="xs">
-                            <Tooltip label="อนุมัติ">
-                              <ActionIcon
-                                variant="subtle"
-                                color="green"
-                                onClick={() => {
-                                  setSelectedRequest(request)
-                                  setApprovalMode('approve')
-                                  setApprovalModalOpened(true)
-                                }}
-                              >
-                                <TbCheck size={18} />
-                              </ActionIcon>
-                            </Tooltip>
-                            <Tooltip label="ไม่อนุมัติ">
-                              <ActionIcon
-                                variant="subtle"
-                                color="red"
-                                onClick={() => {
-                                  setSelectedRequest(request)
-                                  setApprovalMode('reject')
-                                  setApprovalModalOpened(true)
-                                }}
-                              >
-                                <TbX size={18} />
-                              </ActionIcon>
-                            </Tooltip>
-                          </Group>
-                        )}
+                        <Group gap="xs">
+                          {(isAdmin || (isAudit && request.status === 'รอตรวจสอบ')) && request.status !== 'รอโหวต' && (
+                            <>
+                              <Tooltip label="อนุมัติ">
+                                <ActionIcon
+                                  variant="subtle"
+                                  color="green"
+                                  onClick={() => {
+                                    setSelectedRequest(request)
+                                    setApprovalMode('approve')
+                                    setApprovalModalOpened(true)
+                                  }}
+                                >
+                                  <TbCheck size={18} />
+                                </ActionIcon>
+                              </Tooltip>
+                              <Tooltip label="ไม่อนุมัติ">
+                                <ActionIcon
+                                  variant="subtle"
+                                  color="red"
+                                  onClick={() => {
+                                    setSelectedRequest(request)
+                                    setApprovalMode('reject')
+                                    setApprovalModalOpened(true)
+                                  }}
+                                >
+                                  <TbX size={18} />
+                                </ActionIcon>
+                              </Tooltip>
+                            </>
+                          )}
+                          {isAudit && request.status === 'รอโหวต' && (
+                            <>
+                              <Tooltip label="โหวตอนุมัติ">
+                                <ActionIcon
+                                  variant="subtle"
+                                  color="green"
+                                  onClick={() => {
+                                    setSelectedRequest(request)
+                                    setApprovalMode('vote_approve')
+                                    setApprovalModalOpened(true)
+                                  }}
+                                >
+                                  <TbCheck size={18} />
+                                </ActionIcon>
+                              </Tooltip>
+                              <Tooltip label="โหวตไม่อนุมัติ">
+                                <ActionIcon
+                                  variant="subtle"
+                                  color="red"
+                                  onClick={() => {
+                                    setSelectedRequest(request)
+                                    setApprovalMode('vote_reject')
+                                    setApprovalModalOpened(true)
+                                  }}
+                                >
+                                  <TbX size={18} />
+                                </ActionIcon>
+                              </Tooltip>
+                            </>
+                          )}
+                        </Group>
                       </Table.Td>
                     )}
                   </Table.Tr>
@@ -389,7 +427,7 @@ const WFHRequestList = memo(function WFHRequestList({ pendingOnly = false, showW
       )}
 
       {/* Approval Modal */}
-      {isAdmin && selectedRequest && (
+      {canApprove && selectedRequest && (
         <ApprovalModal
           opened={approvalModalOpened}
           onClose={() => {

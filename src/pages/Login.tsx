@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import {
   TextInput,
   PasswordInput,
@@ -566,6 +566,7 @@ export default function Login() {
         setLoginMessage('เกิดข้อผิดพลาด: ไม่ได้รับข้อมูล user หรือ token')
         setTimeout(() => setLoginStatus(null), 3000)
       }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       console.error('Login error:', err)
       let msg = 'เกิดข้อผิดพลาด'

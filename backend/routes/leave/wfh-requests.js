@@ -142,9 +142,9 @@ router.get('/', authenticateToken, async (req, res) => {
 /**
  * GET /api/wfh-requests/pending
  * ดึงการขอ WFH ที่รออนุมัติ
- * Access: HR/Admin only
+ * Access: HR/Admin/Audit only
  */
-router.get('/pending', authenticateToken, authorize('admin', 'hr'), async (req, res) => {
+router.get('/pending', authenticateToken, authorize('admin', 'hr', 'audit'), async (req, res) => {
   try {
     const {
       page = 1,
@@ -156,9 +156,22 @@ router.get('/pending', authenticateToken, authorize('admin', 'hr'), async (req, 
     const limitNum = Math.min(parseInt(limit), 100)
     const offset = (pageNum - 1) * limitNum
 
-    // Build WHERE clause for date filter
-    const whereConditions = ['wr.status = ?', 'wr.deleted_at IS NULL']
-    const queryParams = ['รออนุมัติ']
+    const userRole = req.user.role;
+    let whereConditions = ['wr.deleted_at IS NULL']
+    const queryParams = []
+
+    if (userRole === 'audit') {
+      whereConditions.push(`(
+        (wr.status = 'รอตรวจสอบ' AND u.role IN ('service', 'data_entry', 'data_entry_and_service')) 
+        OR 
+        (wr.status = 'รอโหวต' AND u.role = 'audit' AND wr.employee_id != ?)
+      )`);
+      queryParams.push(req.user.employee_id);
+    } else if (userRole === 'hr') {
+      whereConditions.push(`wr.status = 'รออนุมัติ'`);
+    } else if (userRole === 'admin') {
+      whereConditions.push(`wr.status IN ('รออนุมัติ', 'รออนุมัติ (ผู้บริหาร)')`);
+    }
 
     // Filter by WFH date if provided
     if (wfh_date) {
@@ -172,6 +185,8 @@ router.get('/pending', authenticateToken, authorize('admin', 'hr'), async (req, 
     const [countResults] = await pool.execute(
       `SELECT COUNT(*) as total 
        FROM wfh_requests wr
+       LEFT JOIN employees e ON wr.employee_id = e.employee_id
+       LEFT JOIN users u ON wr.employee_id = u.employee_id
        WHERE ${whereClause}`,
       queryParams
     )
@@ -188,9 +203,11 @@ router.get('/pending', authenticateToken, authorize('admin', 'hr'), async (req, 
         DATE_FORMAT(wr.created_at, '%Y-%m-%d %H:%i:%s') as created_at,
         e.full_name as employee_name,
         e.nick_name as employee_nick_name,
-        e.position as employee_position
+        e.position as employee_position,
+        u.role as employee_role
        FROM wfh_requests wr
        LEFT JOIN employees e ON wr.employee_id = e.employee_id
+       LEFT JOIN users u ON wr.employee_id = u.employee_id
        WHERE ${whereClause}
        ORDER BY wr.wfh_date ASC, wr.created_at ASC
        LIMIT ? OFFSET ?`,
@@ -225,7 +242,7 @@ router.get('/pending', authenticateToken, authorize('admin', 'hr'), async (req, 
  */
 router.get('/calendar', authenticateToken, async (req, res) => {
   try {
-    const { month, year } = req.query
+    const { month } = req.query
     const targetDate = month ? new Date(`${month}-01`) : new Date()
     const targetYear = targetDate.getFullYear()
     const targetMonth = targetDate.getMonth() + 1
@@ -354,9 +371,6 @@ router.get('/work-reports', authenticateToken, authorize('admin', 'hr'), async (
     const [year, monthNum] = targetMonth.split('-').map(Number)
 
     // Get first and last day of target month
-    // monthNum - 1 because JavaScript months are 0-indexed
-    const firstDay = new Date(year, monthNum - 1, 1)
-    // monthNum (not monthNum - 1) gives us the last day of the previous month
     // So monthNum gives us the last day of targetMonth
     const lastDay = new Date(year, monthNum, 0)
 
@@ -588,9 +602,6 @@ router.get('/dashboard/daily', authenticateToken, authorize('admin', 'hr'), asyn
     const [year, monthNum] = targetMonth.split('-').map(Number)
 
     // Get first and last day of target month
-    // monthNum - 1 because JavaScript months are 0-indexed
-    const firstDay = new Date(year, monthNum - 1, 1)
-    // monthNum (not monthNum - 1) gives us the last day of the previous month
     // So monthNum gives us the last day of targetMonth
     const lastDay = new Date(year, monthNum, 0)
 
@@ -766,11 +777,19 @@ router.post('/', authenticateToken, async (req, res) => {
     const id = generateUUID()
     const requestDate = new Date().toISOString().split('T')[0] // Today
 
+    // Determine initial status based on employee role
+    let initialStatus = 'รออนุมัติ'
+    if (['service', 'data_entry', 'data_entry_and_service'].includes(req.user.role)) {
+      initialStatus = 'รอตรวจสอบ'
+    } else if (req.user.role === 'audit') {
+      initialStatus = 'รอโหวต'
+    }
+
     await pool.execute(
       `INSERT INTO wfh_requests (
         id, employee_id, request_date, wfh_date, status
-      ) VALUES (?, ?, ?, ?, 'รออนุมัติ')`,
-      [id, employeeId, requestDate, wfh_date]
+      ) VALUES (?, ?, ?, ?, ?)`,
+      [id, employeeId, requestDate, wfh_date, initialStatus]
     )
 
     // Get created WFH request
@@ -803,11 +822,115 @@ router.post('/', authenticateToken, async (req, res) => {
 })
 
 /**
- * PUT /api/wfh-requests/:id/approve
- * อนุมัติการขอ WFH
- * Access: HR/Admin only
+ * POST /api/wfh-requests/:id/vote
+ * โหวตคำขอ WFH (เฉพาะทีม Audit)
+ * Access: Audit only
  */
-router.put('/:id/approve', authenticateToken, authorize('admin', 'hr'), async (req, res) => {
+router.post('/:id/vote', authenticateToken, authorize('audit'), async (req, res) => {
+  const connection = await pool.getConnection()
+  try {
+    const { id } = req.params
+    const { vote } = req.body // 'approve' or 'reject'
+
+    if (!['approve', 'reject'].includes(vote)) {
+      return res.status(400).json({ success: false, message: 'Invalid vote value' })
+    }
+
+    await connection.beginTransaction()
+
+    // 1. Get request
+    const [requests] = await connection.execute(
+      `SELECT * FROM wfh_requests WHERE id = ? AND deleted_at IS NULL FOR UPDATE`,
+      [id]
+    )
+
+    if (requests.length === 0) {
+      await connection.rollback()
+      return res.status(404).json({ success: false, message: 'WFH request not found' })
+    }
+
+    const request = requests[0]
+
+    if (request.status !== 'รอโหวต') {
+      await connection.rollback()
+      return res.status(400).json({ success: false, message: 'Request is not in voting status' })
+    }
+
+    if (request.employee_id === req.user.employee_id) {
+      await connection.rollback()
+      return res.status(403).json({ success: false, message: 'Cannot vote on your own request' })
+    }
+
+    // 2. Record vote
+    const voteId = generateUUID()
+    await connection.execute(
+      `INSERT INTO wfh_request_votes (id, request_id, voter_id, vote) 
+        VALUES (?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE vote = VALUES(vote)`,
+      [voteId, id, req.user.id, vote]
+    )
+
+    // 3. Check total audit count
+    const [auditUsers] = await connection.execute(
+      `SELECT COUNT(*) as total FROM users WHERE role = 'audit' AND deleted_at IS NULL`
+    )
+    const totalAuditors = auditUsers[0].total - 1 // excluding the requester
+
+    // 4. Count current votes
+    const [voteCounts] = await connection.execute(
+      `SELECT vote, COUNT(*) as count FROM wfh_request_votes WHERE request_id = ? GROUP BY vote`,
+      [id]
+    )
+
+    let approveCount = 0
+    let rejectCount = 0
+
+    voteCounts.forEach(v => {
+      if (v.vote === 'approve') approveCount = v.count
+      if (v.vote === 'reject') rejectCount = v.count
+    })
+
+    let newStatus = request.status
+
+    if (rejectCount >= Math.ceil(totalAuditors / 2)) {
+      newStatus = 'ไม่อนุมัติ'
+    } else if (approveCount > Math.floor(totalAuditors / 2)) {
+      newStatus = 'รออนุมัติ (ผู้บริหาร)'
+    }
+
+    if (newStatus !== request.status) {
+      await connection.execute(
+        `UPDATE wfh_requests SET status = ? WHERE id = ?`,
+        [newStatus, id]
+      )
+    }
+
+    await connection.commit()
+    invalidateCache('GET:/wfh-requests')
+
+    res.json({
+      success: true,
+      message: 'Vote recorded',
+      data: { status: newStatus, approveCount, rejectCount }
+    })
+  } catch (error) {
+    await connection.rollback()
+    console.error('Vote WFH request error:', error)
+    if (error.code === 'ER_DUP_ENTRY') {
+      return res.status(400).json({ success: false, message: 'Already voted' })
+    }
+    res.status(500).json({ success: false, message: 'Internal server error' })
+  } finally {
+    connection.release()
+  }
+})
+
+/**
+ * PUT /api/wfh-requests/:id/approve
+ * อนุมัติการขอ WFH (รองรับ 2 ขั้นตอนและสำหรับผู้บริหาร)
+ * Access: Admin/HR/Audit
+ */
+router.put('/:id/approve', authenticateToken, authorize('admin', 'hr', 'audit'), async (req, res) => {
   try {
     const { id } = req.params
     const { approver_note } = req.body
@@ -827,32 +950,73 @@ router.put('/:id/approve', authenticateToken, authorize('admin', 'hr'), async (r
 
     const wfhRequest = wfhRequests[0]
 
-    if (wfhRequest.status !== 'รออนุมัติ') {
+    if (!['รออนุมัติ', 'รอตรวจสอบ', 'รออนุมัติ (ผู้บริหาร)'].includes(wfhRequest.status)) {
       return res.status(400).json({
         success: false,
-        message: 'WFH request is not pending',
+        message: 'WFH request is not pending for approval',
       })
     }
 
-    // Check daily limit before approving
-    const approvedCount = await getApprovedWFHCount(pool, wfhRequest.wfh_date)
-    if (approvedCount >= 3) {
-      return res.status(409).json({
-        success: false,
-        message: 'Cannot approve - Daily limit reached (3/3)',
-      })
+    const isAudit = req.user.role === 'audit';
+    const isAdmin = req.user.role === 'admin';
+    const isHr = req.user.role === 'hr';
+
+    let updateQuery = '';
+    let updateParams = [];
+
+    // Check daily limit if it's the final approval step
+    if (wfhRequest.status === 'รออนุมัติ' || wfhRequest.status === 'รออนุมัติ (ผู้บริหาร)') {
+      const approvedCount = await getApprovedWFHCount(pool, wfhRequest.wfh_date)
+      if (approvedCount >= 3) {
+        return res.status(409).json({
+          success: false,
+          message: 'Cannot approve - Daily limit reached (3/3)',
+        })
+      }
+    }
+
+    if (wfhRequest.status === 'รอตรวจสอบ') {
+      if (!isAudit) {
+        return res.status(403).json({ success: false, message: 'Only Audit can approve this step' });
+      }
+      updateQuery = `
+        UPDATE wfh_requests 
+        SET status = 'รออนุมัติ',
+            step1_approved_by = ?,
+            step1_approved_at = NOW(),
+            step1_approver_note = ?
+        WHERE id = ?`;
+      updateParams = [req.user.id, approver_note || null, id];
+    } else if (wfhRequest.status === 'รออนุมัติ (ผู้บริหาร)') {
+      if (!isAdmin) {
+        return res.status(403).json({ success: false, message: 'Only Admin can approve this step' });
+      }
+      updateQuery = `
+        UPDATE wfh_requests 
+        SET status = 'อนุมัติแล้ว',
+            approved_by = ?,
+            approved_at = NOW(),
+            approver_note = ?
+        WHERE id = ?`;
+      updateParams = [req.user.id, approver_note || null, id];
+    } else if (wfhRequest.status === 'รออนุมัติ') {
+      if (!isAdmin && !isHr) {
+        return res.status(403).json({ success: false, message: 'Only Admin or HR can approve this step' });
+      }
+      updateQuery = `
+        UPDATE wfh_requests 
+        SET status = 'อนุมัติแล้ว',
+            approved_by = ?,
+            approved_at = NOW(),
+            approver_note = ?
+        WHERE id = ?`;
+      updateParams = [req.user.id, approver_note || null, id];
     }
 
     // Approve
-    await pool.execute(
-      `UPDATE wfh_requests 
-       SET status = 'อนุมัติแล้ว',
-           approved_by = ?,
-           approved_at = NOW(),
-           approver_note = ?
-       WHERE id = ?`,
-      [req.user.id, approver_note || null, id]
-    )
+    if (updateQuery) {
+      await pool.execute(updateQuery, updateParams)
+    }
 
     // Get updated WFH request
     const [updatedRequests] = await pool.execute(
@@ -888,9 +1052,9 @@ router.put('/:id/approve', authenticateToken, authorize('admin', 'hr'), async (r
 /**
  * PUT /api/wfh-requests/:id/reject
  * ปฏิเสธการขอ WFH
- * Access: HR/Admin only
+ * Access: Admin/HR/Audit
  */
-router.put('/:id/reject', authenticateToken, authorize('admin', 'hr'), async (req, res) => {
+router.put('/:id/reject', authenticateToken, authorize('admin', 'hr', 'audit'), async (req, res) => {
   try {
     const { id } = req.params
     const { approver_note } = req.body
@@ -921,11 +1085,25 @@ router.put('/:id/reject', authenticateToken, authorize('admin', 'hr'), async (re
 
     const wfhRequest = wfhRequests[0]
 
-    if (wfhRequest.status !== 'รออนุมัติ') {
+    if (!['รออนุมัติ', 'รอตรวจสอบ', 'รออนุมัติ (ผู้บริหาร)'].includes(wfhRequest.status)) {
       return res.status(400).json({
         success: false,
         message: 'WFH request is not pending',
       })
+    }
+
+    const isAudit = req.user.role === 'audit';
+    const isAdmin = req.user.role === 'admin';
+    const isHr = req.user.role === 'hr';
+
+    if (wfhRequest.status === 'รอตรวจสอบ' && !isAudit) {
+      return res.status(403).json({ success: false, message: 'Only Audit can reject this step' });
+    }
+    if (wfhRequest.status === 'รออนุมัติ (ผู้บริหาร)' && !isAdmin) {
+      return res.status(403).json({ success: false, message: 'Only Admin can reject this step' });
+    }
+    if (wfhRequest.status === 'รออนุมัติ' && !isAdmin && !isHr) {
+      return res.status(403).json({ success: false, message: 'Only Admin or HR can reject this step' });
     }
 
     // Reject

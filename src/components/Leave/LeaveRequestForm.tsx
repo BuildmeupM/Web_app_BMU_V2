@@ -668,7 +668,7 @@ export default function LeaveRequestForm({ opened, onClose }: LeaveRequestFormPr
                   if (date instanceof Date) handleDateClick(date)
                 }}
                 month={currentMonth}
-                getDayProps={getDayProps}
+                getDayProps={getDayProps as any}
                 excludeDate={(date: Date) => {
                   const today = new Date()
                   today.setHours(0, 0, 0, 0)

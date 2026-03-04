@@ -42,7 +42,7 @@ interface ApprovalModalProps {
     wfh_date?: string
     status?: string
   }
-  mode: 'approve' | 'reject'
+  mode: 'approve' | 'reject' | 'vote_approve' | 'vote_reject'
 }
 
 export default function ApprovalModal({
@@ -121,69 +121,116 @@ export default function ApprovalModal({
     }
   }
 
-  const approveMutation = useMutation({
-    mutationFn: (data?: { approver_note?: string }) =>
+  const approveMutation = useMutation<
+    { success: boolean; data: { leave_request?: any; wfh_request?: any } },
+    Error,
+    { approver_note?: string } | undefined
+  >(
+    (data) =>
       type === 'leave'
-        ? leaveService.approve(requestId, data)
-        : wfhService.approve(requestId, data),
-    onMutate: optimisticRemoveItem,
-    onSuccess: () => {
-      notifications.show({
-        title: 'สำเร็จ',
-        message: 'อนุมัติเรียบร้อยแล้ว',
-        color: 'green',
-      })
-      handleClose()
-    },
-    onError: (error: any, _variables: any, context: any) => {
-      // Rollback optimistic update
-      rollbackOnError(error, _variables, context)
+        ? leaveService.approve(requestId, data as any)
+        : wfhService.approve(requestId, data as any),
+    {
+      onMutate: optimisticRemoveItem,
+      onSuccess: () => {
+        notifications.show({
+          title: 'สำเร็จ',
+          message: 'อนุมัติเรียบร้อยแล้ว',
+          color: 'green',
+        })
+        handleClose()
+      },
+      onError: (error: any, _variables: any, context: any) => {
+        // Rollback optimistic update
+        rollbackOnError(error, _variables, context)
 
-      const { errorTitle, errorMessage } = extractErrorMessage(error, 'ไม่สามารถอนุมัติได้')
-      notifications.show({
-        title: errorTitle,
-        message: errorMessage,
-        color: 'red',
-        autoClose: 5000,
-      })
-    },
-    onSettled: () => {
-      // Always refetch after mutation settles to ensure consistency with server
-      queryClient.invalidateQueries({ queryKey: [queryKey] })
-    },
-  })
+        const { errorTitle, errorMessage } = extractErrorMessage(error, 'ไม่สามารถอนุมัติได้')
+        notifications.show({
+          title: errorTitle,
+          message: errorMessage,
+          color: 'red',
+          autoClose: 5000,
+        })
+      },
+      onSettled: () => {
+        // Always refetch after mutation settles to ensure consistency with server
+        queryClient.invalidateQueries({ queryKey: [queryKey] })
+      },
+    }
+  )
 
-  const rejectMutation = useMutation({
-    mutationFn: (data: { approver_note: string }) =>
+  const rejectMutation = useMutation<
+    { success: boolean; data: { leave_request?: any; wfh_request?: any } },
+    Error,
+    { approver_note: string }
+  >(
+    (data) =>
       type === 'leave'
         ? leaveService.reject(requestId, data)
         : wfhService.reject(requestId, data),
-    onMutate: optimisticRemoveItem,
-    onSuccess: () => {
-      notifications.show({
-        title: 'สำเร็จ',
-        message: 'ปฏิเสธเรียบร้อยแล้ว',
-        color: 'green',
-      })
-      handleClose()
-    },
-    onError: (error: any, _variables: any, context: any) => {
-      // Rollback optimistic update
-      rollbackOnError(error, _variables, context)
+    {
+      onMutate: optimisticRemoveItem,
+      onSuccess: () => {
+        notifications.show({
+          title: 'สำเร็จ',
+          message: 'ปฏิเสธเรียบร้อยแล้ว',
+          color: 'green',
+        })
+        handleClose()
+      },
+      onError: (error: any, _variables: any, context: any) => {
+        // Rollback optimistic update
+        rollbackOnError(error, _variables, context)
 
-      const { errorTitle, errorMessage } = extractErrorMessage(error, 'ไม่สามารถปฏิเสธได้')
-      notifications.show({
-        title: errorTitle,
-        message: errorMessage,
-        color: 'red',
-        autoClose: 5000,
-      })
-    },
-    onSettled: () => {
-      // Always refetch after mutation settles to ensure consistency with server
-      queryClient.invalidateQueries({ queryKey: [queryKey] })
-    },
-  })
+        const { errorTitle, errorMessage } = extractErrorMessage(error, 'ไม่สามารถปฏิเสธได้')
+        notifications.show({
+          title: errorTitle,
+          message: errorMessage,
+          color: 'red',
+          autoClose: 5000,
+        })
+      },
+      onSettled: () => {
+        // Always refetch after mutation settles to ensure consistency with server
+        queryClient.invalidateQueries({ queryKey: [queryKey] })
+      },
+    }
+  )
+
+  const voteMutation = useMutation<
+    { success: boolean; data: { status: string; approveCount: number; rejectCount: number } },
+    Error,
+    { vote: 'approve' | 'reject'; approver_note?: string }
+  >(
+    (data) =>
+      type === 'leave'
+        ? leaveService.vote(requestId, data)
+        : wfhService.vote(requestId, data),
+    {
+      onMutate: optimisticRemoveItem,
+      onSuccess: () => {
+        notifications.show({
+          title: 'สำเร็จ',
+          message: 'บันทึกการโหวตเรียบร้อยแล้ว',
+          color: 'green',
+        })
+        handleClose()
+      },
+      onError: (error: any, _variables: any, context: any) => {
+        rollbackOnError(error, _variables, context)
+        const { errorTitle, errorMessage } = extractErrorMessage(error, 'ไม่สามารถโหวตได้')
+        notifications.show({
+          title: errorTitle,
+          message: errorMessage,
+          color: 'red',
+          autoClose: 5000,
+        })
+      },
+      onSettled: () => {
+        queryClient.invalidateQueries({ queryKey: [queryKey] })
+      },
+    }
+  )
 
   const handleClose = () => {
     setApproverNote('')
@@ -205,14 +252,27 @@ export default function ApprovalModal({
       return
     }
 
+    if (mode === 'vote_reject' && !approverNote.trim()) {
+      notifications.show({
+        title: 'กรุณากรอกหมายเหตุ',
+        message: 'ต้องกรอกหมายเหตุเมื่อโหวตไม่อนุมัติ',
+        color: 'orange',
+      })
+      return
+    }
+
     if (mode === 'approve') {
       approveMutation.mutate({ approver_note: approverNote.trim() || undefined })
-    } else {
+    } else if (mode === 'reject') {
       rejectMutation.mutate({ approver_note: approverNote.trim() })
+    } else if (mode === 'vote_approve') {
+      voteMutation.mutate({ vote: 'approve', approver_note: approverNote.trim() || undefined })
+    } else if (mode === 'vote_reject') {
+      voteMutation.mutate({ vote: 'reject', approver_note: approverNote.trim() })
     }
   }
 
-  const isLoading = approveMutation.isLoading || rejectMutation.isLoading
+  const isLoading = approveMutation.isLoading || rejectMutation.isLoading || voteMutation.isLoading
 
   // Helper function to format date to Thai format
   const formatThaiDate = (dateString: string) => {
@@ -249,9 +309,11 @@ export default function ApprovalModal({
       title={
         mode === 'approve'
           ? 'อนุมัติ'
-          : type === 'wfh'
-            ? 'กรอกข้อมูลไม่อนุมัติให้ WFH'
-            : 'กรอกข้อมูลไม่อนุมัติให้ลา'
+          : mode === 'vote_approve'
+            ? 'โหวตอนุมัติ'
+            : type === 'wfh'
+              ? 'กรอกข้อมูลไม่อนุมัติให้ WFH'
+              : 'กรอกข้อมูลไม่อนุมัติให้ลา'
       }
       size="lg"
       centered
@@ -312,19 +374,19 @@ export default function ApprovalModal({
 
         {/* Approver Note */}
         <Textarea
-          label={mode === 'approve' ? 'หมายเหตุ (ไม่บังคับ)' : 'หมายเหตุ (บังคับ)'}
+          label={mode === 'approve' ? 'หมายเหตุ (ไม่บังคับ)' : mode === 'vote_approve' ? 'หมายเหตุ (ไม่บังคับ)' : 'หมายเหตุ (บังคับ)'}
           placeholder={
-            mode === 'approve'
+            mode === 'approve' || mode === 'vote_approve'
               ? 'กรอกหมายเหตุเพิ่มเติม (ถ้ามี)'
               : 'กรุณาระบุเหตุผลที่ปฏิเสธ'
           }
           value={approverNote}
           onChange={(e) => setApproverNote(e.target.value)}
-          required={mode === 'reject'}
+          required={mode === 'reject' || mode === 'vote_reject'}
           minRows={3}
         />
 
-        {mode === 'reject' && (
+        {(mode === 'reject' || mode === 'vote_reject') && (
           <Alert icon={<TbAlertCircle size={16} />} color="orange">
             ต้องกรอกหมายเหตุเมื่อปฏิเสธ
           </Alert>
@@ -335,12 +397,12 @@ export default function ApprovalModal({
             ยกเลิก
           </Button>
           <Button
-            color={mode === 'approve' ? 'green' : 'red'}
+            color={mode === 'approve' || mode === 'vote_approve' ? 'green' : 'red'}
             onClick={handleSubmit}
             loading={isLoading}
-            disabled={mode === 'reject' && !approverNote.trim()}
+            disabled={(mode === 'reject' || mode === 'vote_reject') && !approverNote.trim()}
           >
-            {mode === 'approve' ? 'อนุมัติ' : 'ปฏิเสธ'}
+            {mode === 'approve' ? 'อนุมัติ' : mode === 'vote_approve' ? 'โหวตอนุมัติ' : 'ปฏิเสธ'}
           </Button>
         </Group>
       </Stack>

@@ -9,7 +9,6 @@ import { authenticateToken, authorize } from '../../middleware/auth.js'
 import { leaveRequestRateLimiter } from '../../middleware/rateLimiter.js'
 import { invalidateCache } from '../../middleware/cache.js'
 import {
-  calculateWorkingDays,
   calculateWorkingDaysWithHolidays,
   generateUUID,
 } from '../../utils/leaveHelpers.js'
@@ -151,9 +150,9 @@ router.get('/', authenticateToken, async (req, res) => {
 /**
  * GET /api/leave-requests/pending
  * ดึงการลาที่รออนุมัติ
- * Access: HR/Admin only
+ * Access: HR/Admin/Audit only
  */
-router.get('/pending', authenticateToken, authorize('admin', 'hr'), async (req, res) => {
+router.get('/pending', authenticateToken, authorize('admin', 'hr', 'audit'), async (req, res) => {
   try {
     const {
       page = 1,
@@ -164,11 +163,37 @@ router.get('/pending', authenticateToken, authorize('admin', 'hr'), async (req, 
     const limitNum = Math.min(parseInt(limit), 100)
     const offset = (pageNum - 1) * limitNum
 
+    const userRole = req.user.role;
+    let whereClause = 'lr.deleted_at IS NULL';
+    const queryParams = [];
+
+    if (userRole === 'audit') {
+      // Audit sees:
+      // 1. 'รอตรวจสอบ' from service/data entry
+      // 2. 'รอโหวต' from other audit (excluding themselves)
+      // They also shouldn't see requests they have already voted on (will handle in next step or simple query)
+      whereClause += ` AND (
+        (lr.status = 'รอตรวจสอบ' AND u.role IN ('service', 'data_entry', 'data_entry_and_service')) 
+        OR 
+        (lr.status = 'รอโหวต' AND u.role = 'audit' AND lr.employee_id != ?)
+      )`;
+      queryParams.push(req.user.employee_id);
+    } else if (userRole === 'hr') {
+      // HR sees only 'รออนุมัติ'
+      whereClause += ` AND lr.status = 'รออนุมัติ'`;
+    } else if (userRole === 'admin') {
+      // Admin sees 'รออนุมัติ' and 'รออนุมัติ (ผู้บริหาร)'
+      whereClause += ` AND lr.status IN ('รออนุมัติ', 'รออนุมัติ (ผู้บริหาร)')`;
+    }
+
     // Get total count
     const [countResults] = await pool.execute(
       `SELECT COUNT(*) as total 
-       FROM leave_requests 
-       WHERE status = 'รออนุมัติ' AND deleted_at IS NULL`
+       FROM leave_requests lr
+       LEFT JOIN employees e ON lr.employee_id = e.employee_id
+       LEFT JOIN users u ON lr.employee_id = u.employee_id
+       WHERE ${whereClause}`,
+      queryParams
     )
     const total = countResults[0].total
 
@@ -187,13 +212,15 @@ router.get('/pending', authenticateToken, authorize('admin', 'hr'), async (req, 
         DATE_FORMAT(lr.created_at, '%Y-%m-%d %H:%i:%s') as created_at,
         e.full_name as employee_name,
         e.nick_name as employee_nick_name,
-        e.position as employee_position
+        e.position as employee_position,
+        u.role as employee_role
        FROM leave_requests lr
        LEFT JOIN employees e ON lr.employee_id = e.employee_id
-       WHERE lr.status = 'รออนุมัติ' AND lr.deleted_at IS NULL
+       LEFT JOIN users u ON lr.employee_id = u.employee_id
+       WHERE ${whereClause}
        ORDER BY lr.request_date ASC, lr.created_at ASC
        LIMIT ? OFFSET ?`,
-      [limitNum, offset]
+      [...queryParams, limitNum, offset]
     )
 
     res.json({
@@ -736,11 +763,19 @@ router.post('/', authenticateToken, leaveRequestRateLimiter, async (req, res) =>
     const id = generateUUID()
     const requestDate = new Date().toISOString().split('T')[0] // Today
 
+    // Determine initial status based on employee role
+    let initialStatus = 'รออนุมัติ'
+    if (['service', 'data_entry', 'data_entry_and_service'].includes(req.user.role)) {
+      initialStatus = 'รอตรวจสอบ'
+    } else if (req.user.role === 'audit') {
+      initialStatus = 'รอโหวต'
+    }
+
     await pool.execute(
       `INSERT INTO leave_requests (
         id, employee_id, request_date, leave_start_date, leave_end_date,
         leave_type, leave_days, reason, status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'รออนุมัติ')`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         req.user.employee_id,
@@ -750,6 +785,7 @@ router.post('/', authenticateToken, leaveRequestRateLimiter, async (req, res) =>
         leave_type,
         leaveDays,
         reason || null,
+        initialStatus,
       ]
     )
 
@@ -787,11 +823,117 @@ router.post('/', authenticateToken, leaveRequestRateLimiter, async (req, res) =>
 })
 
 /**
- * PUT /api/leave-requests/:id/approve
- * อนุมัติการลา
- * Access: HR/Admin only
+ * POST /api/leave-requests/:id/vote
+ * โหวตคำขอลา (เฉพาะทีม Audit)
+ * Access: Audit only
  */
-router.put('/:id/approve', authenticateToken, authorize('admin', 'hr'), async (req, res) => {
+router.post('/:id/vote', authenticateToken, authorize('audit'), async (req, res) => {
+  const connection = await pool.getConnection()
+  try {
+    const { id } = req.params
+    const { vote } = req.body // 'approve' or 'reject'
+
+    if (!['approve', 'reject'].includes(vote)) {
+      return res.status(400).json({ success: false, message: 'Invalid vote value' })
+    }
+
+    await connection.beginTransaction()
+
+    // 1. Get request
+    const [requests] = await connection.execute(
+      `SELECT * FROM leave_requests WHERE id = ? AND deleted_at IS NULL FOR UPDATE`,
+      [id]
+    )
+
+    if (requests.length === 0) {
+      await connection.rollback()
+      return res.status(404).json({ success: false, message: 'Leave request not found' })
+    }
+
+    const request = requests[0]
+
+    if (request.status !== 'รอโหวต') {
+      await connection.rollback()
+      return res.status(400).json({ success: false, message: 'Request is not in voting status' })
+    }
+
+    if (request.employee_id === req.user.employee_id) {
+      await connection.rollback()
+      return res.status(403).json({ success: false, message: 'Cannot vote on your own request' })
+    }
+
+    // 2. Record vote
+    const voteId = generateUUID()
+    await connection.execute(
+      `INSERT INTO leave_request_votes (id, request_id, voter_id, vote) 
+       VALUES (?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE vote = VALUES(vote)`,
+      [voteId, id, req.user.id, vote]
+    )
+
+    // 3. Check total audit count
+    const [auditUsers] = await connection.execute(
+      `SELECT COUNT(*) as total FROM users WHERE role = 'audit' AND deleted_at IS NULL`
+    )
+    const totalAuditors = auditUsers[0].total - 1 // excluding the requester
+
+    // 4. Count current votes
+    const [voteCounts] = await connection.execute(
+      `SELECT vote, COUNT(*) as count FROM leave_request_votes WHERE request_id = ? GROUP BY vote`,
+      [id]
+    )
+
+    let approveCount = 0
+    let rejectCount = 0
+
+    voteCounts.forEach(v => {
+      if (v.vote === 'approve') approveCount = v.count
+      if (v.vote === 'reject') rejectCount = v.count
+    })
+
+    let newStatus = request.status
+
+    if (rejectCount >= Math.ceil(totalAuditors / 2)) {
+      // Majority rejected or half rejected (which means it can't get majority approval)
+      newStatus = 'ไม่อนุมัติ'
+    } else if (approveCount > Math.floor(totalAuditors / 2)) {
+      // Majority approved
+      newStatus = 'รออนุมัติ (ผู้บริหาร)'
+    }
+
+    if (newStatus !== request.status) {
+      await connection.execute(
+        `UPDATE leave_requests SET status = ? WHERE id = ?`,
+        [newStatus, id]
+      )
+    }
+
+    await connection.commit()
+    invalidateCache('GET:/leave-requests')
+
+    res.json({
+      success: true,
+      message: 'Vote recorded',
+      data: { status: newStatus, approveCount, rejectCount }
+    })
+  } catch (error) {
+    await connection.rollback()
+    console.error('Vote leave request error:', error)
+    if (error.code === 'ER_DUP_ENTRY') {
+      return res.status(400).json({ success: false, message: 'Already voted' })
+    }
+    res.status(500).json({ success: false, message: 'Internal server error' })
+  } finally {
+    connection.release()
+  }
+})
+
+/**
+ * PUT /api/leave-requests/:id/approve
+ * อนุมัติการลา (รองรับ 2 ขั้นตอนและสำหรับผู้บริหาร)
+ * Access: Admin/HR/Audit
+ */
+router.put('/:id/approve', authenticateToken, authorize('admin', 'hr', 'audit'), async (req, res) => {
   try {
     const { id } = req.params
     const { approver_note } = req.body
@@ -811,23 +953,62 @@ router.put('/:id/approve', authenticateToken, authorize('admin', 'hr'), async (r
 
     const leaveRequest = leaveRequests[0]
 
-    if (leaveRequest.status !== 'รออนุมัติ') {
+    if (!['รออนุมัติ', 'รอตรวจสอบ', 'รออนุมัติ (ผู้บริหาร)'].includes(leaveRequest.status)) {
       return res.status(400).json({
         success: false,
-        message: 'Leave request is not pending',
+        message: 'Leave request is not pending for approval',
       })
     }
 
+    const isAudit = req.user.role === 'audit';
+    const isAdmin = req.user.role === 'admin';
+    const isHr = req.user.role === 'hr';
+
+    let updateQuery = '';
+    let updateParams = [];
+
+    if (leaveRequest.status === 'รอตรวจสอบ') {
+      if (!isAudit) {
+        return res.status(403).json({ success: false, message: 'Only Audit can approve this step' });
+      }
+      updateQuery = `
+        UPDATE leave_requests 
+        SET status = 'รออนุมัติ',
+            step1_approved_by = ?,
+            step1_approved_at = NOW(),
+            step1_approver_note = ?
+        WHERE id = ?`;
+      updateParams = [req.user.id, approver_note || null, id];
+    } else if (leaveRequest.status === 'รออนุมัติ (ผู้บริหาร)') {
+      if (!isAdmin) {
+        return res.status(403).json({ success: false, message: 'Only Admin can approve this step' });
+      }
+      updateQuery = `
+        UPDATE leave_requests 
+        SET status = 'อนุมัติแล้ว',
+            approved_by = ?,
+            approved_at = NOW(),
+            approver_note = ?
+        WHERE id = ?`;
+      updateParams = [req.user.id, approver_note || null, id];
+    } else if (leaveRequest.status === 'รออนุมัติ') {
+      if (!isAdmin && !isHr) {
+        return res.status(403).json({ success: false, message: 'Only Admin or HR can approve this step' });
+      }
+      updateQuery = `
+        UPDATE leave_requests 
+        SET status = 'อนุมัติแล้ว',
+            approved_by = ?,
+            approved_at = NOW(),
+            approver_note = ?
+        WHERE id = ?`;
+      updateParams = [req.user.id, approver_note || null, id];
+    }
+
     // Approve
-    await pool.execute(
-      `UPDATE leave_requests 
-       SET status = 'อนุมัติแล้ว',
-           approved_by = ?,
-           approved_at = NOW(),
-           approver_note = ?
-       WHERE id = ?`,
-      [req.user.id, approver_note || null, id]
-    )
+    if (updateQuery) {
+      await pool.execute(updateQuery, updateParams)
+    }
 
     // Get updated leave request
     const [updatedRequests] = await pool.execute(
@@ -863,9 +1044,9 @@ router.put('/:id/approve', authenticateToken, authorize('admin', 'hr'), async (r
 /**
  * PUT /api/leave-requests/:id/reject
  * ปฏิเสธการลา
- * Access: HR/Admin only
+ * Access: Admin/HR/Audit
  */
-router.put('/:id/reject', authenticateToken, authorize('admin', 'hr'), async (req, res) => {
+router.put('/:id/reject', authenticateToken, authorize('admin', 'hr', 'audit'), async (req, res) => {
   try {
     const { id } = req.params
     const { approver_note } = req.body
@@ -896,11 +1077,25 @@ router.put('/:id/reject', authenticateToken, authorize('admin', 'hr'), async (re
 
     const leaveRequest = leaveRequests[0]
 
-    if (leaveRequest.status !== 'รออนุมัติ') {
+    if (!['รออนุมัติ', 'รอตรวจสอบ', 'รออนุมัติ (ผู้บริหาร)'].includes(leaveRequest.status)) {
       return res.status(400).json({
         success: false,
         message: 'Leave request is not pending',
       })
+    }
+
+    const isAudit = req.user.role === 'audit';
+    const isAdmin = req.user.role === 'admin';
+    const isHr = req.user.role === 'hr';
+
+    if (leaveRequest.status === 'รอตรวจสอบ' && !isAudit) {
+      return res.status(403).json({ success: false, message: 'Only Audit can reject this step' });
+    }
+    if (leaveRequest.status === 'รออนุมัติ (ผู้บริหาร)' && !isAdmin) {
+      return res.status(403).json({ success: false, message: 'Only Admin can reject this step' });
+    }
+    if (leaveRequest.status === 'รออนุมัติ' && !isAdmin && !isHr) {
+      return res.status(403).json({ success: false, message: 'Only Admin or HR can reject this step' });
     }
 
     // Reject

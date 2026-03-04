@@ -15,7 +15,7 @@ export interface LeaveRequest {
   leave_type: 'ลาป่วย' | 'ลากิจ' | 'ลาพักร้อน' | 'ลาไม่รับค่าจ้าง' | 'ลาอื่นๆ'
   leave_days: number
   reason: string | null
-  status: 'รออนุมัติ' | 'อนุมัติแล้ว' | 'ไม่อนุมัติ'
+  status: 'รออนุมัติ' | 'อนุมัติแล้ว' | 'ไม่อนุมัติ' | 'รอตรวจสอบ' | 'รอโหวต' | 'รออนุมัติ (ผู้บริหาร)'
   approved_by: string | null
   approved_at: string | null
   approver_note: string | null
@@ -32,7 +32,7 @@ export interface WFHRequest {
   employee_id: string
   request_date: string
   wfh_date: string
-  status: 'รออนุมัติ' | 'อนุมัติแล้ว' | 'ไม่อนุมัติ'
+  status: 'รออนุมัติ' | 'อนุมัติแล้ว' | 'ไม่อนุมัติ' | 'รอตรวจสอบ' | 'รอโหวต' | 'รออนุมัติ (ผู้บริหาร)'
   approved_by: string | null
   approved_at: string | null
   approver_note: string | null
@@ -270,6 +270,17 @@ export const leaveService = {
     )
     return response.data
   },
+
+  /**
+   * โหวตการลา (Audit only)
+   */
+  vote: async (id: string, data: { vote: 'approve' | 'reject', approver_note?: string }) => {
+    const response = await api.post<{ success: boolean; data: { status: string, approveCount: number, rejectCount: number } }>(
+      `/leave-requests/${id}/vote`,
+      data
+    )
+    return response.data
+  },
 }
 
 // WFH Requests API
@@ -422,6 +433,17 @@ export const wfhService = {
   submitWorkReport: async (id: string, data: { work_report: string }) => {
     const response = await api.put<{ success: boolean; data: { wfh_request: WFHRequest } }>(
       `/wfh-requests/${id}/work-report`,
+      data
+    )
+    return response.data
+  },
+
+  /**
+   * โหวตการขอ WFH (Audit only)
+   */
+  vote: async (id: string, data: { vote: 'approve' | 'reject', approver_note?: string }) => {
+    const response = await api.post<{ success: boolean; data: { status: string, approveCount: number, rejectCount: number } }>(
+      `/wfh-requests/${id}/vote`,
       data
     )
     return response.data

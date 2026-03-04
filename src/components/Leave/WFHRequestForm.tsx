@@ -16,10 +16,9 @@ import {
   Badge,
   Title,
   ScrollArea,
-  Tooltip,
 } from '@mantine/core'
 import { Calendar, DatesProvider } from '@mantine/dates'
-import { useMutation, useQuery, useQueryClient } from 'react-query'
+import { useQuery, useQueryClient } from 'react-query'
 import { wfhService } from '../../services/leaveService'
 import { notifications } from '@mantine/notifications'
 import { TbAlertCircle } from 'react-icons/tb'
@@ -173,6 +172,7 @@ export default function WFHRequestForm({ opened, onClose }: WFHRequestFormProps)
       
       // Close after submitting
       handleClose()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       notifications.show({
         title: 'เกิดข้อผิดพลาด',
@@ -184,20 +184,11 @@ export default function WFHRequestForm({ opened, onClose }: WFHRequestFormProps)
     }
   }
 
-  // Get day status from calendar data
   const getDayStatus = (date: Date) => {
     if (!calendarData?.data.calendar) return null
     const dateStr = formatDateToLocal(date)
     const dayData = calendarData.data.calendar.find((d) => d.date === dateStr)
     return dayData ? dayData.status : null
-  }
-
-  // Get day approved count
-  const getDayApprovedCount = (date: Date) => {
-    if (!calendarData?.data.calendar) return null
-    const dateStr = formatDateToLocal(date)
-    const dayData = calendarData.data.calendar.find((d) => d.date === dateStr)
-    return dayData ? dayData.approved_count : 0
   }
 
   // Check if a date belongs to the current displayed month
@@ -505,7 +496,7 @@ export default function WFHRequestForm({ opened, onClose }: WFHRequestFormProps)
       
       // Add approved count display (0/3) below date numbers for weekdays in current month
       const dayCells = document.querySelectorAll('.mantine-Calendar-day')
-      dayCells.forEach((cell, index) => {
+      dayCells.forEach((cell) => {
         const cellElement = cell as HTMLElement
         
         // Get date string from data attribute (set by getDayProps)
@@ -675,11 +666,11 @@ export default function WFHRequestForm({ opened, onClose }: WFHRequestFormProps)
                 display: 'block',
               }}>
                 <DatesProvider settings={{ locale: 'th', firstDayOfWeek: 0 }}>
-                  {/* @ts-ignore - Mantine Calendar v7 type definitions don't include value prop but it works at runtime */}
                   {/* eslint-disable-next-line @typescript-eslint/ban-ts-comment */}
                   {/* @ts-ignore */}
                   <Calendar
                     value={selectedDates.length > 0 ? selectedDates[0] : null}
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     onChange={(date: any) => {
                       if (date instanceof Date) handleDateClick(date)
                     }}
@@ -757,7 +748,9 @@ export default function WFHRequestForm({ opened, onClose }: WFHRequestFormProps)
                 
                 if (dayData?.requests && Array.isArray(dayData.requests)) {
                   dayData.requests
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     .filter((req: any) => req.status === 'รออนุมัติ' || req.status === 'อนุมัติแล้ว')
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     .forEach((req: any) => {
                       const name = req.employee_name || req.employee_id || 'ไม่ระบุชื่อ'
                       if (!employeeNames.includes(name)) {

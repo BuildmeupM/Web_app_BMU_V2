@@ -36,7 +36,7 @@ export default function WorkReportForm({
   const queryClient = useQueryClient()
 
   // Get WFH request details
-  const { data: wfhRequest } = useQuery(
+  useQuery(
     ['wfh-request', wfhRequestId],
     () => wfhService.getById(wfhRequestId),
     {
@@ -57,6 +57,7 @@ export default function WorkReportForm({
       queryClient.invalidateQueries({ queryKey: ['wfh-dashboard'] })
       handleClose()
     },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     onError: (error: any) => {
       notifications.show({
         title: 'เกิดข้อผิดพลาด',
@@ -121,7 +122,7 @@ export default function WorkReportForm({
           </Button>
           <Button
             onClick={handleSubmit}
-            loading={submitMutation.isPending}
+            loading={submitMutation.isLoading}
             disabled={!workReport.trim()}
           >
             ส่งรายงาน

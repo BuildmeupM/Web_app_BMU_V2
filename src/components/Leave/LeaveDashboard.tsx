@@ -164,7 +164,7 @@ export default function LeaveDashboard() {
     return chartData.filter(d => {
       const itemDate = dayjs(d.date)
       return (itemDate.isAfter(targetDate, 'day') || itemDate.isSame(targetDate, 'day')) &&
-             (itemDate.isBefore(today, 'day') || itemDate.isSame(today, 'day'))
+        (itemDate.isBefore(today, 'day') || itemDate.isSame(today, 'day'))
     })
   })()
 
@@ -307,131 +307,131 @@ export default function LeaveDashboard() {
               <>
                 <ResponsiveContainer width="100%" height={400}>
                   <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis
-                    dataKey="day"
-                    tickFormatter={(value) => {
-                      const item = chartData.find(d => d.day === value)
-                      return item ? item.label : String(value)
-                    }}
-                  />
-                  <YAxis allowDecimals={false} />
-                  <Tooltip
-                    formatter={(value: number, name: string, props: Record<string, unknown>) => {
-                      const payload = props.payload as Record<string, unknown> | undefined
-                      const currentApprovedNames = payload?.currentApprovedNames as string | undefined
-                      const currentPendingNames = payload?.currentPendingNames as string | undefined
-                      
-                      const names =
-                        name === 'current' ? props.payload.currentApprovedNames
-                          : name === 'currentPending' ? props.payload.currentPendingNames
-                            : name === 'previous' ? props.payload.previousApprovedNames
-                              : name === 'previousPending' ? props.payload.previousPendingNames
-                                : '';
-
-                      const textValue = names ? `${value} คน (${names})` : `${value} คน`;
-
-                      if (name === 'current') return [textValue, 'อนุมัติแล้ว - เดือนปัจจุบัน']
-                      if (name === 'currentPending') return [textValue, 'รออนุมัติ - เดือนปัจจุบัน']
-                      if (name === 'previous') return [textValue, 'อนุมัติแล้ว - เดือนก่อนหน้า']
-                      if (name === 'previousPending') return [textValue, 'รออนุมัติ - เดือนก่อนหน้า']
-                      return value
-                    }}
-                    labelFormatter={(label) => {
-                      const item = chartData.find(d => d.day === Number(label))
-                      return item ? `วันที่ ${item.day} ${item.label}` : label
-                    }}
-                  />
-                  <Legend
-                    formatter={(value) => {
-                      if (value === 'current') return 'อนุมัติแล้ว - เดือนปัจจุบัน'
-                      if (value === 'currentPending') return 'รออนุมัติ - เดือนปัจจุบัน'
-                      if (value === 'previous') return 'อนุมัติแล้ว - เดือนก่อนหน้า'
-                      if (value === 'previousPending') return 'รออนุมัติ - เดือนก่อนหน้า'
-                      return value
-                    }}
-                  />
-                  <Bar dataKey="current" fill="#ff6b35" name="current" radius={[4, 4, 0, 0]}>
-                    {chartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.current > 0 ? '#ff6b35' : '#e0e0e0'} />
-                    ))}
-                  </Bar>
-                  <Bar dataKey="currentPending" fill="#ffc107" name="currentPending" radius={[4, 4, 0, 0]}>
-                    {chartData.map((entry, index) => (
-                      <Cell key={`pending-cell-${index}`} fill={entry.currentPending > 0 ? '#ffc107' : '#e0e0e0'} />
-                    ))}
-                  </Bar>
-                  {comparePrevious && (
-                    <>
-                      <Bar dataKey="previous" fill="#ffa500" name="previous" radius={[4, 4, 0, 0]} opacity={0.7}>
-                        {chartData.map((entry, index) => (
-                          <Cell key={`prev-cell-${index}`} fill={entry.previous !== null && entry.previous > 0 ? '#ffa500' : '#e0e0e0'} />
-                        ))}
-                      </Bar>
-                      <Bar dataKey="previousPending" fill="#ffd54f" name="previousPending" radius={[4, 4, 0, 0]} opacity={0.7}>
-                        {chartData.map((entry, index) => (
-                          <Cell key={`prev-pending-cell-${index}`} fill={entry.previousPending !== null && entry.previousPending > 0 ? '#ffd54f' : '#e0e0e0'} />
-                        ))}
-                      </Bar>
-                    </>
-                  )}
-                </BarChart>
-              </ResponsiveContainer>
-
-              {dailyStatsData?.data && filteredListData.some(d => d.currentApprovedNames || d.currentPendingNames) && (
-                <Stack mt="xl" gap="sm">
-                  <Group justify="space-between" align="center">
-                    <Text fw={600} size="md">รายชื่อพนักงานที่ลาในเดือนนี้</Text>
-                    <Select
-                      value={filterDays}
-                      onChange={(val) => setFilterDays(val || 'all')}
-                      data={[
-                        { value: 'all', label: 'ทั้งหมดของเดือน' },
-                        { value: '3', label: 'ย้อนหลัง 3 วัน' },
-                        { value: '7', label: 'ย้อนหลัง 7 วัน' },
-                        { value: '14', label: 'ย้อนหลัง 14 วัน' },
-                        { value: '30', label: 'ย้อนหลัง 30 วัน' },
-                      ]}
-                      style={{ width: 160 }}
-                      size="sm"
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis
+                      dataKey="day"
+                      tickFormatter={(value) => {
+                        const item = chartData.find(d => d.day === value)
+                        return item ? item.label : String(value)
+                      }}
                     />
-                  </Group>
-                  <Stack gap="md">
-                    {filteredListData.filter(d => d.currentApprovedNames || d.currentPendingNames).map((data, idx) => (
-                      <Card 
-                        withBorder 
-                        radius="md" 
-                        p="md" 
-                        shadow="sm" 
-                        key={idx}
-                        style={{ borderLeft: '4px solid #ff6b35' }}
-                      >
-                        <Group justify="space-between" align="flex-start" wrap="nowrap">
-                          <Stack gap={4} style={{ flex: '0 0 120px' }}>
-                            <Text fw={700} size="md" c="dark.7">วันที่ {data.day}</Text>
-                            <Text size="xs" c="dimmed">{data.label}</Text>
-                          </Stack>
-                          
-                          <Stack gap="sm" style={{ flex: 1 }}>
-                            {data.currentApprovedNames && (
-                              <Group justify="space-between" wrap="nowrap" align="flex-start">
-                                <Text size="sm" style={{ wordBreak: 'break-word', lineHeight: 1.4, flex: 1 }}>{data.currentApprovedNames}</Text>
-                                <Badge color="green" size="sm" variant="dot" mt={3} style={{ flexShrink: 0 }}>อนุมัติแล้ว</Badge>
-                              </Group>
-                            )}
-                            {data.currentPendingNames && (
-                              <Group justify="space-between" wrap="nowrap" align="flex-start">
-                                <Text size="sm" style={{ wordBreak: 'break-word', lineHeight: 1.4, flex: 1 }}>{data.currentPendingNames}</Text>
-                                <Badge color="yellow" size="sm" variant="dot" mt={3} style={{ flexShrink: 0 }}>รออนุมัติ</Badge>
-                              </Group>
-                            )}
-                          </Stack>
-                        </Group>
-                      </Card>
-                    ))}
+                    <YAxis allowDecimals={false} />
+                    <Tooltip
+                      formatter={(value: number, name: string, props: Record<string, unknown>) => {
+                        const payload = props.payload as Record<string, unknown> | undefined
+                        const currentApprovedNames = payload?.currentApprovedNames as string | undefined
+                        const currentPendingNames = payload?.currentPendingNames as string | undefined
+
+                        const names =
+                          name === 'current' ? payload?.currentApprovedNames
+                            : name === 'currentPending' ? payload?.currentPendingNames
+                              : name === 'previous' ? payload?.previousApprovedNames
+                                : name === 'previousPending' ? payload?.previousPendingNames
+                                  : '';
+
+                        const textValue = names ? `${value} คน (${names})` : `${value} คน`;
+
+                        if (name === 'current') return [textValue, 'อนุมัติแล้ว - เดือนปัจจุบัน']
+                        if (name === 'currentPending') return [textValue, 'รออนุมัติ - เดือนปัจจุบัน']
+                        if (name === 'previous') return [textValue, 'อนุมัติแล้ว - เดือนก่อนหน้า']
+                        if (name === 'previousPending') return [textValue, 'รออนุมัติ - เดือนก่อนหน้า']
+                        return value
+                      }}
+                      labelFormatter={(label) => {
+                        const item = chartData.find(d => d.day === Number(label))
+                        return item ? `วันที่ ${item.day} ${item.label}` : label
+                      }}
+                    />
+                    <Legend
+                      formatter={(value) => {
+                        if (value === 'current') return 'อนุมัติแล้ว - เดือนปัจจุบัน'
+                        if (value === 'currentPending') return 'รออนุมัติ - เดือนปัจจุบัน'
+                        if (value === 'previous') return 'อนุมัติแล้ว - เดือนก่อนหน้า'
+                        if (value === 'previousPending') return 'รออนุมัติ - เดือนก่อนหน้า'
+                        return value
+                      }}
+                    />
+                    <Bar dataKey="current" fill="#ff6b35" name="current" radius={[4, 4, 0, 0]}>
+                      {chartData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.current > 0 ? '#ff6b35' : '#e0e0e0'} />
+                      ))}
+                    </Bar>
+                    <Bar dataKey="currentPending" fill="#ffc107" name="currentPending" radius={[4, 4, 0, 0]}>
+                      {chartData.map((entry, index) => (
+                        <Cell key={`pending-cell-${index}`} fill={entry.currentPending > 0 ? '#ffc107' : '#e0e0e0'} />
+                      ))}
+                    </Bar>
+                    {comparePrevious && (
+                      <>
+                        <Bar dataKey="previous" fill="#ffa500" name="previous" radius={[4, 4, 0, 0]} opacity={0.7}>
+                          {chartData.map((entry, index) => (
+                            <Cell key={`prev-cell-${index}`} fill={entry.previous !== null && entry.previous > 0 ? '#ffa500' : '#e0e0e0'} />
+                          ))}
+                        </Bar>
+                        <Bar dataKey="previousPending" fill="#ffd54f" name="previousPending" radius={[4, 4, 0, 0]} opacity={0.7}>
+                          {chartData.map((entry, index) => (
+                            <Cell key={`prev-pending-cell-${index}`} fill={entry.previousPending !== null && entry.previousPending > 0 ? '#ffd54f' : '#e0e0e0'} />
+                          ))}
+                        </Bar>
+                      </>
+                    )}
+                  </BarChart>
+                </ResponsiveContainer>
+
+                {dailyStatsData?.data && filteredListData.some(d => d.currentApprovedNames || d.currentPendingNames) && (
+                  <Stack mt="xl" gap="sm">
+                    <Group justify="space-between" align="center">
+                      <Text fw={600} size="md">รายชื่อพนักงานที่ลาในเดือนนี้</Text>
+                      <Select
+                        value={filterDays}
+                        onChange={(val) => setFilterDays(val || 'all')}
+                        data={[
+                          { value: 'all', label: 'ทั้งหมดของเดือน' },
+                          { value: '3', label: 'ย้อนหลัง 3 วัน' },
+                          { value: '7', label: 'ย้อนหลัง 7 วัน' },
+                          { value: '14', label: 'ย้อนหลัง 14 วัน' },
+                          { value: '30', label: 'ย้อนหลัง 30 วัน' },
+                        ]}
+                        style={{ width: 160 }}
+                        size="sm"
+                      />
+                    </Group>
+                    <Stack gap="md">
+                      {filteredListData.filter(d => d.currentApprovedNames || d.currentPendingNames).map((data, idx) => (
+                        <Card
+                          withBorder
+                          radius="md"
+                          p="md"
+                          shadow="sm"
+                          key={idx}
+                          style={{ borderLeft: '4px solid #ff6b35' }}
+                        >
+                          <Group justify="space-between" align="flex-start" wrap="nowrap">
+                            <Stack gap={4} style={{ flex: '0 0 120px' }}>
+                              <Text fw={700} size="md" c="dark.7">วันที่ {data.day}</Text>
+                              <Text size="xs" c="dimmed">{data.label}</Text>
+                            </Stack>
+
+                            <Stack gap="sm" style={{ flex: 1 }}>
+                              {data.currentApprovedNames && (
+                                <Group justify="space-between" wrap="nowrap" align="flex-start">
+                                  <Text size="sm" style={{ wordBreak: 'break-word', lineHeight: 1.4, flex: 1 }}>{data.currentApprovedNames}</Text>
+                                  <Badge color="green" size="sm" variant="dot" mt={3} style={{ flexShrink: 0 }}>อนุมัติแล้ว</Badge>
+                                </Group>
+                              )}
+                              {data.currentPendingNames && (
+                                <Group justify="space-between" wrap="nowrap" align="flex-start">
+                                  <Text size="sm" style={{ wordBreak: 'break-word', lineHeight: 1.4, flex: 1 }}>{data.currentPendingNames}</Text>
+                                  <Badge color="yellow" size="sm" variant="dot" mt={3} style={{ flexShrink: 0 }}>รออนุมัติ</Badge>
+                                </Group>
+                              )}
+                            </Stack>
+                          </Group>
+                        </Card>
+                      ))}
+                    </Stack>
                   </Stack>
-                </Stack>
-              )}
+                )}
               </>
             ) : (
               <Alert color="blue">ไม่พบข้อมูลการลาในเดือนนี้</Alert>

@@ -23,7 +23,7 @@ import {
   Modal,
   Title,
 } from '@mantine/core'
-import { TbRefresh, TbEye, TbCheck, TbX, TbCalendar, TbInfoCircle, TbAlertCircle } from 'react-icons/tb'
+import { TbRefresh, TbEye, TbCheck, TbX, TbCalendar, TbInfoCircle } from 'react-icons/tb'
 import { useQuery } from 'react-query'
 import { leaveService, LeaveRequest } from '../../services/leaveService'
 import { employeeService } from '../../services/employeeService'
@@ -51,11 +51,13 @@ const LeaveRequestList = memo(function LeaveRequestList({ pendingOnly = false }:
   const [endDate, setEndDate] = useState<Date | null>(null)
   const [approvalModalOpened, setApprovalModalOpened] = useState(false)
   const [selectedRequest, setSelectedRequest] = useState<LeaveRequest | null>(null)
-  const [approvalMode, setApprovalMode] = useState<'approve' | 'reject'>('approve')
+  const [approvalMode, setApprovalMode] = useState<'approve' | 'reject' | 'vote_approve' | 'vote_reject'>('approve')
   const [rejectionReasonModalOpened, setRejectionReasonModalOpened] = useState(false)
   const [selectedRejectedRequest, setSelectedRejectedRequest] = useState<LeaveRequest | null>(null)
   const user = useAuthStore((state) => state.user)
   const isAdmin = user?.role === 'admin' || user?.role === 'hr'
+  const isAudit = user?.role === 'audit'
+  const canApprove = isAdmin || isAudit
 
   // Get employee details if employee_id exists
   const { data: employeeListData } = useQuery(
@@ -95,13 +97,14 @@ const LeaveRequestList = memo(function LeaveRequestList({ pendingOnly = false }:
         return { used: usedDays, total: 30, unlimited: false }
       case 'ลากิจ':
         return { used: usedDays, total: 6, unlimited: false }
-      case 'ลาพักร้อน':
+      case 'ลาพักร้อน': {
         // Check if employee has worked for at least 1 year
         const hireDate = employeeData?.hire_date ? new Date(employeeData.hire_date) : null
         const oneYearAgo = new Date()
         oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1)
         const canRequestVacation = hireDate && hireDate <= oneYearAgo
         return { used: usedDays, total: 6, unlimited: false, canRequest: canRequestVacation }
+      }
       case 'ลาไม่รับค่าจ้าง':
         return { used: usedDays, total: null, unlimited: true }
       case 'ลาอื่นๆ':
@@ -135,11 +138,11 @@ const LeaveRequestList = memo(function LeaveRequestList({ pendingOnly = false }:
         start_date: startDate ? startDate.toISOString().split('T')[0] : undefined,
         end_date: endDate ? endDate.toISOString().split('T')[0] : undefined,
         // Always filter by own employee_id for history tab (not pendingOnly)
-        // This ensures all users (including HR/Admin) see only their own leave data
+        // This ensures all users (including HR/Admin/Audit) see only their own leave data
         employee_id: !pendingOnly && user?.employee_id ? user.employee_id : undefined,
       }),
     {
-      enabled: (!pendingOnly || isAdmin) && !!user?.employee_id, // Only fetch pending if admin, and require employee_id
+      enabled: (!pendingOnly || canApprove) && !!user?.employee_id, // Only fetch pending if canApprove, and require employee_id
     }
   )
 
@@ -148,7 +151,7 @@ const LeaveRequestList = memo(function LeaveRequestList({ pendingOnly = false }:
     ['leave-requests', 'pending', page, limit],
     () => leaveService.getPending({ page, limit }),
     {
-      enabled: pendingOnly && isAdmin,
+      enabled: pendingOnly && canApprove,
     }
   )
 
@@ -166,14 +169,17 @@ const LeaveRequestList = memo(function LeaveRequestList({ pendingOnly = false }:
       // Filter to only include leaves starting within 3 days
       const today = dayjs().startOf('day')
       const threeDaysLater = dayjs().add(3, 'day').endOf('day')
-      return (response.data?.leave_requests || []).filter((leave: any) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (response.data?.leave_requests || []).filter((item: any) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const leave = item as any
         const startDate = dayjs(leave.leave_start_date).startOf('day')
         return (startDate.isAfter(today) || startDate.isSame(today)) &&
           (startDate.isBefore(threeDaysLater) || startDate.isSame(threeDaysLater))
       })
     },
     {
-      enabled: pendingOnly && isAdmin,
+      enabled: pendingOnly && canApprove,
       staleTime: 1 * 60 * 1000, // 1 minute cache
       retry: false,
     }
@@ -183,12 +189,12 @@ const LeaveRequestList = memo(function LeaveRequestList({ pendingOnly = false }:
   const displayLoading = pendingOnly ? pendingLoading : isLoading
   const displayUpcomingLeaves = (upcomingLeavesData || [])
 
-  // Fetch all employees to map nick_name (only for admin in pending view)
+  // Fetch all employees to map nick_name (only for canApprove in pending view)
   const { data: allEmployeesData } = useQuery(
     ['all-employees-for-nickname'],
     () => employeeService.getAll({ limit: 10000 }),
     {
-      enabled: isAdmin && pendingOnly, // Only fetch if admin viewing pending requests
+      enabled: canApprove && pendingOnly, // Only fetch if canApprove viewing pending requests
       select: (data) => {
         // Create a map of employee_id -> nick_name
         const employeeMap = new Map<string, string>()
@@ -221,6 +227,10 @@ const LeaveRequestList = memo(function LeaveRequestList({ pendingOnly = false }:
         return 'red'
       case 'รออนุมัติ':
         return 'yellow'
+      case 'รออนุมัติ (ผู้บริหาร)':
+      case 'รอตรวจสอบ':
+      case 'รอโหวต':
+        return 'orange'
       default:
         return 'gray'
     }
@@ -258,6 +268,27 @@ const LeaveRequestList = memo(function LeaveRequestList({ pendingOnly = false }:
             padding: '5px 10px',
           }
         }
+      case 'รอตรวจสอบ':
+      case 'รอโหวต':
+        return {
+          root: {
+            backgroundColor: '#fd7e14', // สีส้ม
+            color: '#ffffff',
+            fontSize: '13px',
+            fontWeight: 600,
+            padding: '5px 10px',
+          }
+        }
+      case 'รออนุมัติ (ผู้บริหาร)':
+        return {
+          root: {
+            backgroundColor: '#6f42c1', // สีม่วง
+            color: '#ffffff',
+            fontSize: '13px',
+            fontWeight: 600,
+            padding: '5px 10px',
+          }
+        }
       default:
         return {
           root: {
@@ -268,23 +299,6 @@ const LeaveRequestList = memo(function LeaveRequestList({ pendingOnly = false }:
             padding: '5px 10px',
           }
         }
-    }
-  }
-
-  const getLeaveTypeColor = (type: string) => {
-    switch (type) {
-      case 'ลาป่วย':
-        return 'blue'
-      case 'ลากิจ':
-        return 'orange'
-      case 'ลาพักร้อน':
-        return 'cyan'
-      case 'ลาไม่รับค่าจ้าง':
-        return 'gray'
-      case 'ลาอื่นๆ':
-        return 'violet'
-      default:
-        return 'gray'
     }
   }
 
@@ -476,7 +490,6 @@ const LeaveRequestList = memo(function LeaveRequestList({ pendingOnly = false }:
 
               {/* ลาไม่รับค่าจ้าง */}
               {(() => {
-                const entitlement = getLeaveEntitlement('ลาไม่รับค่าจ้าง')
                 return (
                   <Paper
                     p="sm"
@@ -517,7 +530,6 @@ const LeaveRequestList = memo(function LeaveRequestList({ pendingOnly = false }:
 
               {/* ลาอื่นๆ */}
               {(() => {
-                const entitlement = getLeaveEntitlement('ลาอื่นๆ')
                 return (
                   <Paper
                     p="sm"
@@ -568,7 +580,10 @@ const LeaveRequestList = memo(function LeaveRequestList({ pendingOnly = false }:
             <Title order={3}>พนักงานที่จะลาภายใน 3 วันข้างหน้า</Title>
           </Group>
           <Stack gap="xs">
-            {displayUpcomingLeaves.map((leave: any) => {
+            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+            {displayUpcomingLeaves.map((item: any) => {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const leave = item as any
               const startDate = dayjs(leave.leave_start_date)
               const endDate = dayjs(leave.leave_end_date)
               const daysUntilLeave = startDate.diff(dayjs(), 'day')
@@ -598,7 +613,15 @@ const LeaveRequestList = memo(function LeaveRequestList({ pendingOnly = false }:
                     </Text>
                   </Stack>
                   <Stack gap={4} align="flex-end">
-                    <Badge color="orange">{leave.leave_type}</Badge>
+                    <Badge 
+                      color="orange"
+                      styles={{
+                        root: { minWidth: 'max-content', height: 'auto', minHeight: '26px' },
+                        label: { whiteSpace: 'nowrap', overflow: 'visible' }
+                      }}
+                    >
+                      {leave.leave_type}
+                    </Badge>
                     <Text size="sm" fw={500}>
                       {startDate.format('DD/MM/YYYY') === endDate.format('DD/MM/YYYY')
                         ? formatThaiDate(leave.leave_start_date)
@@ -702,7 +725,7 @@ const LeaveRequestList = memo(function LeaveRequestList({ pendingOnly = false }:
                 <Table.Th>หมายเหตุ</Table.Th>
                 <Table.Th>จำนวนวัน</Table.Th>
                 <Table.Th>สถานะ</Table.Th>
-                {isAdmin && <Table.Th>จัดการ</Table.Th>}
+                {canApprove && pendingOnly && <Table.Th>จัดการ</Table.Th>}
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
@@ -729,11 +752,19 @@ const LeaveRequestList = memo(function LeaveRequestList({ pendingOnly = false }:
                       size="lg"
                       styles={{
                         root: {
+                          minWidth: 'max-content',
                           backgroundColor: '#ff6b35',
                           color: '#ffffff',
                           fontSize: '13px',
                           fontWeight: 600,
                           padding: '6px 10px',
+                          textTransform: 'none',
+                          height: 'auto',
+                          minHeight: '26px'
+                        },
+                        label: {
+                          overflow: 'visible',
+                          whiteSpace: 'nowrap',
                         }
                       }}
                     >
@@ -773,39 +804,73 @@ const LeaveRequestList = memo(function LeaveRequestList({ pendingOnly = false }:
                       )}
                     </Group>
                   </Table.Td>
-                  {isAdmin && pendingOnly && (
+                  {canApprove && pendingOnly && (
                     <Table.Td>
                       <Group gap="xs">
-                        <Tooltip label="อนุมัติ">
-                          <ActionIcon
-                            variant="subtle"
-                            color="green"
-                            onClick={() => {
-                              setSelectedRequest(request)
-                              setApprovalMode('approve')
-                              setApprovalModalOpened(true)
-                            }}
-                          >
-                            <TbCheck size={18} />
-                          </ActionIcon>
-                        </Tooltip>
-                        <Tooltip label="ปฏิเสธ">
-                          <ActionIcon
-                            variant="subtle"
-                            color="red"
-                            onClick={() => {
-                              setSelectedRequest(request)
-                              setApprovalMode('reject')
-                              setApprovalModalOpened(true)
-                            }}
-                          >
-                            <TbX size={18} />
-                          </ActionIcon>
-                        </Tooltip>
+                        {(isAdmin || (isAudit && request.status === 'รอตรวจสอบ')) && request.status !== 'รอโหวต' && (
+                          <>
+                            <Tooltip label="อนุมัติ">
+                              <ActionIcon
+                                variant="subtle"
+                                color="green"
+                                onClick={() => {
+                                  setSelectedRequest(request)
+                                  setApprovalMode('approve')
+                                  setApprovalModalOpened(true)
+                                }}
+                              >
+                                <TbCheck size={18} />
+                              </ActionIcon>
+                            </Tooltip>
+                            <Tooltip label="ปฏิเสธ">
+                              <ActionIcon
+                                variant="subtle"
+                                color="red"
+                                onClick={() => {
+                                  setSelectedRequest(request)
+                                  setApprovalMode('reject')
+                                  setApprovalModalOpened(true)
+                                }}
+                              >
+                                <TbX size={18} />
+                              </ActionIcon>
+                            </Tooltip>
+                          </>
+                        )}
+                        {isAudit && request.status === 'รอโหวต' && (
+                          <>
+                            <Tooltip label="โหวตอนุมัติ">
+                              <ActionIcon
+                                variant="subtle"
+                                color="green"
+                                onClick={() => {
+                                  setSelectedRequest(request)
+                                  setApprovalMode('vote_approve')
+                                  setApprovalModalOpened(true)
+                                }}
+                              >
+                                <TbCheck size={18} />
+                              </ActionIcon>
+                            </Tooltip>
+                            <Tooltip label="โหวตปฏิเสธ">
+                              <ActionIcon
+                                variant="subtle"
+                                color="red"
+                                onClick={() => {
+                                  setSelectedRequest(request)
+                                  setApprovalMode('vote_reject')
+                                  setApprovalModalOpened(true)
+                                }}
+                              >
+                                <TbX size={18} />
+                              </ActionIcon>
+                            </Tooltip>
+                          </>
+                        )}
                       </Group>
                     </Table.Td>
                   )}
-                  {isAdmin && !pendingOnly && (
+                  {canApprove && !pendingOnly && (
                     <Table.Td>
                       <Tooltip label="ดูรายละเอียด">
                         <ActionIcon variant="subtle" color="blue">
@@ -902,7 +967,7 @@ const LeaveRequestList = memo(function LeaveRequestList({ pendingOnly = false }:
       </Modal>
 
       {/* Approval Modal */}
-      {isAdmin && selectedRequest && (
+      {canApprove && selectedRequest && (
         <ApprovalModal
           opened={approvalModalOpened}
           onClose={() => {
