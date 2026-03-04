@@ -135,6 +135,7 @@ export default function LeaveManagement() {
               <Tabs.List mb="md">
                 {canApprove && <Tabs.Tab value="dashboard">Dashboard - ลางาน</Tabs.Tab>}
                 <Tabs.Tab value="history">ข้อมูลการลางาน</Tabs.Tab>
+                {isAdmin && <Tabs.Tab value="all-history">ข้อมูลการลางานทั้งหมด</Tabs.Tab>}
                 {canApprove && <Tabs.Tab value="pending">คำขอที่รออนุมัติ</Tabs.Tab>}
               </Tabs.List>
 
@@ -147,6 +148,12 @@ export default function LeaveManagement() {
               <Tabs.Panel value="history">
                 <LeaveRequestList />
               </Tabs.Panel>
+
+              {isAdmin && (
+                <Tabs.Panel value="all-history">
+                  <LeaveRequestList allEmployees={true} />
+                </Tabs.Panel>
+              )}
 
               {canApprove && (
                 <Tabs.Panel value="pending">
@@ -163,6 +170,7 @@ export default function LeaveManagement() {
                 {canApprove && <Tabs.Tab value="dashboard">Dashboard - WFH</Tabs.Tab>}
                 <Tabs.Tab value="work-report">รายงานการทำงาน</Tabs.Tab>
                 <Tabs.Tab value="history">ข้อมูลการ WFH</Tabs.Tab>
+                {isAdmin && <Tabs.Tab value="all-history">ข้อมูลการ WFH ทั้งหมด</Tabs.Tab>}
                 {canApprove && <Tabs.Tab value="pending">คำขอที่รออนุมัติ</Tabs.Tab>}
               </Tabs.List>
 
@@ -179,6 +187,12 @@ export default function LeaveManagement() {
               <Tabs.Panel value="history">
                 <WFHRequestList />
               </Tabs.Panel>
+
+              {isAdmin && (
+                <Tabs.Panel value="all-history">
+                  <WFHRequestList allEmployees={true} />
+                </Tabs.Panel>
+              )}
 
               {canApprove && (
                 <Tabs.Panel value="pending">

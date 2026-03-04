@@ -22,9 +22,11 @@ import {
   Divider,
   Modal,
   Title,
+  TextInput,
 } from '@mantine/core'
-import { TbRefresh, TbEye, TbCheck, TbX, TbCalendar, TbInfoCircle } from 'react-icons/tb'
-import { useQuery } from 'react-query'
+import { TbRefresh, TbEye, TbCheck, TbX, TbCalendar, TbInfoCircle, TbTrash, TbSearch } from 'react-icons/tb'
+import { useQuery, useMutation, useQueryClient } from 'react-query'
+import { notifications } from '@mantine/notifications'
 import { leaveService, LeaveRequest } from '../../services/leaveService'
 import { employeeService } from '../../services/employeeService'
 import { useAuthStore } from '../../store/authStore'
@@ -40,11 +42,13 @@ dayjs.extend(buddhistEra)
 
 interface LeaveRequestListProps {
   pendingOnly?: boolean
+  allEmployees?: boolean
 }
 
-const LeaveRequestList = memo(function LeaveRequestList({ pendingOnly = false }: LeaveRequestListProps) {
+const LeaveRequestList = memo(function LeaveRequestList({ pendingOnly = false, allEmployees = false }: LeaveRequestListProps) {
   const [page, setPage] = useState(1)
   const [limit] = useState(20)
+  const [search, setSearch] = useState('')
   const [status, setStatus] = useState<string | null>(pendingOnly ? 'รออนุมัติ' : null)
   const [leaveType, setLeaveType] = useState<string | null>(null)
   const [startDate, setStartDate] = useState<Date | null>(null)
@@ -54,10 +58,64 @@ const LeaveRequestList = memo(function LeaveRequestList({ pendingOnly = false }:
   const [approvalMode, setApprovalMode] = useState<'approve' | 'reject' | 'vote_approve' | 'vote_reject'>('approve')
   const [rejectionReasonModalOpened, setRejectionReasonModalOpened] = useState(false)
   const [selectedRejectedRequest, setSelectedRejectedRequest] = useState<LeaveRequest | null>(null)
+  
+  // Delete state
+  const [deleteModalOpened, setDeleteModalOpened] = useState(false)
+  const [requestToDelete, setRequestToDelete] = useState<LeaveRequest | null>(null)
+  
   const user = useAuthStore((state) => state.user)
   const isAdmin = user?.role === 'admin' || user?.role === 'hr'
   const isAudit = user?.role === 'audit'
   const canApprove = isAdmin || isAudit
+  const queryClient = useQueryClient()
+
+  // Delete Mutation
+  const deleteMutation = useMutation(
+    (id: string) => leaveService.delete(id),
+    {
+      onSuccess: () => {
+        notifications.show({
+          title: 'สำเร็จ',
+          message: 'ลบคำขอลาสำเร็จเรียบร้อยแล้ว',
+          color: 'green',
+        })
+        queryClient.invalidateQueries(['leave-requests'])
+        setDeleteModalOpened(false)
+        setRequestToDelete(null)
+      },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      onError: (error: any) => {
+        notifications.show({
+          title: 'เกิดข้อผิดพลาด',
+          message: error.response?.data?.message || 'ไม่สามารถลบคำขอลาได้',
+          color: 'red',
+        })
+      },
+    }
+  )
+
+  const handleDeleteClick = (request: LeaveRequest) => {
+    setRequestToDelete(request)
+    setDeleteModalOpened(true)
+  }
+
+  const confirmDelete = () => {
+    if (requestToDelete) {
+      deleteMutation.mutate(requestToDelete.id)
+    }
+  }
+
+  // Check if current user can delete a specific request
+  const canDelete = (request: LeaveRequest) => {
+    // Admin/HR can delete ANY request
+    if (isAdmin) return true
+    
+    // Regular users can only delete their own PENDING requests
+    const isOwner = request.employee_id === user?.employee_id
+    const isPending = ['รอตรวจสอบ', 'รอโหวต', 'รออนุมัติ', 'รออนุมัติ (ผู้บริหาร)'].includes(request.status)
+    
+    return isOwner && isPending
+  }
 
   // Get employee details if employee_id exists
   const { data: employeeListData } = useQuery(
@@ -127,7 +185,8 @@ const LeaveRequestList = memo(function LeaveRequestList({ pendingOnly = false }:
       leaveType,
       startDate,
       endDate,
-      user?.employee_id, // Include employee_id in query key
+      search,
+      (allEmployees || pendingOnly) ? undefined : user?.employee_id, // Include employee_id in query key conditionally
     ],
     () =>
       leaveService.getAll({
@@ -137,12 +196,13 @@ const LeaveRequestList = memo(function LeaveRequestList({ pendingOnly = false }:
         leave_type: leaveType || undefined,
         start_date: startDate ? startDate.toISOString().split('T')[0] : undefined,
         end_date: endDate ? endDate.toISOString().split('T')[0] : undefined,
-        // Always filter by own employee_id for history tab (not pendingOnly)
+        search: search || undefined,
+        // Always filter by own employee_id for history tab (not pendingOnly or allEmployees)
         // This ensures all users (including HR/Admin/Audit) see only their own leave data
-        employee_id: !pendingOnly && user?.employee_id ? user.employee_id : undefined,
+        employee_id: (!pendingOnly && !allEmployees && user?.employee_id) ? user.employee_id : undefined,
       }),
     {
-      enabled: (!pendingOnly || canApprove) && !!user?.employee_id, // Only fetch pending if canApprove, and require employee_id
+      enabled: (!pendingOnly || canApprove) && (allEmployees ? canApprove : !!user?.employee_id), // Only fetch pending/all if canApprove, and require employee_id otherwise
     }
   )
 
@@ -194,7 +254,7 @@ const LeaveRequestList = memo(function LeaveRequestList({ pendingOnly = false }:
     ['all-employees-for-nickname'],
     () => employeeService.getAll({ limit: 10000 }),
     {
-      enabled: canApprove && pendingOnly, // Only fetch if canApprove viewing pending requests
+      enabled: canApprove && (pendingOnly || allEmployees), // Only fetch if canApprove viewing pending or all requests
       select: (data) => {
         // Create a map of employee_id -> nick_name
         const employeeMap = new Map<string, string>()
@@ -647,7 +707,16 @@ const LeaveRequestList = memo(function LeaveRequestList({ pendingOnly = false }:
 
       {/* Search & Filter */}
       {!pendingOnly && (
-        <Group>
+        <Group align="flex-end">
+          {allEmployees && (
+            <TextInput
+              placeholder="ค้นหาตามชื่อพนักงานหรือรหัสพนักงาน..."
+              leftSection={<TbSearch size={16} />}
+              style={{ flex: 1, minWidth: 200 }}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          )}
           <Select
             placeholder="สถานะ"
             data={[
@@ -693,6 +762,7 @@ const LeaveRequestList = memo(function LeaveRequestList({ pendingOnly = false }:
             leftSection={<TbRefresh size={16} />}
             onClick={() => {
               // Reset all filters
+              setSearch('')
               setStatus(null)
               setLeaveType(null)
               setStartDate(null)
@@ -725,7 +795,7 @@ const LeaveRequestList = memo(function LeaveRequestList({ pendingOnly = false }:
                 <Table.Th>หมายเหตุ</Table.Th>
                 <Table.Th>จำนวนวัน</Table.Th>
                 <Table.Th>สถานะ</Table.Th>
-                {canApprove && pendingOnly && <Table.Th>จัดการ</Table.Th>}
+                {(canApprove && pendingOnly) || !pendingOnly ? <Table.Th>จัดการ</Table.Th> : null}
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
@@ -804,79 +874,94 @@ const LeaveRequestList = memo(function LeaveRequestList({ pendingOnly = false }:
                       )}
                     </Group>
                   </Table.Td>
-                  {canApprove && pendingOnly && (
+                  {((canApprove && pendingOnly) || !pendingOnly) && (
                     <Table.Td>
                       <Group gap="xs">
-                        {(isAdmin || (isAudit && request.status === 'รอตรวจสอบ')) && request.status !== 'รอโหวต' && (
+                        {canApprove && pendingOnly && (
                           <>
-                            <Tooltip label="อนุมัติ">
-                              <ActionIcon
-                                variant="subtle"
-                                color="green"
-                                onClick={() => {
-                                  setSelectedRequest(request)
-                                  setApprovalMode('approve')
-                                  setApprovalModalOpened(true)
-                                }}
-                              >
-                                <TbCheck size={18} />
-                              </ActionIcon>
-                            </Tooltip>
-                            <Tooltip label="ปฏิเสธ">
-                              <ActionIcon
-                                variant="subtle"
-                                color="red"
-                                onClick={() => {
-                                  setSelectedRequest(request)
-                                  setApprovalMode('reject')
-                                  setApprovalModalOpened(true)
-                                }}
-                              >
-                                <TbX size={18} />
-                              </ActionIcon>
-                            </Tooltip>
+                            {(isAdmin || (isAudit && request.status === 'รอตรวจสอบ')) && request.status !== 'รอโหวต' && (
+                              <>
+                                <Tooltip label="อนุมัติ">
+                                  <ActionIcon
+                                    variant="subtle"
+                                    color="green"
+                                    onClick={() => {
+                                      setSelectedRequest(request)
+                                      setApprovalMode('approve')
+                                      setApprovalModalOpened(true)
+                                    }}
+                                  >
+                                    <TbCheck size={18} />
+                                  </ActionIcon>
+                                </Tooltip>
+                                <Tooltip label="ปฏิเสธ">
+                                  <ActionIcon
+                                    variant="subtle"
+                                    color="red"
+                                    onClick={() => {
+                                      setSelectedRequest(request)
+                                      setApprovalMode('reject')
+                                      setApprovalModalOpened(true)
+                                    }}
+                                  >
+                                    <TbX size={18} />
+                                  </ActionIcon>
+                                </Tooltip>
+                              </>
+                            )}
+                            {isAudit && request.status === 'รอโหวต' && (
+                              <>
+                                <Tooltip label="โหวตอนุมัติ">
+                                  <ActionIcon
+                                    variant="subtle"
+                                    color="green"
+                                    onClick={() => {
+                                      setSelectedRequest(request)
+                                      setApprovalMode('vote_approve')
+                                      setApprovalModalOpened(true)
+                                    }}
+                                  >
+                                    <TbCheck size={18} />
+                                  </ActionIcon>
+                                </Tooltip>
+                                <Tooltip label="โหวตปฏิเสธ">
+                                  <ActionIcon
+                                    variant="subtle"
+                                    color="red"
+                                    onClick={() => {
+                                      setSelectedRequest(request)
+                                      setApprovalMode('vote_reject')
+                                      setApprovalModalOpened(true)
+                                    }}
+                                  >
+                                    <TbX size={18} />
+                                  </ActionIcon>
+                                </Tooltip>
+                              </>
+                            )}
                           </>
                         )}
-                        {isAudit && request.status === 'รอโหวต' && (
-                          <>
-                            <Tooltip label="โหวตอนุมัติ">
-                              <ActionIcon
-                                variant="subtle"
-                                color="green"
-                                onClick={() => {
-                                  setSelectedRequest(request)
-                                  setApprovalMode('vote_approve')
-                                  setApprovalModalOpened(true)
-                                }}
-                              >
-                                <TbCheck size={18} />
-                              </ActionIcon>
-                            </Tooltip>
-                            <Tooltip label="โหวตปฏิเสธ">
-                              <ActionIcon
-                                variant="subtle"
-                                color="red"
-                                onClick={() => {
-                                  setSelectedRequest(request)
-                                  setApprovalMode('vote_reject')
-                                  setApprovalModalOpened(true)
-                                }}
-                              >
-                                <TbX size={18} />
-                              </ActionIcon>
-                            </Tooltip>
-                          </>
+                        
+                        {canApprove && !pendingOnly && (
+                          <Tooltip label="ดูรายละเอียด">
+                            <ActionIcon variant="subtle" color="blue">
+                              <TbEye size={18} />
+                            </ActionIcon>
+                          </Tooltip>
+                        )}
+
+                        {canDelete(request) && (
+                          <Tooltip label="ลบคำขอ">
+                            <ActionIcon
+                              variant="subtle"
+                              color="red"
+                              onClick={() => handleDeleteClick(request)}
+                            >
+                              <TbTrash size={18} />
+                            </ActionIcon>
+                          </Tooltip>
                         )}
                       </Group>
-                    </Table.Td>
-                  )}
-                  {canApprove && !pendingOnly && (
-                    <Table.Td>
-                      <Tooltip label="ดูรายละเอียด">
-                        <ActionIcon variant="subtle" color="blue">
-                          <TbEye size={18} />
-                        </ActionIcon>
-                      </Tooltip>
                     </Table.Td>
                   )}
                 </Table.Tr>
@@ -987,6 +1072,53 @@ const LeaveRequestList = memo(function LeaveRequestList({ pendingOnly = false }:
           mode={approvalMode}
         />
       )}
+      {/* Delete Confirmation Modal */}
+      <Modal
+        opened={deleteModalOpened}
+        onClose={() => setDeleteModalOpened(false)}
+        title={
+          <Group gap="sm">
+            <TbTrash size={24} color="red" />
+            <Text fw={600} size="lg" c="red">
+              ยืนยันการลบคำขอ
+            </Text>
+          </Group>
+        }
+        centered
+        overlayProps={{ blur: 3 }}
+      >
+        <Stack gap="xl">
+          <Text size="md">
+            คุณแน่ใจหรือไม่ว่าต้องการลบคำขอลาของ <b>{requestToDelete?.employee_name}</b> ?
+            <br />
+            <br />
+            <Text size="sm" c="dimmed">
+              วันที่ลา: {requestToDelete ? (
+                requestToDelete.leave_start_date === requestToDelete.leave_end_date
+                  ? formatThaiDate(requestToDelete.leave_start_date)
+                  : `${formatThaiDate(requestToDelete.leave_start_date)} - ${formatThaiDate(requestToDelete.leave_end_date)}`
+              ) : ''}
+            </Text>
+          </Text>
+
+          <Group justify="flex-end" gap="sm">
+            <Button
+              variant="default"
+              onClick={() => setDeleteModalOpened(false)}
+              disabled={deleteMutation.isLoading}
+            >
+              ยกเลิก
+            </Button>
+            <Button
+              color="red"
+              onClick={confirmDelete}
+              loading={deleteMutation.isLoading}
+            >
+              ลบคำขอ
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
     </Stack>
   )
 })

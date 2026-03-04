@@ -27,7 +27,7 @@ import {
 import { TbId, TbUser, TbUserCircle, TbCalendar } from 'react-icons/tb'
 import { Calendar, DatesProvider } from '@mantine/dates'
 import { useMutation, useQueryClient, useQuery } from 'react-query'
-import { leaveService, LeaveRequest } from '../../services/leaveService'
+import { leaveService, wfhService, LeaveRequest } from '../../services/leaveService'
 import { employeeService } from '../../services/employeeService'
 import { notifications } from '@mantine/notifications'
 import { useAuthStore } from '../../store/authStore'
@@ -91,13 +91,24 @@ export default function LeaveRequestForm({ opened, onClose }: LeaveRequestFormPr
     }
   )
 
+  // Get user's WFH requests to prevent overlaps
+  const { data: userWFHRequests } = useQuery(
+    ['wfh-requests', 'user', user?.employee_id],
+    () => wfhService.getAll({ employee_id: user?.employee_id }),
+    {
+      enabled: opened && !!user?.employee_id,
+      staleTime: 0,
+      refetchOnMount: true,
+    }
+  )
+
   // Create a Set of date ranges that are already selected (pending or approved, excluding rejected)
   const alreadySelectedDateRanges = useMemo(() => {
     const ranges: Array<{ start: string; end: string }> = []
     if (userLeaveRequests?.data.leave_requests) {
       userLeaveRequests.data.leave_requests.forEach((request) => {
         // Only include dates that are pending or approved (not rejected)
-        if (request.status === 'รออนุมัติ' || request.status === 'อนุมัติแล้ว') {
+        if (request.status === 'รออนุมัติ' || request.status === 'อนุมัติแล้ว' || request.status === 'รอตรวจสอบ' || request.status === 'รอโหวต' || request.status === 'รออนุมัติ (ผู้บริหาร)') {
           ranges.push({
             start: request.leave_start_date,
             end: request.leave_end_date,
@@ -105,8 +116,21 @@ export default function LeaveRequestForm({ opened, onClose }: LeaveRequestFormPr
         }
       })
     }
+    
+    // Add WFH dates as 1-day ranges
+    if (userWFHRequests?.data.wfh_requests) {
+      userWFHRequests.data.wfh_requests.forEach((request) => {
+        if (request.status === 'รออนุมัติ' || request.status === 'อนุมัติแล้ว' || request.status === 'รอตรวจสอบ' || request.status === 'รอโหวต' || request.status === 'รออนุมัติ (ผู้บริหาร)') {
+          ranges.push({
+            start: request.wfh_date,
+            end: request.wfh_date,
+          })
+        }
+      })
+    }
+    
     return ranges
-  }, [userLeaveRequests])
+  }, [userLeaveRequests, userWFHRequests])
 
   // Helper function to check if a date is within any already selected range
   const isDateInAlreadySelectedRange = (date: Date): boolean => {
@@ -126,13 +150,14 @@ export default function LeaveRequestForm({ opened, onClose }: LeaveRequestFormPr
         return { used: usedDays, total: 30, unlimited: false }
       case 'ลากิจ':
         return { used: usedDays, total: 6, unlimited: false }
-      case 'ลาพักร้อน':
+      case 'ลาพักร้อน': {
         // Check if employee has worked for at least 1 year
         const hireDate = employeeData?.hire_date ? new Date(employeeData.hire_date) : null
         const oneYearAgo = new Date()
         oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1)
         const canRequestVacation = hireDate && hireDate <= oneYearAgo
         return { used: usedDays, total: 6, unlimited: false, canRequest: canRequestVacation }
+      }
       case 'ลาไม่รับค่าจ้าง':
         return { used: usedDays, total: null, unlimited: true }
       case 'ลาอื่นๆ':
@@ -180,6 +205,7 @@ export default function LeaveRequestForm({ opened, onClose }: LeaveRequestFormPr
       queryClient.invalidateQueries({ queryKey: ['leave-requests', 'user'] })
       handleClose()
     },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     onError: (error: any) => {
       // Extract error message from response
       let errorMessage = 'ไม่สามารถส่งคำขอลาได้'
@@ -486,15 +512,82 @@ export default function LeaveRequestForm({ opened, onClose }: LeaveRequestFormPr
       return
     }
 
-    // Validate reason for specific types
-    if ((leaveType === 'ลากิจ' || leaveType === 'ลาอื่นๆ') && !reason.trim()) {
+    // --- Phase 2: Leave Validations ---
+    const diffTime = finalStartDate.getTime() - today.getTime()
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    const currentHour = new Date().getHours()
+
+    // วันล่วงหน้า (นับวันที่ขอเป็นวันที่ 1) 
+    // ตัวอย่าง: ถ้าวันนี้วันที่ 4 (diff 0 = ล่วงหน้า 1 วัน), วันที่ 5 (diff 1 = ล่วงหน้า 2 วัน), วันที่ 6 (diff 2 = ล่วงหน้า 3 วัน), วันที่ 8 (diff 4 = ล่วงหน้า 5 วัน)
+    const advanceDays = diffDays + 1
+
+    // 1. ลาป่วย (Sick Leave) - แจ้งก่อนเข้างาน 2 ชม. (ก่อน 07:00 น. ถ้าลาวันนี้)
+    if (leaveType === 'ลาป่วย') {
+      if (diffDays === 0 && currentHour >= 7) {
+        notifications.show({
+          title: 'ไม่สามารถลาป่วยได้',
+          message: 'การขอลาป่วยสำหรับวันนี้ ต้องทำรายการก่อนเวลา 07:00 น.',
+          color: 'red',
+        })
+        return
+      }
+    }
+
+    // 2. ลากิจ / ลาพักร้อน - ล่วงหน้าอย่างน้อย 3 วัน (advanceDays >= 3 หรือ diffDays >= 2)
+    if (leaveType === 'ลากิจ' || leaveType === 'ลาพักร้อน') {
+      if (advanceDays < 3) {
+        notifications.show({
+          title: 'ไม่สามารถลาได้',
+          message: `การ${leaveType} ต้องทำรายการล่วงหน้าอย่างน้อย 3 วันนับตั้งแต่วันที่ยื่นคำขอ`,
+          color: 'red',
+        })
+        return
+      }
+      if (leaveType === 'ลากิจ' && !reason.trim()) {
+        notifications.show({
+          title: 'กรุณากรอกหมายเหตุ',
+          message: 'การลากิจต้องระบุหมายเหตุเสมอ',
+          color: 'orange',
+        })
+        return
+      }
+    }
+
+    // 3. ลาไม่รับค่าจ้าง - ล่วงหน้าอย่างน้อย 5 วัน (advanceDays >= 5 หรือ diffDays >= 4)
+    if (leaveType === 'ลาไม่รับค่าจ้าง') {
+      if (advanceDays < 5) {
+        // กรณีฉุกเฉิน (อนุญาตเฉพาะลาวันนี้เท่านั้น diffDays === 0)
+        if (diffDays === 0) {
+          if (currentHour >= 7) {
+            notifications.show({
+              title: 'ไม่สามารถลาได้',
+              message: 'การลาไม่รับค่าจ้างฉุกเฉินสำหรับวันนี้ ต้องทำรายการก่อนเวลา 07:00 น.',
+              color: 'red',
+            })
+            return
+          }
+        } else {
+          // ถ้าไม่ได้ลาวันนี้ และลาล่วงหน้าน้อยกว่า 5 วัน จะไม่อนุญาต
+          notifications.show({
+            title: 'ไม่สามารถลาได้',
+            message: 'การลาไม่รับค่าจ้าง ต้องทำรายการล่วงหน้าอย่างน้อย 5 วัน หรือถ้าเป็นการลาฉุกเฉินจะทำได้เฉพาะการระบุวันลาเป็น "วันนี้" และทำก่อนเวลา 07:00 น. เท่านั้น',
+            color: 'red',
+          })
+          return
+        }
+      }
+    }
+
+    // ลาอื่นๆ บังคับกรอกหมายเหตุ
+    if (leaveType === 'ลาอื่นๆ' && !reason.trim()) {
       notifications.show({
         title: 'กรุณากรอกหมายเหตุ',
-        message: 'ประเภทการลานี้ต้องกรอกหมายเหตุ',
+        message: 'การลาประเภทนี้ต้องระบุหมายเหตุ',
         color: 'orange',
       })
       return
     }
+    // --- End Validations ---
 
     // Fix 3: Validate leave quota before submission
     const entitlement = getLeaveEntitlement(leaveType)
@@ -522,8 +615,11 @@ export default function LeaveRequestForm({ opened, onClose }: LeaveRequestFormPr
     })
   }
 
-  const requiresReason = leaveType === 'ลากิจ' || leaveType === 'ลาอื่นๆ'
   const [startDate, endDate] = selectedDates
+  
+  const showReasonField = leaveType === 'ลากิจ' || leaveType === 'ลาอื่นๆ' || leaveType === 'ลาไม่รับค่าจ้าง'
+  const isReasonRequired = leaveType === 'ลากิจ' || leaveType === 'ลาอื่นๆ'
+  const requiresReasonLabel = isReasonRequired ? '*' : ''
 
   // Check if a date belongs to the current displayed month
   const isDateInCurrentMonth = (date: Date): boolean => {
@@ -663,11 +759,14 @@ export default function LeaveRequestForm({ opened, onClose }: LeaveRequestFormPr
               {/* eslint-disable-next-line @typescript-eslint/ban-ts-comment */}
               {/* @ts-ignore - Mantine Calendar v7 type definitions issue with value/onChange props */}
               <Calendar
-                value={startDate}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                {...({ value: startDate } as any)}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(date: any) => {
                   if (date instanceof Date) handleDateClick(date)
                 }}
                 month={currentMonth}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 getDayProps={getDayProps as any}
                 excludeDate={(date: Date) => {
                   const today = new Date()
@@ -1147,13 +1246,13 @@ export default function LeaveRequestForm({ opened, onClose }: LeaveRequestFormPr
         />
 
         {/* Reason Textarea */}
-        {requiresReason && (
+        {showReasonField && (
           <Textarea
-            label="หมายเหตุ"
-            placeholder="กรุณาระบุเหตุผล (บังคับ)"
+            label={`หมายเหตุ ${requiresReasonLabel}`}
+            placeholder={isReasonRequired ? "กรุณาระบุเหตุผล (บังคับ)" : "กรุณาระบุเหตุผล (ถ้ามี)"}
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            required
+            required={isReasonRequired}
             minRows={3}
             radius="lg"
             autosize

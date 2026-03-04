@@ -17,9 +17,11 @@ import {
   Text,
   ActionIcon,
   Tooltip,
+  Modal,
 } from '@mantine/core'
-import { TbSearch, TbRefresh, TbCheck, TbX, TbFileText } from 'react-icons/tb'
-import { useQuery } from 'react-query'
+import { TbSearch, TbRefresh, TbCheck, TbX, TbFileText, TbTrash } from 'react-icons/tb'
+import { useQuery, useMutation, useQueryClient } from 'react-query'
+import { notifications } from '@mantine/notifications'
 import { wfhService, WFHRequest } from '../../services/leaveService'
 import { useAuthStore } from '../../store/authStore'
 import { DateInput } from '@mantine/dates'
@@ -30,9 +32,10 @@ import dayjs from 'dayjs'
 interface WFHRequestListProps {
   pendingOnly?: boolean
   showWorkReportOnly?: boolean
+  allEmployees?: boolean
 }
 
-const WFHRequestList = memo(function WFHRequestList({ pendingOnly = false, showWorkReportOnly = false }: WFHRequestListProps) {
+const WFHRequestList = memo(function WFHRequestList({ pendingOnly = false, showWorkReportOnly = false, allEmployees = false }: WFHRequestListProps) {
   const [page, setPage] = useState(1)
   const [limit] = useState(20)
   const [search, setSearch] = useState('')
@@ -44,10 +47,64 @@ const WFHRequestList = memo(function WFHRequestList({ pendingOnly = false, showW
   const [approvalMode, setApprovalMode] = useState<'approve' | 'reject' | 'vote_approve' | 'vote_reject'>('approve')
   const [workReportModalOpened, setWorkReportModalOpened] = useState(false)
   const [selectedWorkReportRequest, setSelectedWorkReportRequest] = useState<WFHRequest | null>(null)
+  
+  // Delete state
+  const [deleteModalOpened, setDeleteModalOpened] = useState(false)
+  const [requestToDelete, setRequestToDelete] = useState<WFHRequest | null>(null)
+  
   const user = useAuthStore((state) => state.user)
   const isAdmin = user?.role === 'admin' || user?.role === 'hr'
   const isAudit = user?.role === 'audit'
   const canApprove = isAdmin || isAudit
+  const queryClient = useQueryClient()
+
+  // Delete Mutation
+  const deleteMutation = useMutation(
+    (id: string) => wfhService.delete(id),
+    {
+      onSuccess: () => {
+        notifications.show({
+          title: 'สำเร็จ',
+          message: 'ลบคำขอ WFH สำเร็จเรียบร้อยแล้ว',
+          color: 'green',
+        })
+        queryClient.invalidateQueries(['wfh-requests'])
+        setDeleteModalOpened(false)
+        setRequestToDelete(null)
+      },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      onError: (error: any) => {
+        notifications.show({
+          title: 'เกิดข้อผิดพลาด',
+          message: error.response?.data?.message || 'ไม่สามารถลบคำขอ WFH ได้',
+          color: 'red',
+        })
+      },
+    }
+  )
+
+  const handleDeleteClick = (request: WFHRequest) => {
+    setRequestToDelete(request)
+    setDeleteModalOpened(true)
+  }
+
+  const confirmDelete = () => {
+    if (requestToDelete) {
+      deleteMutation.mutate(requestToDelete.id)
+    }
+  }
+
+  // Check if current user can delete a specific request
+  const canDelete = (request: WFHRequest) => {
+    // Admin/HR can delete ANY request
+    if (isAdmin) return true
+    
+    // Regular users can only delete their own PENDING requests
+    const isOwner = request.employee_id === user?.employee_id
+    const isPending = ['รอตรวจสอบ', 'รอโหวต', 'รออนุมัติ', 'รออนุมัติ (ผู้บริหาร)'].includes(request.status)
+    
+    return isOwner && isPending
+  }
 
   // Fetch WFH requests
   // For "ข้อมูลการ WFH" (history tab), always show only own data
@@ -55,27 +112,27 @@ const WFHRequestList = memo(function WFHRequestList({ pendingOnly = false, showW
   const { data, isLoading, error, refetch } = useQuery(
     [
       'wfh-requests',
-      pendingOnly ? 'pending' : 'all',
+      pendingOnly ? 'pending' : (allEmployees ? 'all' : 'history'),
       page,
       limit,
       search,
       status,
       startDate,
       endDate,
-      pendingOnly ? undefined : user?.employee_id, // Include employee_id for history tab
+      (allEmployees || pendingOnly) ? undefined : user?.employee_id, // Include employee_id conditionally
     ],
     () =>
       wfhService.getAll({
         page,
         limit,
-        employee_id: pendingOnly ? undefined : user?.employee_id, // Filter by own employee_id for history tab
+        employee_id: (allEmployees || pendingOnly) ? undefined : user?.employee_id, // Filter by own employee_id for history tab
         search: search || undefined,
         status: status || undefined,
         start_date: startDate ? startDate.toISOString().split('T')[0] : undefined,
         end_date: endDate ? endDate.toISOString().split('T')[0] : undefined,
       }),
     {
-      enabled: !pendingOnly || canApprove,
+      enabled: (!pendingOnly || canApprove) && (allEmployees ? canApprove : true),
     }
   )
 
@@ -261,7 +318,7 @@ const WFHRequestList = memo(function WFHRequestList({ pendingOnly = false, showW
                 <Table.Th>วันที่ WFH</Table.Th>
                 <Table.Th>สถานะ</Table.Th>
                 <Table.Th>รายงานการทำงาน</Table.Th>
-                {canApprove && pendingOnly && <Table.Th>จัดการ</Table.Th>}
+                {(canApprove && pendingOnly) || (!pendingOnly && !showWorkReportOnly) ? <Table.Th>จัดการ</Table.Th> : null}
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
@@ -341,68 +398,84 @@ const WFHRequestList = memo(function WFHRequestList({ pendingOnly = false, showW
                         <Text size="sm" c="dimmed">-</Text>
                       )}
                     </Table.Td>
-                    {canApprove && pendingOnly && (
+                    {((canApprove && pendingOnly) || (!pendingOnly && !showWorkReportOnly)) && (
                       <Table.Td>
                         <Group gap="xs">
-                          {(isAdmin || (isAudit && request.status === 'รอตรวจสอบ')) && request.status !== 'รอโหวต' && (
+                          {canApprove && pendingOnly && (
                             <>
-                              <Tooltip label="อนุมัติ">
-                                <ActionIcon
-                                  variant="subtle"
-                                  color="green"
-                                  onClick={() => {
-                                    setSelectedRequest(request)
-                                    setApprovalMode('approve')
-                                    setApprovalModalOpened(true)
-                                  }}
-                                >
-                                  <TbCheck size={18} />
-                                </ActionIcon>
-                              </Tooltip>
-                              <Tooltip label="ไม่อนุมัติ">
-                                <ActionIcon
-                                  variant="subtle"
-                                  color="red"
-                                  onClick={() => {
-                                    setSelectedRequest(request)
-                                    setApprovalMode('reject')
-                                    setApprovalModalOpened(true)
-                                  }}
-                                >
-                                  <TbX size={18} />
-                                </ActionIcon>
-                              </Tooltip>
+                              {(isAdmin || (isAudit && request.status === 'รอตรวจสอบ')) && request.status !== 'รอโหวต' && (
+                                <>
+                                  <Tooltip label="อนุมัติ">
+                                    <ActionIcon
+                                      variant="subtle"
+                                      color="green"
+                                      onClick={() => {
+                                        setSelectedRequest(request)
+                                        setApprovalMode('approve')
+                                        setApprovalModalOpened(true)
+                                      }}
+                                    >
+                                      <TbCheck size={18} />
+                                    </ActionIcon>
+                                  </Tooltip>
+                                  <Tooltip label="ไม่อนุมัติ">
+                                    <ActionIcon
+                                      variant="subtle"
+                                      color="red"
+                                      onClick={() => {
+                                        setSelectedRequest(request)
+                                        setApprovalMode('reject')
+                                        setApprovalModalOpened(true)
+                                      }}
+                                    >
+                                      <TbX size={18} />
+                                    </ActionIcon>
+                                  </Tooltip>
+                                </>
+                              )}
+                              {isAudit && request.status === 'รอโหวต' && (
+                                <>
+                                  <Tooltip label="โหวตอนุมัติ">
+                                    <ActionIcon
+                                      variant="subtle"
+                                      color="green"
+                                      onClick={() => {
+                                        setSelectedRequest(request)
+                                        setApprovalMode('vote_approve')
+                                        setApprovalModalOpened(true)
+                                      }}
+                                    >
+                                      <TbCheck size={18} />
+                                    </ActionIcon>
+                                  </Tooltip>
+                                  <Tooltip label="โหวตไม่อนุมัติ">
+                                    <ActionIcon
+                                      variant="subtle"
+                                      color="red"
+                                      onClick={() => {
+                                        setSelectedRequest(request)
+                                        setApprovalMode('vote_reject')
+                                        setApprovalModalOpened(true)
+                                      }}
+                                    >
+                                      <TbX size={18} />
+                                    </ActionIcon>
+                                  </Tooltip>
+                                </>
+                              )}
                             </>
                           )}
-                          {isAudit && request.status === 'รอโหวต' && (
-                            <>
-                              <Tooltip label="โหวตอนุมัติ">
-                                <ActionIcon
-                                  variant="subtle"
-                                  color="green"
-                                  onClick={() => {
-                                    setSelectedRequest(request)
-                                    setApprovalMode('vote_approve')
-                                    setApprovalModalOpened(true)
-                                  }}
-                                >
-                                  <TbCheck size={18} />
-                                </ActionIcon>
-                              </Tooltip>
-                              <Tooltip label="โหวตไม่อนุมัติ">
-                                <ActionIcon
-                                  variant="subtle"
-                                  color="red"
-                                  onClick={() => {
-                                    setSelectedRequest(request)
-                                    setApprovalMode('vote_reject')
-                                    setApprovalModalOpened(true)
-                                  }}
-                                >
-                                  <TbX size={18} />
-                                </ActionIcon>
-                              </Tooltip>
-                            </>
+
+                          {!showWorkReportOnly && canDelete(request) && (
+                            <Tooltip label="ลบคำขอ">
+                              <ActionIcon
+                                variant="subtle"
+                                color="red"
+                                onClick={() => handleDeleteClick(request)}
+                              >
+                                <TbTrash size={18} />
+                              </ActionIcon>
+                            </Tooltip>
                           )}
                         </Group>
                       </Table.Td>
@@ -445,6 +518,50 @@ const WFHRequestList = memo(function WFHRequestList({ pendingOnly = false, showW
           mode={approvalMode}
         />
       )}
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        opened={deleteModalOpened}
+        onClose={() => setDeleteModalOpened(false)}
+        title={
+          <Group gap="sm">
+            <TbTrash size={24} color="red" />
+            <Text fw={600} size="lg" c="red">
+              ยืนยันการลบคำขอ
+            </Text>
+          </Group>
+        }
+        centered
+        overlayProps={{ blur: 3 }}
+      >
+        <Stack gap="xl">
+          <Text size="md">
+            คุณแน่ใจหรือไม่ว่าต้องการลบคำขอ WFH ของ <b>{requestToDelete?.employee_name}</b> ?
+            <br />
+            <br />
+            <Text size="sm" c="dimmed">
+              วันที่ WFH: {requestToDelete ? formatThaiDate(requestToDelete.wfh_date) : ''}
+            </Text>
+          </Text>
+
+          <Group justify="flex-end" gap="sm">
+            <Button
+              variant="default"
+              onClick={() => setDeleteModalOpened(false)}
+              disabled={deleteMutation.isLoading}
+            >
+              ยกเลิก
+            </Button>
+            <Button
+              color="red"
+              onClick={confirmDelete}
+              loading={deleteMutation.isLoading}
+            >
+              ลบคำขอ
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
 
       {/* Work Report Modal */}
       {selectedWorkReportRequest && (

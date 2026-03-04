@@ -38,7 +38,7 @@ router.get('/', authenticateToken, async (req, res) => {
     const offset = (pageNum - 1) * limitNum
 
     // Role-based access control
-    const isHRorAdmin = req.user.role === 'admin'
+    const isHRorAdmin = req.user.role === 'admin' || req.user.role === 'hr'
 
     // Build WHERE clause
     const whereConditions = ['lr.deleted_at IS NULL']
@@ -1133,6 +1133,75 @@ router.put('/:id/reject', authenticateToken, authorize('admin', 'hr', 'audit'), 
     })
   } catch (error) {
     console.error('Reject leave request error:', error)
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+    })
+  }
+})
+
+/**
+ * DELETE /api/leave-requests/:id
+ * ลบการลา (Soft delete)
+ * Access: Owner (if pending) / Admin / HR (any status)
+ */
+router.delete('/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params
+    const userRole = req.user.role
+    const employeeId = req.user.employee_id
+
+    // Get leave request
+    const [leaveRequests] = await pool.execute(
+      `SELECT * FROM leave_requests WHERE id = ? AND deleted_at IS NULL`,
+      [id]
+    )
+
+    if (leaveRequests.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Leave request not found or already deleted',
+      })
+    }
+
+    const leaveRequest = leaveRequests[0]
+    const isAdminOrHr = ['admin', 'hr'].includes(userRole)
+    const isOwner = leaveRequest.employee_id === employeeId
+
+    // Permission check
+    if (!isAdminOrHr) {
+      if (!isOwner) {
+        return res.status(403).json({
+          success: false,
+          message: 'You can only delete your own requests',
+        })
+      }
+      
+      // Regular user can only delete pending requests
+      const pendingStatuses = ['รอตรวจสอบ', 'รอโหวต', 'รออนุมัติ', 'รออนุมัติ (ผู้บริหาร)']
+      if (!pendingStatuses.includes(leaveRequest.status)) {
+        return res.status(400).json({
+          success: false,
+          message: 'You can only delete requests that are still pending',
+        })
+      }
+    }
+
+    // Perform Soft Delete
+    await pool.execute(
+      `UPDATE leave_requests SET deleted_at = NOW() WHERE id = ?`,
+      [id]
+    )
+
+    // Clear backend cache
+    invalidateCache('GET:/leave-requests')
+
+    res.json({
+      success: true,
+      message: 'Leave request deleted successfully',
+    })
+  } catch (error) {
+    console.error('Delete leave request error:', error)
     res.status(500).json({
       success: false,
       message: 'Internal server error',

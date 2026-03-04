@@ -3,7 +3,7 @@
  * ฟอร์มสำหรับขอ WFH พร้อม Calendar view
  */
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import {
   Modal,
   Stack,
@@ -19,7 +19,7 @@ import {
 } from '@mantine/core'
 import { Calendar, DatesProvider } from '@mantine/dates'
 import { useQuery, useQueryClient } from 'react-query'
-import { wfhService } from '../../services/leaveService'
+import { wfhService, leaveService } from '../../services/leaveService'
 import { notifications } from '@mantine/notifications'
 import { TbAlertCircle } from 'react-icons/tb'
 import { useAuthStore } from '../../store/authStore'
@@ -65,19 +65,47 @@ export default function WFHRequestForm({ opened, onClose }: WFHRequestFormProps)
     }
   )
 
+  // Get user's Leave requests to prevent overlaps
+  const { data: userLeaveRequests } = useQuery(
+    ['leave-requests', 'user', user?.employee_id],
+    () => leaveService.getAll({ employee_id: user?.employee_id || undefined }),
+    {
+      enabled: opened && !!user?.employee_id,
+      staleTime: 0,
+      refetchOnMount: true,
+    }
+  )
+
   // Create a Set of dates that are already selected (pending or approved, excluding rejected)
   const alreadySelectedDates = useMemo(() => {
     const dateSet = new Set<string>()
     if (userWFHRequests?.data.wfh_requests) {
       userWFHRequests.data.wfh_requests.forEach((request) => {
         // Only include dates that are pending or approved (not rejected)
-        if (request.status === 'รออนุมัติ' || request.status === 'อนุมัติแล้ว') {
+        if (request.status === 'รออนุมัติ' || request.status === 'อนุมัติแล้ว' || request.status === 'รอตรวจสอบ' || request.status === 'รอโหวต' || request.status === 'รออนุมัติ (ผู้บริหาร)') {
           dateSet.add(request.wfh_date)
         }
       })
     }
+
+    if (userLeaveRequests?.data.leave_requests) {
+      userLeaveRequests.data.leave_requests.forEach((request) => {
+        if (request.status === 'รออนุมัติ' || request.status === 'อนุมัติแล้ว' || request.status === 'รอตรวจสอบ' || request.status === 'รอโหวต' || request.status === 'รออนุมัติ (ผู้บริหาร)') {
+          const start = new Date(request.leave_start_date)
+          const end = new Date(request.leave_end_date)
+          for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+            // Format to YYYY-MM-DD
+            const year = d.getFullYear()
+            const month = String(d.getMonth() + 1).padStart(2, '0')
+            const day = String(d.getDate()).padStart(2, '0')
+            dateSet.add(`${year}-${month}-${day}`)
+          }
+        }
+      })
+    }
+
     return dateSet
-  }, [userWFHRequests])
+  }, [userWFHRequests, userLeaveRequests])
 
   // Calculate used days including pending requests
   const usedDaysIncludingPending = useMemo(() => {
@@ -192,10 +220,10 @@ export default function WFHRequestForm({ opened, onClose }: WFHRequestFormProps)
   }
 
   // Check if a date belongs to the current displayed month
-  const isDateInCurrentMonth = (date: Date): boolean => {
+  const isDateInCurrentMonth = useCallback((date: Date): boolean => {
     return date.getFullYear() === selectedMonth.getFullYear() &&
            date.getMonth() === selectedMonth.getMonth()
-  }
+  }, [selectedMonth])
 
   // Handle date click - support multiple dates selection up to monthly limit
   const handleDateClick = (date: Date) => {
@@ -629,7 +657,7 @@ export default function WFHRequestForm({ opened, onClose }: WFHRequestFormProps)
       clearTimeout(timer)
       cleanupFunctions.forEach(cleanup => cleanup())
     }
-  }, [opened, selectedMonth, calendarData])
+  }, [opened, selectedMonth, calendarData, isDateInCurrentMonth])
 
   return (
     <Modal
@@ -669,7 +697,8 @@ export default function WFHRequestForm({ opened, onClose }: WFHRequestFormProps)
                   {/* eslint-disable-next-line @typescript-eslint/ban-ts-comment */}
                   {/* @ts-ignore */}
                   <Calendar
-                    value={selectedDates.length > 0 ? selectedDates[0] : null}
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    {...({ value: selectedDates.length > 0 ? selectedDates[0] : null } as any)}
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     onChange={(date: any) => {
                       if (date instanceof Date) handleDateClick(date)

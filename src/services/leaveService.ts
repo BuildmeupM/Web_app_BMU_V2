@@ -250,6 +250,16 @@ export const leaveService = {
   },
 
   /**
+   * ลบคำขอลา (Role ปกติลบได้เฉพาะสถานะรอ, Admin/HR ลบได้หมด)
+   */
+  delete: async (id: string) => {
+    const response = await api.delete<{ success: boolean; message: string }>(
+      `/leave-requests/${id}`
+    )
+    return response.data
+  },
+
+  /**
    * อนุมัติการลา (HR/Admin only)
    */
   approve: async (id: string, data?: { approver_note?: string }) => {
@@ -445,6 +455,16 @@ export const wfhService = {
     const response = await api.post<{ success: boolean; data: { status: string, approveCount: number, rejectCount: number } }>(
       `/wfh-requests/${id}/vote`,
       data
+    )
+    return response.data
+  },
+
+  /**
+   * ลบคำขอ WFH (Role ปกติลบได้เฉพาะสถานะรอ, Admin/HR ลบได้หมด)
+   */
+  delete: async (id: string) => {
+    const response = await api.delete<{ success: boolean; message: string }>(
+      `/wfh-requests/${id}`
     )
     return response.data
   },

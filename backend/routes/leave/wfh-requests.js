@@ -1248,4 +1248,73 @@ router.put('/:id/work-report', authenticateToken, async (req, res) => {
   }
 })
 
+/**
+ * DELETE /api/wfh-requests/:id
+ * ลบการขอ WFH (Soft delete)
+ * Access: Owner (if pending) / Admin / HR (any status)
+ */
+router.delete('/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params
+    const userRole = req.user.role
+    const employeeId = req.user.employee_id
+
+    // Get WFH request
+    const [wfhRequests] = await pool.execute(
+      `SELECT * FROM wfh_requests WHERE id = ? AND deleted_at IS NULL`,
+      [id]
+    )
+
+    if (wfhRequests.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'WFH request not found or already deleted',
+      })
+    }
+
+    const wfhRequest = wfhRequests[0]
+    const isAdminOrHr = ['admin', 'hr'].includes(userRole)
+    const isOwner = wfhRequest.employee_id === employeeId
+
+    // Permission check
+    if (!isAdminOrHr) {
+      if (!isOwner) {
+        return res.status(403).json({
+          success: false,
+          message: 'You can only delete your own requests',
+        })
+      }
+      
+      // Regular user can only delete pending requests
+      const pendingStatuses = ['รอตรวจสอบ', 'รอโหวต', 'รออนุมัติ', 'รออนุมัติ (ผู้บริหาร)']
+      if (!pendingStatuses.includes(wfhRequest.status)) {
+        return res.status(400).json({
+          success: false,
+          message: 'You can only delete requests that are still pending',
+        })
+      }
+    }
+
+    // Perform Soft Delete
+    await pool.execute(
+      `UPDATE wfh_requests SET deleted_at = NOW() WHERE id = ?`,
+      [id]
+    )
+
+    // Clear backend cache
+    invalidateCache('GET:/wfh-requests')
+
+    res.json({
+      success: true,
+      message: 'WFH request deleted successfully',
+    })
+  } catch (error) {
+    console.error('Delete WFH request error:', error)
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+    })
+  }
+})
+
 export default router
