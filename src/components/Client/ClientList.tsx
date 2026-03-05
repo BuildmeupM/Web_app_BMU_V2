@@ -55,7 +55,7 @@ const ClientList = memo(function ClientList({
 }: ClientListProps) {
   const { user } = useAuthStore()
   const isAdmin = user?.role === 'admin'
-  const canEdit = isAdmin || user?.role === 'data_entry' || user?.role === 'data_entry_and_service'
+  const canEdit = isAdmin || user?.role === 'hr' || user?.role === 'data_entry' || user?.role === 'data_entry_and_service' || user?.role === 'audit'
 
   if (loading) {
     return (

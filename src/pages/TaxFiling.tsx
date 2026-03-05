@@ -1,7 +1,7 @@
 import { useState, useCallback, lazy, Suspense, useEffect, useRef } from 'react'
 import { useLocation } from 'react-router-dom'
 import { useQueryClient } from 'react-query'
-import { Container, Stack, Group, Text, Card, Button } from '@mantine/core'
+import { Container, Stack, Group, Text, Card } from '@mantine/core'
 import { TbQuestionMark, TbBell, TbRefresh, TbCheck } from 'react-icons/tb'
 import { notifications } from '@mantine/notifications'
 import { useAuthStore } from '../store/authStore'
@@ -13,6 +13,7 @@ import LoadingSpinner from '../components/Loading/LoadingSpinner'
 import AcknowledgmentModal from '../components/TaxInspection/AcknowledgmentModal'
 import { hasAcknowledgmentData, getSectionsWithData } from '../utils/taxAcknowledgmentUtils'
 import type { RecordWithAcknowledgmentFields } from '../utils/taxAcknowledgmentUtils'
+import dayjs from 'dayjs'
 
 // ✅ Performance Optimization: Lazy load TaxInspectionForm (4115 lines) เพื่อลด initial bundle size
 const TaxInspectionForm = lazy(() => import('../components/TaxInspection/TaxInspectionForm'))
@@ -271,9 +272,11 @@ export default function TaxFiling() {
         <FilterSection onFilterChange={(newFilters: FilterValues) => {
           setFilters(newFilters)
           setCurrentPage(1)
-          // Reset sort when switching to date filter (date sorting conflicts with column sort)
+          
+          // ตั้งค่าเรียงลำดับใหม่เมื่อเลือกประเภทวันที่ (ให้เรียงตามวันที่ขึ้นก่อน - น้อยไปมาก)
           if (newFilters.filterType === 'date') {
-            setSortBy('build')
+            const dateSortCol = newFilters.filterMode === 'vat' ? 'pp30_sent_for_review_date' : 'pnd_sent_for_review_date';
+            setSortBy(dateSortCol)
             setSortOrder('asc')
           }
         }} onRefresh={handleRefresh} isRefreshing={isRefreshing} />
@@ -290,6 +293,8 @@ export default function TaxFiling() {
             whtStatus: filters.whtStatus,
             pp30Status: filters.pp30Status,
             pp30PaymentStatus: filters.pp30PaymentStatus,
+            dateFrom: filters.filterType === 'date' && filters.dateFrom ? dayjs(filters.dateFrom).format('YYYY-MM-DD') : undefined,
+            dateTo: filters.filterType === 'date' && filters.dateTo ? dayjs(filters.dateTo).format('YYYY-MM-DD') : undefined,
           }}
           page={currentPage}
           limit={itemsPerPage}
@@ -305,7 +310,6 @@ export default function TaxFiling() {
             }
             setCurrentPage(1)
           }}
-          isDateFilterActive={filters.filterType === 'date'}
         />
 
 

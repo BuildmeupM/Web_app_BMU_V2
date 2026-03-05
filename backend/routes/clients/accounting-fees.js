@@ -77,9 +77,8 @@ router.get('/accounting-fees-dashboard', authenticateToken, async (req, res) => 
       [currentYear]
     )
 
-    // 6. Top 10 clients by total fees
     const [topClients] = await pool.execute(
-      `SELECT af.build, c.company_name,
+      `SELECT c.build, c.company_name,
         (COALESCE(af.accounting_fee_jan,0) + COALESCE(af.accounting_fee_feb,0) + COALESCE(af.accounting_fee_mar,0) +
          COALESCE(af.accounting_fee_apr,0) + COALESCE(af.accounting_fee_may,0) + COALESCE(af.accounting_fee_jun,0) +
          COALESCE(af.accounting_fee_jul,0) + COALESCE(af.accounting_fee_aug,0) + COALESCE(af.accounting_fee_sep,0) +
@@ -88,9 +87,9 @@ router.get('/accounting-fees-dashboard', authenticateToken, async (req, res) => 
          COALESCE(af.hr_fee_apr,0) + COALESCE(af.hr_fee_may,0) + COALESCE(af.hr_fee_jun,0) +
          COALESCE(af.hr_fee_jul,0) + COALESCE(af.hr_fee_aug,0) + COALESCE(af.hr_fee_sep,0) +
          COALESCE(af.hr_fee_oct,0) + COALESCE(af.hr_fee_nov,0) + COALESCE(af.hr_fee_dec,0)) as total_hr
-       FROM accounting_fees af
-       INNER JOIN clients c ON af.build = c.build AND c.deleted_at IS NULL
-       WHERE af.fee_year = ? AND af.deleted_at IS NULL
+       FROM clients c
+       LEFT JOIN accounting_fees af ON af.build = c.build AND af.fee_year = ? AND af.deleted_at IS NULL
+       WHERE c.deleted_at IS NULL AND c.company_status LIKE '%รายเดือน%'
        ORDER BY total_accounting DESC
        LIMIT 10`,
       [currentYear]
@@ -165,15 +164,15 @@ router.get('/accounting-fees-compare', authenticateToken, async (req, res) => {
 
     const [rows] = await pool.execute(
       `SELECT 
-        af.build, c.company_name, c.company_status, c.tax_registration_status,
+        c.build, c.company_name, c.company_status, c.tax_registration_status,
         COALESCE(af.${accColA}, 0) as acc_month_a,
         COALESCE(af.${accColB}, 0) as acc_month_b,
         COALESCE(af.${hrColA}, 0) as hr_month_a,
         COALESCE(af.${hrColB}, 0) as hr_month_b
-       FROM accounting_fees af
-       INNER JOIN clients c ON af.build = c.build AND c.deleted_at IS NULL AND c.company_status LIKE '%รายเดือน%'
-       WHERE af.fee_year = ? AND af.deleted_at IS NULL
-       ORDER BY af.${accColA} DESC`,
+       FROM clients c
+       LEFT JOIN accounting_fees af ON af.build = c.build AND af.fee_year = ? AND af.deleted_at IS NULL
+       WHERE c.deleted_at IS NULL AND c.company_status LIKE '%รายเดือน%'
+       ORDER BY acc_month_a DESC`,
       [currentYear]
     )
 
@@ -241,17 +240,17 @@ router.get('/accounting-fees-export', authenticateToken, async (req, res) => {
     // Query data
     const [rows] = await pool.execute(
       `SELECT 
-        af.build,
+        c.build,
         c.company_name,
         c.company_status,
         c.tax_registration_status,
         COALESCE(af.${accCol}, 0) as accounting_fee,
         COALESCE(af.${hrCol}, 0) as hr_fee,
         af.accounting_fee_image_url
-       FROM accounting_fees af
-       INNER JOIN clients c ON af.build = c.build AND c.deleted_at IS NULL AND c.company_status LIKE '%รายเดือน%'
-       WHERE af.fee_year = ? AND af.deleted_at IS NULL
-       ORDER BY af.build ASC`,
+       FROM clients c
+       LEFT JOIN accounting_fees af ON af.build = c.build AND af.fee_year = ? AND af.deleted_at IS NULL
+       WHERE c.deleted_at IS NULL AND c.company_status LIKE '%รายเดือน%'
+       ORDER BY c.build ASC`,
       [currentYear]
     )
 

@@ -1,7 +1,7 @@
 import { Table, Badge, Button, Text, Card, Loader, Center, Alert, Group } from '@mantine/core'
 import { TbFileText, TbAlertCircle } from 'react-icons/tb'
 import { useQuery } from 'react-query'
-import { useEffect, useMemo, memo, useCallback } from 'react'
+import { useEffect, useMemo, memo } from 'react'
 import { useAuthStore } from '../../store/authStore'
 import { getCurrentTaxMonth } from '../../utils/taxMonthUtils'
 import { derivePp30Status } from '../../utils/pp30StatusUtils'
@@ -141,6 +141,8 @@ interface TaxFilingTableProps {
     whtStatus?: string[]
     pp30Status?: string[]
     pp30PaymentStatus?: string[]
+    dateFrom?: string
+    dateTo?: string
   }
   page?: number
   limit?: number
@@ -148,7 +150,6 @@ interface TaxFilingTableProps {
   sortBy?: string
   sortOrder?: 'asc' | 'desc'
   onSortChange?: (field: string) => void
-  isDateFilterActive?: boolean
 }
 
 // สีสำหรับแต่ละสถานะ
@@ -236,7 +237,6 @@ const TaxFilingTable = memo(function TaxFilingTable({
   sortBy = 'build',
   sortOrder = 'asc',
   onSortChange,
-  isDateFilterActive = false,
 }: TaxFilingTableProps) {
   const { user, _hasHydrated } = useAuthStore()
   // Use provided wht_filer_employee_id or vat_filer_employee_id, or fallback to current user's employee_id
@@ -261,6 +261,7 @@ const TaxFilingTable = memo(function TaxFilingTable({
         })
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []) // Empty dependency array เพื่อให้ run เพียงครั้งเดียวเมื่อ mount
 
   // ✅ BUG-168: Debug logging เพื่อตรวจสอบว่า component update หรือไม่
@@ -289,7 +290,6 @@ const TaxFilingTable = memo(function TaxFilingTable({
     data: taxDataResponse,
     isLoading,
     error,
-    refetch: refetchTaxFilingData,
   } = useQuery(
     ['monthly-tax-data', 'tax-filing', page, limit, wht_filer_employee_id, vat_filer_employee_id, currentTaxMonth.year, currentTaxMonth.month, filters?.whtStatus, filters?.pp30Status, filters?.pp30PaymentStatus, sortBy, sortOrder],
     () =>
@@ -304,6 +304,9 @@ const TaxFilingTable = memo(function TaxFilingTable({
         pnd_status: filters?.whtStatus?.length ? filters.whtStatus.join(',') : undefined,
         pp30_status: filters?.pp30Status?.length ? filters.pp30Status.join(',') : undefined,
         pp30_payment_status: filters?.pp30PaymentStatus?.length ? filters.pp30PaymentStatus.join(',') : undefined,
+        dateFrom: filters?.dateFrom || undefined,
+        dateTo: filters?.dateTo || undefined,
+        filterMode: filters?.filterMode || undefined,
         sortBy,
         sortOrder,
       }),
@@ -315,9 +318,10 @@ const TaxFilingTable = memo(function TaxFilingTable({
       refetchOnWindowFocus: false, // ปิดการ refetch อัตโนมัติเมื่อ focus window เพื่อลด requests
       refetchOnMount: true, // ✅ BUG-168: refetch เมื่อ navigate ไปหน้าอื่น (แก้ปัญหาไม่แสดงข้อมูล)
       refetchOnReconnect: false, // ปิดการ refetch เมื่อ reconnect (ใช้ cache แทน)
-      retry: (failureCount, error: any) => {
+      retry: (failureCount: number, error: unknown) => {
         // ไม่ retry สำหรับ 429 errors เพราะจะทำให้แย่ลง
-        if (error?.response?.status === 429) {
+        const err = error as { response?: { status?: number } }
+        if (err?.response?.status === 429) {
           return false
         }
         // Retry 1 ครั้งสำหรับ errors อื่นๆ
@@ -334,10 +338,10 @@ const TaxFilingTable = memo(function TaxFilingTable({
           })
         }
       },
-      onError: (err) => {
+      onError: (err: unknown) => {
         if (import.meta.env.DEV) {
           console.error('[TaxFilingTable] Query ERROR:', {
-            error: (err as any)?.message || 'Unknown error',
+            error: (err as Error)?.message || 'Unknown error',
             timestamp: new Date().toISOString(),
           })
         }
@@ -353,7 +357,7 @@ const TaxFilingTable = memo(function TaxFilingTable({
         isLoading,
         hasData: !!taxDataResponse,
         dataLength: taxDataResponse?.data?.length || 0,
-        error: error ? (error as any)?.message || 'Unknown error' : null,
+        error: error ? (error as Error)?.message || 'Unknown error' : null,
         timestamp: new Date().toISOString(),
       })
     }
@@ -497,12 +501,13 @@ const TaxFilingTable = memo(function TaxFilingTable({
 
   if (error) {
     // Check if error is network-related (backend server not running)
+    const err = error as { message?: string, code?: string }
     const isNetworkError =
-      (error as any)?.message?.includes('Network Error') ||
-      (error as any)?.code === 'ERR_NETWORK' ||
-      (error as any)?.code === 'ERR_CONNECTION_REFUSED' ||
-      (error as any)?.message?.includes('ERR_CONNECTION_REFUSED') ||
-      (error as any)?.message?.includes('ERR_SOCKET_NOT_CONNECTED')
+      err?.message?.includes('Network Error') ||
+      err?.code === 'ERR_NETWORK' ||
+      err?.code === 'ERR_CONNECTION_REFUSED' ||
+      err?.message?.includes('ERR_CONNECTION_REFUSED') ||
+      err?.message?.includes('ERR_SOCKET_NOT_CONNECTED')
 
     const errorMessage = isNetworkError
       ? 'ไม่สามารถเชื่อมต่อกับ Backend Server ได้ กรุณาตรวจสอบว่า Backend Server รันอยู่ที่ http://localhost:3001'
@@ -561,14 +566,14 @@ const TaxFilingTable = memo(function TaxFilingTable({
                   borderRight: '1px solid #dee2e6',
                   minWidth: 120,
                   width: 120,
-                  cursor: !isDateFilterActive ? 'pointer' : 'default',
+                  cursor: 'pointer',
                   userSelect: 'none',
                 }}
-                onClick={() => !isDateFilterActive && onSortChange?.('build')}
+                onClick={() => onSortChange?.('build')}
               >
                 <Group gap={4} wrap="nowrap">
                   Build
-                  {!isDateFilterActive && sortBy === 'build' && (
+                  {sortBy === 'build' && (
                     <Text size="xs" c="orange" fw={700}>{sortOrder === 'asc' ? '▲' : '▼'}</Text>
                   )}
                 </Group>
@@ -581,54 +586,54 @@ const TaxFilingTable = memo(function TaxFilingTable({
                   backgroundColor: '#fff',
                   borderRight: '1px solid #dee2e6',
                   minWidth: 200,
-                  cursor: !isDateFilterActive ? 'pointer' : 'default',
+                  cursor: 'pointer',
                   userSelect: 'none',
                 }}
-                onClick={() => !isDateFilterActive && onSortChange?.('company_name')}
+                onClick={() => onSortChange?.('company_name')}
               >
                 <Group gap={4} wrap="nowrap">
                   ชื่อบริษัท
-                  {!isDateFilterActive && sortBy === 'company_name' && (
+                  {sortBy === 'company_name' && (
                     <Text size="xs" c="orange" fw={700}>{sortOrder === 'asc' ? '▲' : '▼'}</Text>
                   )}
                 </Group>
               </Table.Th>
-              <Table.Th style={{ cursor: !isDateFilterActive ? 'pointer' : 'default', userSelect: 'none' }} onClick={() => !isDateFilterActive && onSortChange?.('pnd_sent_for_review_date')}>
+              <Table.Th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => onSortChange?.('pnd_sent_for_review_date')}>
                 <Group gap={4} wrap="nowrap">
                   วันที่ส่งตรวจคืน ภ.ง.ด.
-                  {!isDateFilterActive && sortBy === 'pnd_sent_for_review_date' && (
+                  {sortBy === 'pnd_sent_for_review_date' && (
                     <Text size="xs" c="orange" fw={700}>{sortOrder === 'asc' ? '▲' : '▼'}</Text>
                   )}
                 </Group>
               </Table.Th>
-              <Table.Th style={{ cursor: !isDateFilterActive ? 'pointer' : 'default', userSelect: 'none' }} onClick={() => !isDateFilterActive && onSortChange?.('pnd_status')}>
+              <Table.Th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => onSortChange?.('pnd_status')}>
                 <Group gap={4} wrap="nowrap">
                   สถานะ ภ.ง.ด.
-                  {!isDateFilterActive && sortBy === 'pnd_status' && (
+                  {sortBy === 'pnd_status' && (
                     <Text size="xs" c="orange" fw={700}>{sortOrder === 'asc' ? '▲' : '▼'}</Text>
                   )}
                 </Group>
               </Table.Th>
-              <Table.Th style={{ cursor: !isDateFilterActive ? 'pointer' : 'default', userSelect: 'none' }} onClick={() => !isDateFilterActive && onSortChange?.('pp30_sent_for_review_date')}>
+              <Table.Th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => onSortChange?.('pp30_sent_for_review_date')}>
                 <Group gap={4} wrap="nowrap">
                   วันที่ส่งตรวจคืน ภ.พ. 30
-                  {!isDateFilterActive && sortBy === 'pp30_sent_for_review_date' && (
+                  {sortBy === 'pp30_sent_for_review_date' && (
                     <Text size="xs" c="orange" fw={700}>{sortOrder === 'asc' ? '▲' : '▼'}</Text>
                   )}
                 </Group>
               </Table.Th>
-              <Table.Th style={{ cursor: !isDateFilterActive ? 'pointer' : 'default', userSelect: 'none' }} onClick={() => !isDateFilterActive && onSortChange?.('pp30_form')}>
+              <Table.Th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => onSortChange?.('pp30_form')}>
                 <Group gap={4} wrap="nowrap">
                   สถานะ ภ.พ.30
-                  {!isDateFilterActive && sortBy === 'pp30_form' && (
+                  {sortBy === 'pp30_form' && (
                     <Text size="xs" c="orange" fw={700}>{sortOrder === 'asc' ? '▲' : '▼'}</Text>
                   )}
                 </Group>
               </Table.Th>
-              <Table.Th style={{ cursor: !isDateFilterActive ? 'pointer' : 'default', userSelect: 'none' }} onClick={() => !isDateFilterActive && onSortChange?.('pp30_payment_status')}>
+              <Table.Th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => onSortChange?.('pp30_payment_status')}>
                 <Group gap={4} wrap="nowrap">
                   สถานะยอดชำระ ภ.พ.30
-                  {!isDateFilterActive && sortBy === 'pp30_payment_status' && (
+                  {sortBy === 'pp30_payment_status' && (
                     <Text size="xs" c="orange" fw={700}>{sortOrder === 'asc' ? '▲' : '▼'}</Text>
                   )}
                 </Group>

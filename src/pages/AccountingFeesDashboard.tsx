@@ -91,6 +91,8 @@ interface CompareData {
     }
 }
 
+type SortField = 'build' | 'company_name' | 'acc_month_a' | 'acc_month_b' | 'acc_diff' | 'hr_month_a' | 'hr_month_b' | 'hr_diff' | null
+
 // ─── Constants ──────────────────────────────────────────────
 
 const MONTHS_SHORT = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.']
@@ -138,7 +140,7 @@ function StatCard({
     color,
     suffix,
 }: {
-    icon: any
+    icon: React.ElementType
     label: string
     value: string | number
     color: string
@@ -220,6 +222,44 @@ function BarChart({
     )
 }
 
+// ─── SortableTh Component ─────────────────────────────────────
+
+const SortableTh = ({
+    label,
+    subLabel,
+    field,
+    currentField,
+    direction,
+    onSort,
+    align = 'left'
+}: {
+    label: string;
+    subLabel?: string;
+    field: SortField;
+    currentField: SortField;
+    direction: 'asc' | 'desc';
+    onSort: (field: SortField) => void;
+    align?: 'left' | 'center' | 'right';
+}) => {
+    const isActive = currentField === field;
+    const Icon = isActive ? (direction === 'asc' ? TbArrowUp : TbArrowDown) : null;
+    
+    return (
+        <Table.Th 
+            style={{ textAlign: align, whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none' }} 
+            onClick={() => onSort(field)}
+        >
+            <Group gap={4} justify={align === 'center' ? 'center' : align === 'right' ? 'flex-end' : 'flex-start'} wrap="nowrap">
+                <Box style={{ textAlign: align }}>
+                    <Text size="xs" fw={isActive ? 700 : 600} c={isActive ? 'blue' : 'dark'}>{label}</Text>
+                    {subLabel && <Text size="10px" c="dimmed">{subLabel}</Text>}
+                </Box>
+                {isActive && Icon && <Icon size={14} color="#228be6" />}
+            </Group>
+        </Table.Th>
+    );
+};
+
 // ─── MonthComparisonSection Component ───────────────────────
 
 function MonthComparisonSection({ feeYear }: { feeYear: number }) {
@@ -229,7 +269,9 @@ function MonthComparisonSection({ feeYear }: { feeYear: number }) {
     const [monthA, setMonthA] = useState<string>(MONTH_KEYS[prevMonth])
     const [monthB, setMonthB] = useState<string>(MONTH_KEYS[currentMonth])
     const [searchTerm, setSearchTerm] = useState('')
-    const [displayLimit, setDisplayLimit] = useState<string>('20')
+    const [displayLimit, setDisplayLimit] = useState<string>('all')
+    const [sortField, setSortField] = useState<SortField>(null)
+    const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
 
     const { data: compareData, isLoading: isCompareLoading } = useQuery<CompareData>(
         ['accounting-fees-compare', feeYear, monthA, monthB, displayLimit],
@@ -247,23 +289,59 @@ function MonthComparisonSection({ feeYear }: { feeYear: number }) {
         { enabled: !!monthA && !!monthB }
     )
 
-    const filteredClients = useMemo(() => {
+    const handleSort = (field: SortField) => {
+        if (sortField === field) {
+            setSortDirection(prev => (prev === 'asc' ? 'desc' : 'asc'))
+        } else {
+            setSortField(field)
+            setSortDirection('desc') // default new sort to descending for amounts
+        }
+    }
+
+    const sortedAndFilteredClients = useMemo(() => {
         if (!compareData?.clients) return []
-        if (!searchTerm.trim()) return compareData.clients
-        const term = searchTerm.toLowerCase()
-        return compareData.clients.filter(
-            (c) =>
-                c.build.toLowerCase().includes(term) ||
-                c.company_name.toLowerCase().includes(term)
-        )
-    }, [compareData, searchTerm])
+        let result = [...compareData.clients]
+
+        if (searchTerm.trim()) {
+            const term = searchTerm.toLowerCase()
+            result = result.filter(
+                (c) =>
+                    c.build.toLowerCase().includes(term) ||
+                    c.company_name.toLowerCase().includes(term)
+            )
+        }
+
+        if (sortField) {
+            result.sort((a, b) => {
+                let valA: string | number = 0
+                let valB: string | number = 0
+
+                if (sortField === 'acc_diff') {
+                    valA = a.acc_month_b - a.acc_month_a
+                    valB = b.acc_month_b - b.acc_month_a
+                } else if (sortField === 'hr_diff') {
+                    valA = a.hr_month_b - a.hr_month_a
+                    valB = b.hr_month_b - b.hr_month_a
+                } else {
+                    valA = a[sortField as keyof CompareClient] as string | number
+                    valB = b[sortField as keyof CompareClient] as string | number
+                }
+
+                if (valA < valB) return sortDirection === 'asc' ? -1 : 1
+                if (valA > valB) return sortDirection === 'asc' ? 1 : -1
+                return 0
+            })
+        }
+
+        return result
+    }, [compareData, searchTerm, sortField, sortDirection])
 
     const labelA = getMonthLabel(monthA)
     const labelB = getMonthLabel(monthB)
 
     // Summary stats
-    const totalAccDiff = compareData ? compareData.totals.acc_month_b - compareData.totals.acc_month_a : 0
-    const totalHrDiff = compareData ? compareData.totals.hr_month_b - compareData.totals.hr_month_a : 0
+    // const totalAccDiff = compareData ? compareData.totals.acc_month_b - compareData.totals.acc_month_a : 0
+    // const totalHrDiff = compareData ? compareData.totals.hr_month_b - compareData.totals.hr_month_a : 0
 
     // Count companies with increased/decreased/unchanged
     const stats = useMemo(() => {
@@ -395,37 +473,25 @@ function MonthComparisonSection({ feeYear }: { feeYear: number }) {
                                 <Table.Thead>
                                     <Table.Tr style={{ backgroundColor: '#e8eaf6' }}>
                                         <Table.Th style={{ textAlign: 'center', width: 40 }}>#</Table.Th>
-                                        <Table.Th style={{ width: 70 }}>Build</Table.Th>
-                                        <Table.Th style={{ minWidth: 180 }}>ชื่อบริษัท</Table.Th>
-                                        <Table.Th style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                                            <Text size="xs" fw={600}>ค่าบัญชี</Text>
-                                            <Text size="10px" c="dimmed">{labelA}</Text>
-                                        </Table.Th>
-                                        <Table.Th style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                                            <Text size="xs" fw={600}>ค่าบัญชี</Text>
-                                            <Text size="10px" c="dimmed">{labelB}</Text>
-                                        </Table.Th>
-                                        <Table.Th style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>ผลต่างบัญชี</Table.Th>
-                                        <Table.Th style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                                            <Text size="xs" fw={600}>ค่า HR</Text>
-                                            <Text size="10px" c="dimmed">{labelA}</Text>
-                                        </Table.Th>
-                                        <Table.Th style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                                            <Text size="xs" fw={600}>ค่า HR</Text>
-                                            <Text size="10px" c="dimmed">{labelB}</Text>
-                                        </Table.Th>
-                                        <Table.Th style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>ผลต่าง HR</Table.Th>
+                                        <SortableTh label="Build" field="build" currentField={sortField} direction={sortDirection} onSort={handleSort} />
+                                        <SortableTh label="ชื่อบริษัท" field="company_name" currentField={sortField} direction={sortDirection} onSort={handleSort} />
+                                        <SortableTh label="ค่าบัญชี" subLabel={labelA} field="acc_month_a" currentField={sortField} direction={sortDirection} onSort={handleSort} align="right" />
+                                        <SortableTh label="ค่าบัญชี" subLabel={labelB} field="acc_month_b" currentField={sortField} direction={sortDirection} onSort={handleSort} align="right" />
+                                        <SortableTh label="ผลต่างบัญชี" field="acc_diff" currentField={sortField} direction={sortDirection} onSort={handleSort} align="center" />
+                                        <SortableTh label="ค่า HR" subLabel={labelA} field="hr_month_a" currentField={sortField} direction={sortDirection} onSort={handleSort} align="right" />
+                                        <SortableTh label="ค่า HR" subLabel={labelB} field="hr_month_b" currentField={sortField} direction={sortDirection} onSort={handleSort} align="right" />
+                                        <SortableTh label="ผลต่าง HR" field="hr_diff" currentField={sortField} direction={sortDirection} onSort={handleSort} align="center" />
                                     </Table.Tr>
                                 </Table.Thead>
                                 <Table.Tbody>
-                                    {filteredClients.length === 0 ? (
+                                    {sortedAndFilteredClients.length === 0 ? (
                                         <Table.Tr>
                                             <Table.Td colSpan={9}>
                                                 <Text c="dimmed" ta="center" py="md">ไม่พบข้อมูล</Text>
                                             </Table.Td>
                                         </Table.Tr>
                                     ) : (
-                                        filteredClients.map((client, idx) => {
+                                        sortedAndFilteredClients.map((client, idx) => {
                                             const totalA = client.acc_month_a + client.hr_month_a
                                             const totalB = client.acc_month_b + client.hr_month_b
                                             const isIncreased = totalB > totalA
@@ -482,13 +548,13 @@ function MonthComparisonSection({ feeYear }: { feeYear: number }) {
                                         })
                                     )}
                                     {/* Totals row */}
-                                    {filteredClients.length > 0 && (
+                                    {sortedAndFilteredClients.length > 0 && (
                                         <Table.Tr style={{ backgroundColor: '#e8eaf6' }}>
                                             <Table.Td colSpan={3}>
                                                 <Text size="xs" fw={700} ta="center">
                                                     รวมทั้งหมด ({compareData.totalClients} บริษัท)
-                                                    {compareData.totalClients > filteredClients.length && (
-                                                        <Text span size="xs" c="dimmed" fw={400}> — แสดง {filteredClients.length} รายการ</Text>
+                                                    {compareData.totalClients > sortedAndFilteredClients.length && (
+                                                        <Text span size="xs" c="dimmed" fw={400}> — แสดง {sortedAndFilteredClients.length} รายการ</Text>
                                                     )}
                                                 </Text>
                                             </Table.Td>

@@ -91,6 +91,7 @@ export default function ClientForm({
       tax_registration_status: '',
       vat_registration_date: null as DateValue | null,
       company_status: 'รายเดือน',
+      note: '',
       // === Address ===
       full_address: '',
       village: '',
@@ -177,6 +178,7 @@ export default function ClientForm({
           tax_registration_status: client.tax_registration_status || '',
           vat_registration_date: parseDate(client.vat_registration_date),
           company_status: client.company_status || 'รายเดือน',
+          note: client.note || '',
           full_address: client.full_address || '',
           village: client.village || '',
           building: client.building || '',
@@ -227,6 +229,7 @@ export default function ClientForm({
     company_status: 'basic',
     tax_registration_status: 'tax',
     vat_registration_date: 'tax',
+    note: 'basic',
     postal_code: 'address',
     peak_code: 'fees',
     accounting_start_date: 'fees',
@@ -295,6 +298,7 @@ export default function ClientForm({
       province: values.province || null,
       postal_code: values.postal_code || null,
       company_status: values.company_status,
+      note: values.note || null,
       // Accounting fees (basic info only — monthly fees added separately)
       accounting_fees: hasAccountingFees ? {
         peak_code: values.peak_code || null,
@@ -406,6 +410,14 @@ export default function ClientForm({
                         label="ประเภทธุรกิจย่อย"
                         placeholder="กรอกประเภทธุรกิจย่อย"
                         {...form.getInputProps('business_subcategory')}
+                      />
+                    </Grid.Col>
+                    <Grid.Col span={12}>
+                      <Textarea
+                        label="รายละเอียดเพิ่มเติม / โน้ต"
+                        placeholder="กรอกข้อมูลเพิ่มเติมเกี่ยวกับบริษัทนี้..."
+                        minRows={3}
+                        {...form.getInputProps('note')}
                       />
                     </Grid.Col>
                   </Grid>

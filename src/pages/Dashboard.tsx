@@ -199,11 +199,12 @@ export default function Dashboard() {
         if (!isHrOrAdmin) {
           if (isAudit) {
             // Audit sees audit + service + data_entry
-            const role = leave.employee_position?.toLowerCase() || ''
+            const role = leave.employee_role?.toLowerCase() || ''
             const allowedRoles = ['audit', 'service', 'data_entry', 'data_entry_and_service']
-            if (!allowedRoles.some(r => role.includes(r))) {
-              if (leave.employee_id !== user?.employee_id) return // skip if not allowed and not own
-            }
+            const isTargetDepartment = allowedRoles.includes(role)
+            
+            // Check employee_id too just in case they are not in the list but own it
+            if (!isTargetDepartment && leave.employee_id !== user?.employee_id) return
           } else {
             // Normal user sees only own
             if (leave.employee_id !== user?.employee_id) return
@@ -247,11 +248,11 @@ export default function Dashboard() {
         if (!isHrOrAdmin) {
           if (isAudit) {
             // Audit sees audit + service + data_entry
-            const role = wfh.employee_position?.toLowerCase() || ''
+            const role = wfh.employee_role?.toLowerCase() || ''
             const allowedRoles = ['audit', 'service', 'data_entry', 'data_entry_and_service']
-            if (!allowedRoles.some(r => role.includes(r))) {
-              if (wfh.employee_id !== user?.employee_id) return // skip if not allowed and not own
-            }
+            const isTargetDepartment = allowedRoles.includes(role)
+            
+            if (!isTargetDepartment && wfh.employee_id !== user?.employee_id) return
           } else {
             // Normal user sees only own
             if (wfh.employee_id !== user?.employee_id) return

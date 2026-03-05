@@ -15,6 +15,7 @@ import {
   Badge,
   Divider,
   Card,
+  Switch,
 } from '@mantine/core'
 import { useMutation, useQueryClient, QueryKey } from 'react-query'
 import { leaveService, wfhService } from '../../services/leaveService'
@@ -90,6 +91,7 @@ export default function ApprovalModal({
   mode,
 }: ApprovalModalProps) {
   const [approverNote, setApproverNote] = useState('')
+  const [requireVote, setRequireVote] = useState(false)
   const queryClient = useQueryClient()
 
   // Query key for cache operations (leave-requests or wfh-requests)
@@ -168,13 +170,13 @@ export default function ApprovalModal({
   const approveMutation = useMutation<
     { success: boolean; data: ApprovalResponse },
     Error,
-    { approver_note?: string } | undefined,
+    { approver_note?: string; require_vote?: boolean } | undefined,
     MutationContext
   >(
     (data) =>
       type === 'leave'
-        ? leaveService.approve(requestId, data as Parameters<typeof leaveService.approve>[1])
-        : wfhService.approve(requestId, data as Parameters<typeof wfhService.approve>[1]),
+        ? leaveService.approve(requestId, data)
+        : wfhService.approve(requestId, data),
     {
       onMutate: optimisticRemoveItem,
       onSuccess: () => {
@@ -281,6 +283,7 @@ export default function ApprovalModal({
 
   const handleClose = () => {
     setApproverNote('')
+    setRequireVote(false)
     onClose()
   }
 
@@ -309,7 +312,7 @@ export default function ApprovalModal({
     }
 
     if (mode === 'approve') {
-      approveMutation.mutate({ approver_note: approverNote.trim() || undefined })
+      approveMutation.mutate({ approver_note: approverNote.trim() || undefined, require_vote: requireVote })
     } else if (mode === 'reject') {
       rejectMutation.mutate({ approver_note: approverNote.trim() })
     } else if (mode === 'vote_approve') {
@@ -432,6 +435,17 @@ export default function ApprovalModal({
           required={mode === 'reject' || mode === 'vote_reject'}
           minRows={3}
         />
+
+        {mode === 'approve' && (
+          <Switch
+            label="ส่งคำขอนี้เข้าสู่ระบบโหวตของทีม Audit"
+            description="หากคำขอนี้มาจากพนักงานฝ่าย Audit ให้เปิดตัวเลือกนี้เพื่อส่งให้ทีมโหวต หากไม่ได้เปิดจะถือเป็นการอนุมัติโดยตรง (ไม่มีผลกับแผนกอื่น)"
+            checked={requireVote}
+            onChange={(event) => setRequireVote(event.currentTarget.checked)}
+            color="blue"
+            mt="xs"
+          />
+        )}
 
         {(mode === 'reject' || mode === 'vote_reject') && (
           <Alert icon={<TbAlertCircle size={16} />} color="orange">

@@ -173,6 +173,10 @@ const monthlyTaxDataService = {
     search?: string
     sortBy?: string
     sortOrder?: 'asc' | 'desc'
+    // Filter by date and mode
+    dateFrom?: string
+    dateTo?: string
+    filterMode?: 'all' | 'wht' | 'vat'
     // Filter by employee responsible fields
     tax_inspection_responsible?: string
     accounting_responsible?: string

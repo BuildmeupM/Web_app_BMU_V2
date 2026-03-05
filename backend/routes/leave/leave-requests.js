@@ -39,6 +39,7 @@ router.get('/', authenticateToken, async (req, res) => {
 
     // Role-based access control
     const isHRorAdmin = req.user.role === 'admin' || req.user.role === 'hr'
+    const isAudit = req.user.role === 'audit'
 
     // Build WHERE clause
     const whereConditions = ['lr.deleted_at IS NULL']
@@ -46,9 +47,17 @@ router.get('/', authenticateToken, async (req, res) => {
 
     // Employee access control
     if (!isHRorAdmin) {
-      // Employee: ดึงเฉพาะข้อมูลของตัวเอง
-      whereConditions.push('lr.employee_id = ?')
-      queryParams.push(req.user.employee_id)
+      if (isAudit && req.query.allEmployees === 'true') {
+        // Audit role can fetch all if explicitly requested
+        if (employee_id) {
+          whereConditions.push('lr.employee_id = ?')
+          queryParams.push(employee_id)
+        }
+      } else {
+        // Employee: ดึงเฉพาะข้อมูลของตัวเอง
+        whereConditions.push('lr.employee_id = ?')
+        queryParams.push(req.user.employee_id)
+      }
     } else if (employee_id) {
       // Admin: สามารถกรองตาม employee_id ได้
       whereConditions.push('lr.employee_id = ?')
@@ -117,9 +126,11 @@ router.get('/', authenticateToken, async (req, res) => {
         DATE_FORMAT(lr.updated_at, '%Y-%m-%d %H:%i:%s') as updated_at,
         e.full_name as employee_name,
         e.nick_name as employee_nick_name,
-        e.position as employee_position
+        e.position as employee_position,
+        u.role as employee_role
        FROM leave_requests lr
        LEFT JOIN employees e ON lr.employee_id = e.employee_id
+       LEFT JOIN users u ON lr.employee_id = u.employee_id
        ${whereClause}
        ORDER BY lr.request_date DESC, lr.created_at DESC
        LIMIT ? OFFSET ?`,
@@ -767,8 +778,6 @@ router.post('/', authenticateToken, leaveRequestRateLimiter, async (req, res) =>
     let initialStatus = 'รออนุมัติ'
     if (['service', 'data_entry', 'data_entry_and_service'].includes(req.user.role)) {
       initialStatus = 'รอตรวจสอบ'
-    } else if (req.user.role === 'audit') {
-      initialStatus = 'รอโหวต'
     }
 
     await pool.execute(
@@ -936,7 +945,7 @@ router.post('/:id/vote', authenticateToken, authorize('audit'), async (req, res)
 router.put('/:id/approve', authenticateToken, authorize('admin', 'hr', 'audit'), async (req, res) => {
   try {
     const { id } = req.params
-    const { approver_note } = req.body
+    const { approver_note, require_vote } = req.body
 
     // Get leave request
     const [leaveRequests] = await pool.execute(
@@ -995,13 +1004,32 @@ router.put('/:id/approve', authenticateToken, authorize('admin', 'hr', 'audit'),
       if (!isAdmin && !isHr) {
         return res.status(403).json({ success: false, message: 'Only Admin or HR can approve this step' });
       }
-      updateQuery = `
-        UPDATE leave_requests 
-        SET status = 'อนุมัติแล้ว',
-            approved_by = ?,
-            approved_at = NOW(),
-            approver_note = ?
-        WHERE id = ?`;
+
+      // Check if requester is audit and require_vote is true
+      const [requesterRow] = await pool.execute(
+        `SELECT role FROM users WHERE employee_id = ? AND deleted_at IS NULL`,
+        [leaveRequest.employee_id]
+      );
+      
+      const isRequesterAudit = requesterRow.length > 0 && requesterRow[0].role === 'audit';
+
+      if (isRequesterAudit && require_vote) {
+         updateQuery = `
+          UPDATE leave_requests 
+          SET status = 'รอโหวต',
+              step1_approved_by = ?,
+              step1_approved_at = NOW(),
+              step1_approver_note = ?
+          WHERE id = ?`;
+      } else {
+        updateQuery = `
+          UPDATE leave_requests 
+          SET status = 'อนุมัติแล้ว',
+              approved_by = ?,
+              approved_at = NOW(),
+              approver_note = ?
+          WHERE id = ?`;
+      }
       updateParams = [req.user.id, approver_note || null, id];
     }
 
@@ -1098,16 +1126,36 @@ router.put('/:id/reject', authenticateToken, authorize('admin', 'hr', 'audit'), 
       return res.status(403).json({ success: false, message: 'Only Admin or HR can reject this step' });
     }
 
-    // Reject
-    await pool.execute(
-      `UPDATE leave_requests 
-       SET status = 'ไม่อนุมัติ',
-           approved_by = ?,
-           approved_at = NOW(),
-           approver_note = ?
-       WHERE id = ?`,
-      [req.user.id, approver_note, id]
-    )
+    // Check if requester is audit
+    const [requesterRow] = await pool.execute(
+      `SELECT role FROM users WHERE employee_id = ? AND deleted_at IS NULL`,
+      [leaveRequest.employee_id]
+    );
+    const isRequesterAudit = requesterRow.length > 0 && requesterRow[0].role === 'audit';
+
+    if (isRequesterAudit && isHr && !isAdmin) {
+       // HR rejects audit role -> goes to voting
+       await pool.execute(
+        `UPDATE leave_requests 
+         SET status = 'รอโหวต',
+             step1_approved_by = ?,
+             step1_approved_at = NOW(),
+             step1_approver_note = ?
+         WHERE id = ?`,
+        [req.user.id, approver_note, id]
+      )
+    } else {
+      // Normal reject or Admin reject
+      await pool.execute(
+        `UPDATE leave_requests 
+         SET status = 'ไม่อนุมัติ',
+             approved_by = ?,
+             approved_at = NOW(),
+             approver_note = ?
+         WHERE id = ?`,
+        [req.user.id, approver_note, id]
+      )
+    }
 
     // Get updated leave request
     const [updatedRequests] = await pool.execute(

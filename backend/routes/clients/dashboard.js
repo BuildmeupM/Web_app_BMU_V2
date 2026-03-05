@@ -266,14 +266,14 @@ router.get('/statistics', authenticateToken, async (req, res) => {
         END`
     )
 
-    // Incomplete data: Basic Info (establishment_date, business_category, company_size)
+    // Incomplete data: Basic Info (establishment_date, business_category)
     const [incompleteBasic] = await pool.execute(
       `SELECT build, company_name
        FROM clients
        WHERE deleted_at IS NULL
+         AND company_status != 'ยกเลิกทำ'
          AND (establishment_date IS NULL
-           OR business_category IS NULL OR business_category = ''
-           OR company_size IS NULL OR company_size = '')
+           OR business_category IS NULL OR business_category = '')
        ORDER BY build`
     )
 
@@ -282,6 +282,7 @@ router.get('/statistics', authenticateToken, async (req, res) => {
       `SELECT build, company_name
        FROM clients
        WHERE deleted_at IS NULL
+         AND company_status != 'ยกเลิกทำ'
          AND (tax_registration_status IS NULL OR tax_registration_status = '')
        ORDER BY build`
     )
@@ -291,6 +292,7 @@ router.get('/statistics', authenticateToken, async (req, res) => {
       `SELECT build, company_name
        FROM clients
        WHERE deleted_at IS NULL
+         AND company_status != 'ยกเลิกทำ'
          AND (province IS NULL OR province = ''
            OR district IS NULL OR district = ''
            OR subdistrict IS NULL OR subdistrict = ''

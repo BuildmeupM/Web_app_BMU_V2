@@ -30,6 +30,7 @@ export interface Client {
   province?: string | null;
   postal_code?: string | null;
   company_status: string;
+  note?: string | null;
   created_at: string;
   updated_at: string;
   // Fields from list API JOIN with accounting_fees

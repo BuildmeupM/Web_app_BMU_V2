@@ -17,7 +17,7 @@ import {
 } from '@mantine/core'
 import {
   TbBuilding, TbMapPin, TbFileInvoice, TbEdit, TbCalendar,
-  TbKey, TbCoin, TbShieldCheck, TbBuildingBank, TbPlus,
+  TbKey, TbShieldCheck, TbBuildingBank, TbPlus,
 } from 'react-icons/tb'
 import { Client } from '../../services/clientsService'
 import { useAuthStore } from '../../store/authStore'
@@ -31,7 +31,6 @@ dayjs.locale('th')
 interface ClientDetailProps {
   client: Client
   onEdit?: () => void
-  onEditMonthlyFees?: () => void
   onEditDbdInfo?: () => void
   onEditCredentials?: () => void
 }
@@ -62,9 +61,6 @@ const formatCurrency = (value: number | null | undefined): string => {
   if (value === null || value === undefined) return '-'
   return new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value)
 }
-
-const monthLabels = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.']
-const monthKeys = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
 
 const cardStyle = { borderLeft: '4px solid #ff6b35', boxShadow: '0 2px 8px rgba(255, 107, 53, 0.1)' }
 
@@ -101,11 +97,10 @@ const InfoItem = ({ label, value }: { label: string; value: string | React.React
   </div>
 )
 
-export default function ClientDetail({ client, onEdit, onEditMonthlyFees, onEditDbdInfo, onEditCredentials }: ClientDetailProps) {
+export default function ClientDetail({ client, onEdit, onEditDbdInfo, onEditCredentials }: ClientDetailProps) {
   const { user } = useAuthStore()
-  const canEdit = user?.role === 'admin' || user?.role === 'hr' || user?.role === 'data_entry' || user?.role === 'data_entry_and_service'
+  const canEdit = user?.role === 'admin' || user?.role === 'hr' || user?.role === 'data_entry' || user?.role === 'data_entry_and_service' || user?.role === 'audit'
 
-  const af = client.accounting_fees
   const dbd = client.dbd_info
   const boi = client.boi_info
   const creds = client.agency_credentials
@@ -147,6 +142,13 @@ export default function ClientDetail({ client, onEdit, onEditMonthlyFees, onEdit
           <InfoItem label="ไซต์บริษัท" value={
             client.company_size ? <Badge variant="light" color="blue">{client.company_size}</Badge> : '-'
           } />
+          {client.note && (
+            <div style={{ gridColumn: '1 / -1' }}>
+              <InfoItem label="รายละเอียดเพิ่มเติม / โน้ต" value={
+                <Textarea value={client.note} readOnly minRows={2} autosize styles={{ input: { backgroundColor: '#f8f9fa', cursor: 'default' } }} />
+              } />
+            </div>
+          )}
         </SimpleGrid>
       </Card>
 

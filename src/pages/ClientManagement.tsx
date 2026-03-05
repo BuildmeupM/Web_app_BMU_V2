@@ -13,7 +13,6 @@ import {
   TextInput,
   Select,
   Card,
-  Pagination,
   Alert,
   Badge,
   Text,
@@ -43,7 +42,6 @@ import {
   ClientDetailView,
   companyStatusOptions,
   taxRegistrationStatusOptions,
-  getCompanyStatusColor,
   getCompanyStatusIcon,
   getCompanyStatusColorValue,
   getTaxStatusIcon,
@@ -54,7 +52,8 @@ export default function ClientManagement() {
   const { user } = useAuthStore()
   const queryClient = useQueryClient()
   const isAdmin = user?.role === 'admin'
-  const canEdit = isAdmin || user?.role === 'hr' || user?.role === 'data_entry' || user?.role === 'data_entry_and_service'
+  const canAdd = isAdmin || user?.role === 'hr' || user?.role === 'data_entry' || user?.role === 'data_entry_and_service'
+  const canEdit = canAdd || user?.role === 'audit'
 
   // State
   const [search, setSearch] = useState('')
@@ -62,8 +61,8 @@ export default function ClientManagement() {
   const [taxRegistrationStatus, setTaxRegistrationStatus] = useState<string>('all')
   const [page, setPage] = useState(1)
   const [limit, setLimit] = useState(20)
-  const [sortBy, setSortBy] = useState<string>('build')
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
+  const [sortBy] = useState<string>('build')
+  const [sortOrder] = useState<'asc' | 'desc'>('asc')
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
   const [formOpened, setFormOpened] = useState(false)
   const [formMode, setFormMode] = useState<'create' | 'edit'>('create')
@@ -118,10 +117,11 @@ export default function ClientManagement() {
         setFormOpened(false)
         setEditingClient(null)
       },
-      onError: (error: any) => {
+      onError: (error: unknown) => {
+        const err = error as { response?: { data?: { message?: string } } }
         notifications.show({
           title: 'เกิดข้อผิดพลาด',
-          message: error?.response?.data?.message || 'ไม่สามารถเพิ่มข้อมูลได้',
+          message: err?.response?.data?.message || 'ไม่สามารถเพิ่มข้อมูลได้',
           color: 'red',
           icon: <TbAlertCircle size={16} />,
         })
@@ -147,10 +147,11 @@ export default function ClientManagement() {
         setEditingClient(null)
         setSelectedClient(null)
       },
-      onError: (error: any) => {
+      onError: (error: unknown) => {
+        const err = error as { response?: { data?: { message?: string } } }
         notifications.show({
           title: 'เกิดข้อผิดพลาด',
-          message: error?.response?.data?.message || 'ไม่สามารถแก้ไขข้อมูลได้',
+          message: err?.response?.data?.message || 'ไม่สามารถแก้ไขข้อมูลได้',
           color: 'red',
           icon: <TbAlertCircle size={16} />,
         })
@@ -172,10 +173,11 @@ export default function ClientManagement() {
       setClientToDelete(null)
       setSelectedClient(null)
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
+      const err = error as { response?: { data?: { message?: string } } }
       notifications.show({
         title: 'เกิดข้อผิดพลาด',
-        message: error?.response?.data?.message || 'ไม่สามารถลบข้อมูลได้',
+        message: err?.response?.data?.message || 'ไม่สามารถลบข้อมูลได้',
         color: 'red',
         icon: <TbAlertCircle size={16} />,
       })
@@ -243,7 +245,7 @@ export default function ClientManagement() {
           <Title order={1} c="white" fw={700}>
             จัดการข้อมูลลูกค้า
           </Title>
-          {canEdit && (
+          {canAdd && (
             <Group gap="sm">
               <Button
                 variant="light"
@@ -539,7 +541,7 @@ export default function ClientManagement() {
                           </Badge>
                         </Group>
                         <Text size="xs" c="dimmed" mb="sm">
-                          วันจัดตั้ง, ประเภทธุรกิจ, ขนาดบริษัท
+                          วันจัดตั้ง, ประเภทธุรกิจ
                         </Text>
                         <Divider mb="xs" />
                         <Stack gap={4} style={{ maxHeight: 200, overflowY: 'auto' }}>

@@ -1,6 +1,6 @@
 import { useState, useCallback, lazy, Suspense, useEffect, useRef } from 'react'
 import { useLocation } from 'react-router-dom'
-import { Container, Stack, Group, Text, Badge, Card } from '@mantine/core'
+import { Container, Stack, Group, Text, Card } from '@mantine/core'
 import { TbQuestionMark, TbBell, TbRefresh, TbCheck } from 'react-icons/tb'
 import { useQuery, useQueryClient } from 'react-query'
 import { notifications } from '@mantine/notifications'
@@ -15,6 +15,7 @@ import AcknowledgmentModal from '../components/TaxInspection/AcknowledgmentModal
 import { hasAcknowledgmentData, getSectionsWithData } from '../utils/taxAcknowledgmentUtils'
 import type { RecordWithAcknowledgmentFields } from '../utils/taxAcknowledgmentUtils'
 import monthlyTaxDataService from '../services/monthlyTaxDataService'
+import dayjs from 'dayjs'
 
 // ✅ Performance Optimization: Lazy load TaxInspectionForm (4115 lines) เพื่อลด initial bundle size
 const TaxInspectionForm = lazy(() => import('../components/TaxInspection/TaxInspectionForm'))
@@ -84,6 +85,9 @@ export default function TaxInspection() {
         limit: itemsPerPage,
         build: filters.filterType === 'build' && filters.searchValue ? filters.searchValue : undefined,
         search: filters.filterType === 'build' && filters.searchValue ? filters.searchValue : undefined,
+        dateFrom: filters.filterType === 'date' && filters.dateFrom ? dayjs(filters.dateFrom).format('YYYY-MM-DD') : undefined,
+        dateTo: filters.filterType === 'date' && filters.dateTo ? dayjs(filters.dateTo).format('YYYY-MM-DD') : undefined,
+        filterMode: filters.filterMode,
         year: currentTaxMonth.year.toString(),
         month: currentTaxMonth.month.toString(),
         tax_inspection_responsible: employeeId || undefined,
@@ -109,7 +113,7 @@ export default function TaxInspection() {
         isLoading,
         hasData: !!taxDataResponse,
         dataLength: taxDataResponse?.data?.length || 0,
-        error: error ? (error as any)?.message || 'Unknown error' : null,
+        error: error ? (error as Error)?.message || 'Unknown error' : null,
         timestamp: new Date().toISOString(),
       })
     }
@@ -147,9 +151,11 @@ export default function TaxInspection() {
   const handleFilterChange = (newFilters: FilterValues) => {
     setFilters(newFilters)
     setCurrentPage(1) // Reset to first page when filters change
-    // Reset sort when switching to date filter (date sorting conflicts with column sort)
+    
+    // ตั้งค่าเรียงลำดับใหม่เมื่อเลือกประเภทวันที่ (ให้เรียงตามวันที่ขึ้นก่อน - น้อยไปมาก)
     if (newFilters.filterType === 'date') {
-      setSortBy('build')
+      const dateSortCol = newFilters.filterMode === 'vat' ? 'pp30_sent_for_review_date' : 'pnd_sent_for_review_date';
+      setSortBy(dateSortCol)
       setSortOrder('asc')
     }
   }
@@ -332,7 +338,6 @@ export default function TaxInspection() {
           sortBy={sortBy}
           sortOrder={sortOrder}
           onSortChange={handleSortChange}
-          isDateFilterActive={filters.filterType === 'date'}
         />
 
         {/* Pagination */}

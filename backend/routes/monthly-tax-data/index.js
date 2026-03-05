@@ -60,6 +60,10 @@ router.get('/', authenticateToken, async (req, res) => {
       pnd_status = '',
       pp30_status = '',
       pp30_payment_status = '',
+      // Filter by date
+      dateFrom = '',
+      dateTo = '',
+      filterMode = 'all',
     } = req.query
 
     const pageNum = parseInt(page)
@@ -167,6 +171,43 @@ router.get('/', authenticateToken, async (req, res) => {
       if (statuses.length > 0) {
         whereConditions.push(`mtd.pp30_payment_status IN (${statuses.map(() => '?').join(',')})`)
         queryParams.push(...statuses)
+      }
+    }
+
+    // Filter by date (sent for review date)
+    if (dateFrom || dateTo) {
+      const pndDateCol = 'DATE(mtd.pnd_sent_for_review_date)'
+      const pp30DateCol = 'DATE(mtd.pp30_sent_for_review_date)'
+      
+      let pndCond = ''
+      let pp30Cond = ''
+
+      if (dateFrom && dateTo) {
+        pndCond = `${pndDateCol} >= ? AND ${pndDateCol} <= ?`
+        pp30Cond = `${pp30DateCol} >= ? AND ${pp30DateCol} <= ?`
+      } else if (dateFrom) {
+        pndCond = `${pndDateCol} >= ?`
+        pp30Cond = `${pp30DateCol} >= ?`
+      } else if (dateTo) {
+        pndCond = `${pndDateCol} <= ?`
+        pp30Cond = `${pp30DateCol} <= ?`
+      }
+
+      if (filterMode === 'wht') {
+        whereConditions.push(`(${pndCond})`)
+        if (dateFrom && dateTo) queryParams.push(dateFrom, dateTo)
+        else if (dateFrom) queryParams.push(dateFrom)
+        else if (dateTo) queryParams.push(dateTo)
+      } else if (filterMode === 'vat') {
+        whereConditions.push(`(${pp30Cond})`)
+        if (dateFrom && dateTo) queryParams.push(dateFrom, dateTo)
+        else if (dateFrom) queryParams.push(dateFrom)
+        else if (dateTo) queryParams.push(dateTo)
+      } else {
+        whereConditions.push(`((${pndCond}) OR (${pp30Cond}))`)
+        if (dateFrom && dateTo) queryParams.push(dateFrom, dateTo, dateFrom, dateTo)
+        else if (dateFrom) queryParams.push(dateFrom, dateFrom)
+        else if (dateTo) queryParams.push(dateTo, dateTo)
       }
     }
 

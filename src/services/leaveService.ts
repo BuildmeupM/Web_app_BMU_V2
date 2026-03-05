@@ -24,6 +24,7 @@ export interface LeaveRequest {
   employee_name?: string
   employee_nick_name?: string
   employee_position?: string
+  employee_role?: string
   approver_name?: string
 }
 
@@ -43,6 +44,7 @@ export interface WFHRequest {
   employee_name?: string
   employee_nick_name?: string
   employee_position?: string
+  employee_role?: string
   approver_name?: string
 }
 
@@ -263,7 +265,7 @@ export const leaveService = {
   /**
    * อนุมัติการลา (HR/Admin only)
    */
-  approve: async (id: string, data?: { approver_note?: string }) => {
+  approve: async (id: string, data?: { approver_note?: string; require_vote?: boolean }) => {
     const response = await api.put<{ success: boolean; data: { leave_request: LeaveRequest } }>(
       `/leave-requests/${id}/approve`,
       data
@@ -420,7 +422,7 @@ export const wfhService = {
   /**
    * อนุมัติการขอ WFH (HR/Admin only)
    */
-  approve: async (id: string, data?: { approver_note?: string }) => {
+  approve: async (id: string, data?: { approver_note?: string; require_vote?: boolean }) => {
     const response = await api.put<{ success: boolean; data: { wfh_request: WFHRequest } }>(
       `/wfh-requests/${id}/approve`,
       data

@@ -191,8 +191,8 @@ router.get('/', authenticateToken, async (req, res) => {
         c.subdistrict,
         c.district,
         c.province,
-        c.postal_code,
         c.company_status,
+        c.note,
         c.created_at,
         c.updated_at,
         af.peak_code,
@@ -258,8 +258,8 @@ router.get('/:build', authenticateToken, async (req, res) => {
         c.subdistrict,
         c.district,
         c.province,
-        c.postal_code,
         c.company_status,
+        c.note,
         c.created_at,
         c.updated_at
       FROM clients c
@@ -380,6 +380,7 @@ router.post('/', authenticateToken, authorize('admin', 'hr'), async (req, res) =
       province,
       postal_code,
       company_status = 'รายเดือน',
+      note,
       // Related tables data
       dbd_info,
       boi_info,
@@ -436,8 +437,8 @@ router.post('/', authenticateToken, authorize('admin', 'hr'), async (req, res) =
         tax_registration_status, vat_registration_date,
         full_address, village, building, room_number, floor_number, address_number,
         soi, moo, road, subdistrict, district, province, postal_code,
-        company_status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        company_status, note
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         build,
@@ -464,6 +465,7 @@ router.post('/', authenticateToken, authorize('admin', 'hr'), async (req, res) =
         province || null,
         postal_code || null,
         company_status,
+        note || null,
       ]
     )
 
@@ -618,9 +620,9 @@ router.post('/', authenticateToken, authorize('admin', 'hr'), async (req, res) =
 /**
  * PUT /api/clients/:build
  * แก้ไขข้อมูลลูกค้า (รวมข้อมูล 4 ตารางที่เกี่ยวข้อง)
- * Access: Admin/HR only
+ * Access: Admin/HR/Audit only
  */
-router.put('/:build', authenticateToken, authorize('admin', 'hr'), async (req, res) => {
+router.put('/:build', authenticateToken, authorize('admin', 'hr', 'audit'), async (req, res) => {
   try {
     const { build } = req.params
     const {
@@ -648,6 +650,7 @@ router.put('/:build', authenticateToken, authorize('admin', 'hr'), async (req, r
       province,
       postal_code,
       company_status,
+      note,
       // Related tables data
       dbd_info,
       boi_info,
@@ -730,6 +733,7 @@ router.put('/:build', authenticateToken, authorize('admin', 'hr'), async (req, r
         province = ?,
         postal_code = ?,
         company_status = ?,
+        note = ?,
         updated_at = CURRENT_TIMESTAMP
       WHERE build = ? AND deleted_at IS NULL`,
       [
@@ -757,6 +761,7 @@ router.put('/:build', authenticateToken, authorize('admin', 'hr'), async (req, r
         province || null,
         postal_code || null,
         company_status,
+        note || null,
         build,
       ]
     )

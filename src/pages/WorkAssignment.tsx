@@ -4,17 +4,15 @@
  * Access: Admin/HR only
  */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { useDebouncedValue } from '@mantine/hooks'
 import {
-  Container,
   Title,
   Stack,
   Button,
   Group,
   TextInput,
   Select,
-  MultiSelect,
   Checkbox,
   Card,
   Table,
@@ -35,7 +33,6 @@ import {
   Box,
   Progress,
   SimpleGrid,
-  Accordion,
 } from '@mantine/core'
 import { TbPlus, TbSearch, TbEdit, TbRefresh, TbAlertCircle, TbCheck, TbColumns, TbEye, TbEyeOff, TbUpload, TbUserEdit, TbTrash } from 'react-icons/tb'
 import { useQuery, useMutation, useQueryClient } from 'react-query'
@@ -44,7 +41,7 @@ import workAssignmentsService, {
   WorkAssignment as WorkAssignmentType,
 } from '../services/workAssignmentsService'
 import clientsService, { Client } from '../services/clientsService'
-import { employeeService, Employee } from '../services/employeeService'
+import { employeeService } from '../services/employeeService'
 import usersService, { User } from '../services/usersService'
 import { notifications } from '@mantine/notifications'
 import WorkAssignmentImport from '../components/WorkAssignment/WorkAssignmentImport'
@@ -180,7 +177,7 @@ export default function WorkAssignment() {
   const [isSaving, setIsSaving] = useState(false)
 
   // Employee search state
-  const [employeeSearchQuery, setEmployeeSearchQuery] = useState('')
+  // const [employeeSearchQuery, setEmployeeSearchQuery] = useState('')
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null)
 
   // Selected role for detail view
@@ -339,7 +336,7 @@ export default function WorkAssignment() {
         isRefetching,
         hasData: !!assignmentsData,
         dataLength: assignmentsData?.data?.length || 0,
-        error: error ? (error as any)?.message || 'Unknown error' : null,
+        error: error ? (error as Error)?.message || 'Unknown error' : null,
         timestamp: new Date().toISOString(),
       })
     }
@@ -507,7 +504,7 @@ export default function WorkAssignment() {
       // Don't show notification for bulk operations
       // Notification will be shown in executeBulkSave
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       // Don't show notification for bulk operations
       // Errors will be tracked in executeBulkSave
       throw error // Re-throw to be caught in executeBulkSave
@@ -533,7 +530,7 @@ export default function WorkAssignment() {
       onError: (error: unknown) => {
         notifications.show({
           title: 'เกิดข้อผิดพลาด',
-          message: (error as any).response?.data?.message || 'ไม่สามารถแก้ไขการจัดงานได้',
+          message: getErrorMessage(error) || 'ไม่สามารถแก้ไขการจัดงานได้',
           color: 'red',
           icon: <TbAlertCircle size={16} />,
         })
@@ -541,6 +538,7 @@ export default function WorkAssignment() {
     }
   )
 
+  /*
   // Update mutation for bulk operations (no notification)
   const updateMutationBulk = useMutation(
     ({ id, data }: { id: string; data: Partial<WorkAssignmentType> }) =>
@@ -557,6 +555,7 @@ export default function WorkAssignment() {
       },
     }
   )
+  */
 
   // Reset data mutation
   const resetMutation = useMutation(workAssignmentsService.resetData, {
@@ -1440,7 +1439,6 @@ export default function WorkAssignment() {
         await Promise.all(
           batch.map(async (item) => {
             let retryCount = 0
-            let lastError: any = null
 
             while (retryCount < maxRetries) {
               try {
@@ -1463,7 +1461,6 @@ export default function WorkAssignment() {
                 successCount++
                 break // Success, exit retry loop
               } catch (error: unknown) {
-                lastError = error
                 retryCount++
 
                 // Check if error is retryable
@@ -1594,7 +1591,7 @@ export default function WorkAssignment() {
       console.error('Bulk save error:', error)
 
       // Check error type
-      if ((error as any).code === 'ECONNRESET' || (error as any).code === 'ETIMEDOUT') {
+      if (isNetworkError(error) && (error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT')) {
         notifications.show({
           title: 'การเชื่อมต่อขัดข้อง',
           message: 'ข้อมูลถูกบันทึกไว้ในระบบแล้ว กรุณารอสักครู่แล้วตรวจสอบผลลัพธ์',
@@ -1602,7 +1599,7 @@ export default function WorkAssignment() {
           icon: <TbAlertCircle size={16} />,
           autoClose: 15000,
         })
-      } else if ((error as any).response?.status === 429) {
+      } else if (isApiError(error) && error.response?.status === 429) {
         notifications.show({
           title: 'การร้องขอมากเกินไป',
           message: 'กรุณารอสักครู่แล้วลองอีกครั้ง',
@@ -1613,7 +1610,7 @@ export default function WorkAssignment() {
       } else {
         notifications.show({
           title: 'เกิดข้อผิดพลาด',
-          message: (error as any).response?.data?.message || 'ไม่สามารถบันทึกข้อมูลได้ กรุณาลองอีกครั้ง',
+          message: getErrorMessage(error) || 'ไม่สามารถบันทึกข้อมูลได้ กรุณาลองอีกครั้ง',
           color: 'red',
           icon: <TbAlertCircle size={16} />,
           autoClose: 10000,
@@ -1674,6 +1671,7 @@ export default function WorkAssignment() {
       setSelectedPreviousTaxYear(null)
       setSelectedPreviousTaxMonth(null)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bulkCreateModalOpened])
 
   const clientOptions =
@@ -1682,12 +1680,14 @@ export default function WorkAssignment() {
       label: `${client.build} - ${client.company_name}`,
     })) || []
 
+  /*
   // Employee options (for old assignments display)
   const employeeOptions =
     employeesData?.employees?.map((emp: Employee) => ({
       value: emp.employee_id,
       label: `${emp.employee_id} - ${emp.full_name}`,
     })) || []
+  */
 
   // Helper function to deduplicate options by value
   // ใช้ Map เพื่อเก็บเฉพาะ value แรกที่เจอ (ป้องกัน duplicate)
@@ -2501,7 +2501,7 @@ export default function WorkAssignment() {
                       { value: 'unsynced', label: 'ซิงค์ไม่สำเร็จ' },
                     ]}
                     value={syncStatusFilter}
-                    onChange={(val) => setSyncStatusFilter((val as any) || 'all')}
+                    onChange={(val) => setSyncStatusFilter((val as 'all' | 'synced' | 'unsynced') || 'all')}
                     radius="lg"
                   />
                 </Stack>
@@ -3522,7 +3522,6 @@ export default function WorkAssignment() {
                           color="red"
                           onClick={() => {
                             setSelectedEmployeeId(null)
-                            setEmployeeSearchQuery('')
                           }}
                         >
                           ล้างการค้นหา
@@ -4335,7 +4334,7 @@ export default function WorkAssignment() {
                   <Table.Tbody>
                     {filteredPreviewData
                       .slice((previewPage - 1) * previewLimit, previewPage * previewLimit)
-                      .map((item, index) => {
+                      .map((item) => {
                         // Find the actual index in previewData (not filteredPreviewData)
                         const actualIndex = previewData.findIndex((p) => p.build === item.build)
                         return (
@@ -4926,7 +4925,7 @@ export default function WorkAssignment() {
                     console.error('Error in tax month confirmation:', error)
                     notifications.show({
                       title: 'เกิดข้อผิดพลาด',
-                      message: (error as any).message || 'เกิดข้อผิดพลาดในการดำเนินการ',
+                      message: error instanceof Error ? error.message : 'เกิดข้อผิดพลาดในการดำเนินการ',
                       color: 'red',
                       icon: <TbAlertCircle size={16} />,
                     })
@@ -5062,7 +5061,7 @@ export default function WorkAssignment() {
                     console.error('Error in incomplete data confirmation:', error)
                     notifications.show({
                       title: 'เกิดข้อผิดพลาด',
-                      message: (error as any).message || 'เกิดข้อผิดพลาดในการดำเนินการ',
+                      message: error instanceof Error ? error.message : 'เกิดข้อผิดพลาดในการดำเนินการ',
                       color: 'red',
                       icon: <TbAlertCircle size={16} />,
                     })
@@ -5219,7 +5218,7 @@ export default function WorkAssignment() {
                     console.error('Error in duplicate data confirmation:', error)
                     notifications.show({
                       title: 'เกิดข้อผิดพลาด',
-                      message: (error as any).message || 'เกิดข้อผิดพลาดในการดำเนินการ',
+                      message: error instanceof Error ? error.message : 'เกิดข้อผิดพลาดในการดำเนินการ',
                       color: 'red',
                       icon: <TbAlertCircle size={16} />,
                     })
@@ -5307,10 +5306,10 @@ export default function WorkAssignment() {
                       queryClient.invalidateQueries(['work-assignments'])
                       setDeleteConfirmOpened(false)
                       setDeleteAssignment(null)
-                    } catch (error: any) {
+                    } catch (error: unknown) {
                       notifications.show({
                         title: 'เกิดข้อผิดพลาด',
-                        message: error?.response?.data?.message || 'ไม่สามารถลบการจัดงานได้',
+                        message: getErrorMessage(error) || 'ไม่สามารถลบการจัดงานได้',
                         color: 'red',
                         icon: <TbAlertCircle size={16} />,
                       })
