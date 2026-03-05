@@ -1,4 +1,4 @@
-import { Table, Text, Card, Loader, Center, Alert, Group, Stack, NumberFormatter } from '@mantine/core'
+import { Table, Text, Card, Loader, Center, Alert, Group, Stack, NumberFormatter, Pagination } from '@mantine/core'
 import { useQuery } from 'react-query'
 import { TbAlertCircle } from 'react-icons/tb'
 import accountingMarketplaceService from '../../services/accountingMarketplaceService'
@@ -157,9 +157,12 @@ const PurchasedJobsTable = ({ page = 1, limit = 20, search = '', onPageChange }:
 
         {response.pagination.totalPages > 1 && (
           <Group justify="center">
-            <Text size="sm" c="dimmed">
-              หน้า {response.pagination.page} จาก {response.pagination.totalPages} (ทั้งหมด {response.pagination.total} รายการ)
-            </Text>
+            <Pagination
+              total={response.pagination.totalPages}
+              value={response.pagination.page}
+              onChange={onPageChange}
+              color="orange"
+            />
           </Group>
         )}
       </Stack>

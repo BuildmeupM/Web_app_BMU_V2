@@ -23,7 +23,15 @@ router.get('/', authenticateToken, async (req, res) => {
       roles = '', // สำหรับกรองหลาย role (comma-separated)
       status = 'active',
       search = '',
+      page = 1,
+      limit = 20,
+      sortBy = '',
+      sortDir = 'asc',
     } = req.query
+
+    const pageNum = parseInt(page) || 1
+    const limitNum = parseInt(limit) || 20
+    const offset = (pageNum - 1) * limitNum
 
     // Build WHERE clause
     const whereConditions = ['u.deleted_at IS NULL']
@@ -60,7 +68,26 @@ router.get('/', authenticateToken, async (req, res) => {
 
     const whereClause = 'WHERE ' + whereConditions.join(' AND ')
 
+    // Handle Sorting
+    const validSortColumns = ['username', 'email', 'employee_id', 'name', 'role', 'status', 'last_login_at']
+    let orderClause = 'ORDER BY u.employee_id ASC, u.name ASC' // Default
+
+    if (sortBy && validSortColumns.includes(sortBy)) {
+      const safeSortDir = sortDir.toLowerCase() === 'desc' ? 'DESC' : 'ASC'
+      // Use secondary sort by id for stable pagination when values are identical
+      orderClause = `ORDER BY u.${sortBy} ${safeSortDir}, u.id ASC`
+    }
+
+    // Get total count
+    const countParams = [...queryParams]
+    const [countResult] = await pool.execute(
+      `SELECT COUNT(*) as total FROM users u ${whereClause}`,
+      countParams
+    )
+    const total = countResult[0].total
+
     // Get users (รวม temporary_password สำหรับ Admin)
+    const userParams = [...queryParams, limitNum, offset]
     const [users] = await pool.execute(
       `SELECT 
         u.id,
@@ -77,14 +104,20 @@ router.get('/', authenticateToken, async (req, res) => {
         u.updated_at
       FROM users u
       ${whereClause}
-      ORDER BY u.employee_id ASC, u.name ASC`,
-      queryParams
+      ${orderClause}
+      LIMIT ? OFFSET ?`,
+      userParams
     )
 
     res.json({
       success: true,
       data: users,
-      total: users.length,
+      total: total,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        totalPages: Math.ceil(total / limitNum)
+      }
     })
   } catch (error) {
     console.error('Error fetching users:', error)

@@ -10,13 +10,14 @@
  *   - DeleteConfirmModal.tsx
  */
 
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useMemo, useEffect } from 'react'
 import { useQuery, useQueryClient } from 'react-query'
 import {
     Container, Title, Button, Group, Text, Badge, Card,
     Table, LoadingOverlay, ActionIcon, Tooltip, Box,
-    SimpleGrid,
+    SimpleGrid, UnstyledButton,
 } from '@mantine/core'
+import { useDebouncedValue } from '@mantine/hooks'
 import { notifications } from '@mantine/notifications'
 import {
     TbPlus, TbCheck, TbX, TbEdit, TbTrash,
@@ -70,6 +71,14 @@ export default function ErrorReportPage() {
     const [editingId, setEditingId] = useState<number | null>(null)
     const [form, setForm] = useState<ErrorReportForm>({ ...emptyForm })
     const [submitting, setSubmitting] = useState(false)
+    
+    // Filter State
+    const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all')
+
+    const filteredReports = useMemo(() => {
+        if (statusFilter === 'all') return reports
+        return reports.filter((r) => r.status === statusFilter)
+    }, [reports, statusFilter])
 
     // Reject modal
     const [rejectModalId, setRejectModalId] = useState<number | null>(null)
@@ -94,20 +103,29 @@ export default function ErrorReportPage() {
     }, [queryClient])
 
     // Debounced client search
+    const [clientSearchQuery, setClientSearchQuery] = useState('')
+    const [debouncedClientSearch] = useDebouncedValue(clientSearchQuery, 300)
     const [clientSearching, setClientSearching] = useState(false)
-    const clientSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-    const searchClients = useCallback((query: string) => {
-        if (clientSearchTimer.current) clearTimeout(clientSearchTimer.current)
-        clientSearchTimer.current = setTimeout(async () => {
+
+    // Trigger search when debounced value changes
+    useEffect(() => {
+        const fetchClients = async () => {
+            if (!debouncedClientSearch && debouncedClientSearch !== '') return
+            
             setClientSearching(true)
             try {
-                const results = await errorReportService.getClients(query)
-                // ✅ Performance: ใช้ queryClient.setQueryData แทน setState
+                const results = await errorReportService.getClients(debouncedClientSearch)
                 queryClient.setQueryData(['error-reports-clients'], results)
             } catch { /* ignore */ }
             setClientSearching(false)
-        }, 300)
-    }, [queryClient])
+        }
+        
+        fetchClients()
+    }, [debouncedClientSearch, queryClient])
+
+    const searchClients = useCallback((query: string) => {
+        setClientSearchQuery(query)
+    }, [])
 
     // Open create form
     const openCreate = () => {
@@ -153,10 +171,11 @@ export default function ErrorReportPage() {
             }
             setFormOpened(false)
             queryClient.invalidateQueries(['error-reports'])
-        } catch (err: any) {
+        } catch (err: unknown) {
+            const apiError = err as { response?: { data?: { message?: string } } }
             notifications.show({
                 title: 'ข้อผิดพลาด',
-                message: err?.response?.data?.message || 'เกิดข้อผิดพลาด',
+                message: apiError?.response?.data?.message || 'เกิดข้อผิดพลาด',
                 color: 'red',
             })
         } finally {
@@ -170,8 +189,9 @@ export default function ErrorReportPage() {
             await errorReportService.approve(id)
             notifications.show({ title: 'อนุมัติแล้ว', message: 'สร้างงานแมสไปทะเบียนเรียบร้อย', color: 'green' })
             queryClient.invalidateQueries(['error-reports'])
-        } catch (err: any) {
-            notifications.show({ title: 'ข้อผิดพลาด', message: err?.response?.data?.message || 'ไม่สามารถอนุมัติได้', color: 'red' })
+        } catch (err: unknown) {
+            const apiError = err as { response?: { data?: { message?: string } } }
+            notifications.show({ title: 'ข้อผิดพลาด', message: apiError?.response?.data?.message || 'ไม่สามารถอนุมัติได้', color: 'red' })
         }
     }
 
@@ -187,8 +207,9 @@ export default function ErrorReportPage() {
             setRejectModalId(null)
             setRejectReason('')
             queryClient.invalidateQueries(['error-reports'])
-        } catch (err: any) {
-            notifications.show({ title: 'ข้อผิดพลาด', message: err?.response?.data?.message || 'ไม่สามารถปฏิเสธได้', color: 'red' })
+        } catch (err: unknown) {
+            const apiError = err as { response?: { data?: { message?: string } } }
+            notifications.show({ title: 'ข้อผิดพลาด', message: apiError?.response?.data?.message || 'ไม่สามารถปฏิเสธได้', color: 'red' })
         }
     }
 
@@ -270,20 +291,39 @@ export default function ErrorReportPage() {
                 </Group>
             </Card>
 
-            {/* Summary Cards */}
+            {/* Summary Cards with Filtering */}
             <SimpleGrid cols={{ base: 2, sm: 4 }} mb="lg">
                 {[
-                    { label: 'ทั้งหมด', count: reports.length, color: '#6366f1', bg: '#eef2ff' },
-                    { label: 'รอตรวจสอบ', count: reports.filter(r => r.status === 'pending').length, color: '#eab308', bg: '#fefce8' },
-                    { label: 'อนุมัติแล้ว', count: reports.filter(r => r.status === 'approved').length, color: '#22c55e', bg: '#f0fdf4' },
-                    { label: 'ไม่อนุมัติ', count: reports.filter(r => r.status === 'rejected').length, color: '#ef4444', bg: '#fef2f2' },
+                    { label: 'ทั้งหมด', value: 'all', count: reports.length, color: '#6366f1', bg: '#eef2ff' },
+                    { label: 'รอตรวจสอบ', value: 'pending', count: reports.filter(r => r.status === 'pending').length, color: '#eab308', bg: '#fefce8' },
+                    { label: 'อนุมัติแล้ว', value: 'approved', count: reports.filter(r => r.status === 'approved').length, color: '#22c55e', bg: '#f0fdf4' },
+                    { label: 'ไม่อนุมัติ', value: 'rejected', count: reports.filter(r => r.status === 'rejected').length, color: '#ef4444', bg: '#fef2f2' },
                 ].map(s => (
-                    <Card key={s.label} withBorder radius="md" p="sm" style={{ borderColor: '#eee' }}>
-                        <Text size="xs" c="dimmed" mb={4}>{s.label}</Text>
-                        <Text size="xl" fw={800} style={{ color: s.color }}>{s.count}</Text>
-                    </Card>
+                    <UnstyledButton key={s.value} onClick={() => setStatusFilter(s.value as 'all' | 'pending' | 'approved' | 'rejected')}>
+                        <Card 
+                            withBorder 
+                            radius="md" 
+                            p="sm" 
+                            style={{ 
+                                borderColor: statusFilter === s.value ? s.color : '#eee',
+                                backgroundColor: statusFilter === s.value ? s.bg : 'white',
+                                transition: 'all 0.2s ease',
+                                transform: statusFilter === s.value ? 'scale(1.02)' : 'none'
+                            }}
+                        >
+                            <Text size="xs" c={statusFilter === s.value ? s.color : 'dimmed'} mb={4} fw={statusFilter === s.value ? 600 : 400}>{s.label}</Text>
+                            <Text size="xl" fw={800} style={{ color: s.color }}>{s.count}</Text>
+                        </Card>
+                    </UnstyledButton>
                 ))}
             </SimpleGrid>
+
+            {/* Default Status Filter State */}
+            {(() => {
+                // Initializing filter state variable previously not present at top scope (due to large block)
+                // However we will safely create this filtered list here to not disrupt current react node tree
+                return null;
+            })()}
 
             {/* Reports Table */}
             <Card withBorder radius="lg" p={0} pos="relative" style={{ overflow: 'hidden' }}>
@@ -306,14 +346,14 @@ export default function ErrorReportPage() {
                             </Table.Tr>
                         </Table.Thead>
                         <Table.Tbody>
-                            {reports.length === 0 && !loading ? (
+                            {filteredReports.length === 0 && !loading ? (
                                 <Table.Tr>
                                     <Table.Td colSpan={11}>
-                                        <Text ta="center" py="xl" c="dimmed">ยังไม่มีรายงาน</Text>
+                                        <Text ta="center" py="xl" c="dimmed">ยังไม่มีรายงานที่ตรงกับสถานะที่เลือก</Text>
                                     </Table.Td>
                                 </Table.Tr>
                             ) : (
-                                reports.map((r, idx) => {
+                                filteredReports.map((r, idx) => {
                                     const errorTypes = typeof r.error_types === 'string' ? JSON.parse(r.error_types) : r.error_types
                                     const taxMonths = typeof r.tax_months === 'string' ? JSON.parse(r.tax_months) : r.tax_months
                                     const statusCfg = STATUS_CONFIG[r.status] || STATUS_CONFIG.pending

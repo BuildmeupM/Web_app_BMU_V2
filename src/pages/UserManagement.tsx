@@ -24,20 +24,13 @@ import {
   ActionIcon,
   Tooltip,
   Table,
+  UnstyledButton,
 } from '@mantine/core'
 import { AxiosError } from 'axios'
-import {
-  TbPlus,
-  TbSearch,
-  TbEdit,
-  TbTrash,
-  TbEye,
-  TbAlertCircle,
-  TbCheck,
-  TbKey,
-  TbCopy,
-} from 'react-icons/tb'
+import { TbPlus, TbSearch, TbEdit, TbTrash, TbEye, TbAlertCircle, TbCheck, TbKey, TbCopy, TbChevronUp, TbChevronDown, TbSelector } from 'react-icons/tb'
 import { useQuery, useMutation, useQueryClient } from 'react-query'
+import { useSearchParams } from 'react-router-dom'
+import { useForm } from '@mantine/form'
 import { useAuthStore } from '../store/authStore'
 import usersService, { User, CreateUserRequest, UpdateUserRequest } from '../services/usersService'
 import { employeeService } from '../services/employeeService'
@@ -75,12 +68,63 @@ export default function UserManagement() {
   const isAdmin = currentUser?.role === 'admin'
 
   // State
-  const [search, setSearch] = useState('')
-  const [debouncedSearch] = useDebouncedValue(search, 300) // รอ 300ms ค่อยยิง API
-  const [roleFilter, setRoleFilter] = useState<string>('all')
-  const [statusFilter, setStatusFilter] = useState<string>('all')
-  const [page, setPage] = useState(1)
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  // State from URL
+  const search = searchParams.get('search') || ''
+  const roleFilter = searchParams.get('role') || 'all'
+  const statusFilter = searchParams.get('status') || 'all'
+  const page = parseInt(searchParams.get('page') || '1', 10)
+  const sortBy = searchParams.get('sortBy') || ''
+  const sortDir = (searchParams.get('sortDir') as 'asc' | 'desc') || 'asc'
   const limit = 20
+
+  const [debouncedSearch] = useDebouncedValue(search, 300) // รอ 300ms ค่อยยิง API
+  const [localSearch, setLocalSearch] = useState(search) // For immediate input display
+  
+  const updateUrlParams = (newParams: Record<string, string>) => {
+    const params = new URLSearchParams(searchParams)
+    Object.entries(newParams).forEach(([key, value]) => {
+      if (value && value !== 'all') {
+        params.set(key, value)
+      } else {
+        params.delete(key)
+      }
+    })
+    // If not explicitly setting page, reset to 1 on filter/sort change
+    if (!newParams.page && (newParams.search !== undefined || newParams.role !== undefined || newParams.status !== undefined || newParams.sortBy !== undefined || newParams.sortDir !== undefined)) {
+        params.set('page', '1')
+    }
+    setSearchParams(params, { replace: true })
+  }
+
+  const handleSort = (field: string) => {
+    if (sortBy === field) {
+      updateUrlParams({ sortDir: sortDir === 'asc' ? 'desc' : 'asc' })
+    } else {
+      updateUrlParams({ sortBy: field, sortDir: 'asc' })
+    }
+  }
+
+  const SortableHeader = ({ label, field, sortable = true }: { label: string; field: string; sortable?: boolean }) => {
+    if (!sortable) return <Table.Th>{label}</Table.Th>
+    const isActive = sortBy === field
+    return (
+      <Table.Th>
+        <UnstyledButton onClick={() => handleSort(field)} style={{ width: '100%', padding: '4px 0' }}>
+          <Group justify="space-between" wrap="nowrap" gap="xs">
+            <Text fw={700} size="sm">{label}</Text>
+            {isActive ? (
+              sortDir === 'desc' ? <TbChevronDown size={16} /> : <TbChevronUp size={16} />
+            ) : (
+              <TbSelector size={16} color="gray" style={{ opacity: 0.5 }} />
+            )}
+          </Group>
+        </UnstyledButton>
+      </Table.Th>
+    )
+  }
+
   const [formOpened, setFormOpened] = useState(false)
   const [detailOpened, setDetailOpened] = useState(false)
   const [deleteConfirmOpened, setDeleteConfirmOpened] = useState(false)
@@ -90,16 +134,26 @@ export default function UserManagement() {
   const [userToDelete, setUserToDelete] = useState<User | null>(null)
   const [resetPasswordUser, setResetPasswordUser] = useState<User | null>(null)
 
-  // Form state
-  const [formData, setFormData] = useState<CreateUserRequest | UpdateUserRequest>({
-    username: '',
-    email: '',
-    password: '',
-    employee_id: null,
-    nick_name: null,
-    role: 'data_entry',
-    name: '',
-    status: 'active',
+  // Use Mantine Form
+  const form = useForm({
+    initialValues: {
+      username: '',
+      email: '',
+      password: '',
+      employee_id: '' as string | null,
+      nick_name: '' as string | null,
+      role: 'data_entry',
+      name: '',
+      status: 'active',
+    },
+    validate: {
+      username: (value) => value.trim().length > 0 ? null : 'กรุณากรอก Username',
+      email: (value) => (/^\S+@\S+\.\S+$/.test(value) ? null : 'รูปแบบอีเมลไม่ถูกต้อง'),
+      name: (value) => value.trim().length > 0 ? null : 'กรุณากรอกชื่อเต็ม',
+      password: (value) => formMode === 'create' && value.length < 6 ? 'รหัสผ่านต้องมีความยาวอย่างน้อย 6 ตัวอักษร' : null,
+      role: (value) => value ? null : 'กรุณาเลือก Role',
+      status: (value) => value ? null : 'กรุณาเลือก Status',
+    },
   })
 
   // Fetch users
@@ -109,12 +163,16 @@ export default function UserManagement() {
     error,
     refetch: refetchUsers,
   } = useQuery(
-    ['users', page, limit, debouncedSearch, roleFilter, statusFilter],
+    ['users', page, limit, debouncedSearch, roleFilter, statusFilter, sortBy, sortDir],
     () =>
       usersService.getList({
         role: roleFilter !== 'all' ? roleFilter : undefined,
         status: statusFilter !== 'all' ? statusFilter : undefined,
         search: debouncedSearch || undefined,
+        page,
+        limit,
+        sortBy: sortBy || undefined,
+        sortDir,
       }),
     {
       keepPreviousData: true,
@@ -130,8 +188,10 @@ export default function UserManagement() {
     }
   )
 
-  // Get employees without user accounts
-  const availableEmployees = employeesData?.employees?.filter((emp) => !emp.user_id) || []
+  // Get employees without user accounts OR the employee assigned to the currently selected user
+  const availableEmployees = employeesData?.employees?.filter(
+    (emp) => !emp.user_id || (formMode === 'edit' && selectedUser && emp.employee_id === selectedUser.employee_id)
+  ) || []
 
   // Create user mutation
   const createMutation = useMutation(usersService.create, {
@@ -140,7 +200,7 @@ export default function UserManagement() {
       queryClient.invalidateQueries(['employees-without-users'])
       await refetchUsers() // Refetch เพื่อให้ตารางแสดงข้อมูลใหม่
       setFormOpened(false)
-      resetForm()
+      form.reset()
       
       notifications.show({
         title: 'สำเร็จ',
@@ -150,13 +210,19 @@ export default function UserManagement() {
       })
     },
     onError: (error: unknown) => {
-      const err = error as AxiosError<{ message: string }>
-      notifications.show({
-        title: 'เกิดข้อผิดพลาด',
-        message: err?.response?.data?.message || 'ไม่สามารถสร้าง User Account ได้',
-        color: 'red',
-        icon: <TbAlertCircle size={16} />,
-      })
+      const err = error as AxiosError<{ message: string; errors?: Record<string, string> }>
+      
+      // Map validation errors back to the form if any
+      if (err?.response?.data?.errors) {
+        form.setErrors(err.response.data.errors)
+      } else {
+        notifications.show({
+          title: 'เกิดข้อผิดพลาด',
+          message: err?.response?.data?.message || 'ไม่สามารถสร้าง User Account ได้',
+          color: 'red',
+          icon: <TbAlertCircle size={16} />,
+        })
+      }
     },
   })
 
@@ -170,7 +236,7 @@ export default function UserManagement() {
         await refetchUsers() // Refetch เพื่อให้ตารางแสดงข้อมูลใหม่
         setFormOpened(false)
         setSelectedUser(null)
-        resetForm()
+        form.reset()
         notifications.show({
           title: 'สำเร็จ',
           message: 'อัพเดท User Account สำเร็จ',
@@ -179,13 +245,17 @@ export default function UserManagement() {
         })
       },
       onError: (error: unknown) => {
-        const err = error as AxiosError<{ message: string }>
-        notifications.show({
-          title: 'เกิดข้อผิดพลาด',
-          message: err?.response?.data?.message || 'ไม่สามารถอัพเดท User Account ได้',
-          color: 'red',
-          icon: <TbAlertCircle size={16} />,
-        })
+        const err = error as AxiosError<{ message: string; errors?: Record<string, string> }>
+        if (err?.response?.data?.errors) {
+          form.setErrors(err.response.data.errors)
+        } else {
+          notifications.show({
+            title: 'เกิดข้อผิดพลาด',
+            message: err?.response?.data?.message || 'ไม่สามารถอัพเดท User Account ได้',
+            color: 'red',
+            icon: <TbAlertCircle size={16} />,
+          })
+        }
       },
     }
   )
@@ -219,19 +289,19 @@ export default function UserManagement() {
   // Handlers
   const handleAdd = () => {
     setFormMode('create')
-    resetForm()
+    form.reset()
     setFormOpened(true)
   }
 
   const handleEdit = (user: User) => {
     setFormMode('edit')
     setSelectedUser(user)
-    setFormData({
+    form.setValues({
       username: user.username,
       email: user.email,
       password: '', // Don't pre-fill password
-      employee_id: user.employee_id || null,
-      nick_name: user.nick_name || null,
+      employee_id: user.employee_id || '',
+      nick_name: user.nick_name || '',
       role: user.role,
       name: user.name,
       status: user.status,
@@ -291,32 +361,18 @@ export default function UserManagement() {
     }
   }
 
-  const handleSubmit = () => {
+  const handleSubmit = form.onSubmit((values) => {
     if (formMode === 'create') {
-      createMutation.mutate(formData as CreateUserRequest)
+      createMutation.mutate(values as CreateUserRequest)
     } else if (selectedUser) {
-      updateMutation.mutate({ id: selectedUser.id, data: formData as UpdateUserRequest })
+      updateMutation.mutate({ id: selectedUser.id, data: values as UpdateUserRequest })
     }
-  }
+  })
 
   const handleDeleteConfirm = () => {
     if (userToDelete) {
       deleteMutation.mutate(userToDelete.id)
     }
-  }
-
-  const resetForm = () => {
-    setFormData({
-      username: '',
-      email: '',
-      password: '',
-      employee_id: null,
-      nick_name: null,
-      role: 'data_entry',
-      name: '',
-      status: 'active',
-    })
-    setSelectedUser(null)
   }
 
   // Format date to Thai Buddhist Era
@@ -341,8 +397,8 @@ export default function UserManagement() {
 
   // Filter users for pagination
   const users = usersData?.data || []
-  const totalPages = Math.ceil(users.length / limit)
-  const paginatedUsers = users.slice((page - 1) * limit, page * limit)
+  const totalPages = usersData?.pagination?.totalPages || Math.ceil((usersData?.total || 0) / limit)
+  const paginatedUsers = users // Data is already paginated explicitly by backend
 
   if (!isAdmin) {
     return (
@@ -371,29 +427,23 @@ export default function UserManagement() {
             <TextInput
               placeholder="ค้นหา (รหัสพนักงาน, ชื่อ)"
               leftSection={<TbSearch size={16} />}
-              value={search}
+              value={localSearch}
               onChange={(e) => {
-                setSearch(e.target.value)
-                setPage(1)
+                setLocalSearch(e.target.value)
+                updateUrlParams({ search: e.target.value })
               }}
             />
             <Select
               placeholder="กรองตาม Role"
               data={[{ value: 'all', label: 'ทั้งหมด' }, ...roleOptions]}
               value={roleFilter}
-              onChange={(value) => {
-                setRoleFilter(value || 'all')
-                setPage(1)
-              }}
+              onChange={(value) => updateUrlParams({ role: value || 'all' })}
             />
             <Select
               placeholder="กรองตาม Status"
               data={[{ value: 'all', label: 'ทั้งหมด' }, ...statusOptions]}
               value={statusFilter}
-              onChange={(value) => {
-                setStatusFilter(value || 'all')
-                setPage(1)
-              }}
+              onChange={(value) => updateUrlParams({ status: value || 'all' })}
             />
           </Group>
         </Card>
@@ -421,14 +471,14 @@ export default function UserManagement() {
                 <Table highlightOnHover>
                   <Table.Thead>
                     <Table.Tr>
-                      <Table.Th>Username</Table.Th>
-                      <Table.Th>Email</Table.Th>
-                      <Table.Th>รหัสพนักงาน</Table.Th>
-                      <Table.Th>ชื่อ</Table.Th>
-                      <Table.Th>Role</Table.Th>
-                      <Table.Th>Status</Table.Th>
+                      <SortableHeader label="Username" field="username" />
+                      <SortableHeader label="Email" field="email" />
+                      <SortableHeader label="รหัสพนักงาน" field="employee_id" />
+                      <SortableHeader label="ชื่อ" field="name" />
+                      <SortableHeader label="Role" field="role" />
+                      <SortableHeader label="Status" field="status" />
                       <Table.Th>รหัสผ่าน</Table.Th>
-                      <Table.Th>Login ล่าสุด</Table.Th>
+                      <SortableHeader label="Login ล่าสุด" field="last_login_at" />
                       <Table.Th ta="center">จัดการ</Table.Th>
                     </Table.Tr>
                   </Table.Thead>
@@ -561,7 +611,11 @@ export default function UserManagement() {
               {/* Pagination */}
               {totalPages > 1 && (
                 <Group justify="center" mt="md">
-                  <Pagination value={page} onChange={setPage} total={totalPages} />
+                  <Pagination 
+                    value={page} 
+                    onChange={(p) => updateUrlParams({ page: p.toString() })} 
+                    total={totalPages} 
+                  />
                 </Group>
               )}
             </>
@@ -573,117 +627,105 @@ export default function UserManagement() {
           opened={formOpened}
           onClose={() => {
             setFormOpened(false)
-            resetForm()
+            form.reset()
           }}
           title={formMode === 'create' ? 'สร้าง User Account' : 'แก้ไข User Account'}
           size="lg"
         >
-          <Stack gap="md">
-            <TextInput
-              label="Username *"
-              placeholder="กรอก username"
-              value={formData.username}
-              onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-              required
-            />
-            <TextInput
-              label={formMode === 'create' ? 'Password *' : 'Password (เว้นว่างไว้ถ้าไม่ต้องการเปลี่ยน)'}
-              placeholder="กรอก password"
-              type="password"
-              value={formData.password}
-              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-              required={formMode === 'create'}
-            />
-            <Select
-              label="รหัสพนักงาน (เชื่อมกับข้อมูลพนักงาน)"
-              placeholder="เลือกพนักงาน"
-              data={[
-                { value: '', label: 'ไม่เชื่อมกับพนักงาน' },
-                ...availableEmployees.map((emp) => ({
-                  value: emp.employee_id,
-                  label: `${emp.employee_id} - ${emp.first_name || ''}${emp.nick_name ? `(${emp.nick_name})` : ''} - ${emp.position || ''}`,
-                })),
-              ]}
-              value={formData.employee_id || ''}
-              onChange={(value) => {
-                const selectedEmployee = availableEmployees.find((emp) => emp.employee_id === value)
-                setFormData({
-                  ...formData,
-                  employee_id: value || null,
-                  email: selectedEmployee?.company_email || formData.email,
-                  name: selectedEmployee ? selectedEmployee.full_name : formData.name,
-                  nick_name: selectedEmployee ? (selectedEmployee.nick_name || null) : formData.nick_name,
-                })
-              }}
-              searchable
-            />
-            <TextInput
-              label="อีเมล *"
-              placeholder="กรอก email"
-              type="email"
-              value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              required
-            />
-            <TextInput
-              label="ชื่อเต็ม *"
-              placeholder="กรอกชื่อเต็ม"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              required
-            />
-            <TextInput
-              label="ชื่อเล่น"
-              placeholder="กรอกชื่อเล่น (ถ้ามี)"
-              value={formData.nick_name || ''}
-              onChange={(e) => setFormData({ ...formData, nick_name: e.target.value || null })}
-            />
-            <Select
-              label="Role *"
-              placeholder="เลือก role"
-              data={roleOptions}
-              value={formData.role}
-              onChange={(value) =>
-                setFormData({ ...formData, role: value as User['role'] })
-              }
-              required
-              disabled={formMode === 'edit' && selectedUser?.id === currentUser?.id}
-            />
-            <Select
-              label="Status *"
-              placeholder="เลือก status"
-              data={statusOptions}
-              value={formData.status || 'active'}
-              onChange={(value) =>
-                setFormData({ ...formData, status: value as 'active' | 'inactive' })
-              }
-              required
-              disabled={formMode === 'edit' && selectedUser?.id === currentUser?.id}
-            />
-            {formMode === 'edit' && selectedUser?.id === currentUser?.id && (
-              <Alert icon={<TbAlertCircle size={16} />} color="blue" variant="light">
-                คุณไม่สามารถเปลี่ยน Role หรือระงับการใช้งานบัญชีของคุณเองได้
-              </Alert>
-            )}
-            <Group justify="flex-end" mt="md">
-              <Button
-                variant="subtle"
-                onClick={() => {
-                  setFormOpened(false)
-                  resetForm()
+          <form onSubmit={handleSubmit}>
+            <Stack gap="md">
+              <TextInput
+                label="Username *"
+                placeholder="กรอก username"
+                {...form.getInputProps('username')}
+                required
+              />
+              <TextInput
+                label={formMode === 'create' ? 'Password *' : 'Password (เว้นว่างไว้ถ้าไม่ต้องการเปลี่ยน)'}
+                placeholder="กรอก password"
+                type="password"
+                {...form.getInputProps('password')}
+                required={formMode === 'create'}
+              />
+              <Select
+                label="รหัสพนักงาน (เชื่อมกับข้อมูลพนักงาน)"
+                placeholder="เลือกพนักงาน"
+                data={[
+                  { value: '', label: 'ไม่เชื่อมกับพนักงาน' },
+                  ...availableEmployees.map((emp) => ({
+                    value: emp.employee_id,
+                    label: `${emp.employee_id} - ${emp.first_name || ''}${emp.nick_name ? `(${emp.nick_name})` : ''} - ${emp.position || ''}`,
+                  })),
+                ]}
+                {...form.getInputProps('employee_id')}
+                onChange={(value) => {
+                  form.setFieldValue('employee_id', value || null)
+                  // Auto-fill related fields if linked
+                  if (value) {
+                    const selectedEmployee = availableEmployees.find((emp) => emp.employee_id === value)
+                    if (selectedEmployee) {
+                        form.setValues({
+                            email: selectedEmployee.company_email || form.values.email,
+                            name: selectedEmployee.full_name,
+                            nick_name: selectedEmployee.nick_name || form.values.nick_name
+                        })
+                    }
+                  }
                 }}
-              >
-                ยกเลิก
-              </Button>
-              <Button
-                onClick={handleSubmit}
-                loading={createMutation.isLoading || updateMutation.isLoading}
-                color="orange"
-              >
-                {formMode === 'create' ? 'สร้าง' : 'บันทึก'}
-              </Button>
-            </Group>
-          </Stack>
+                searchable
+              />
+              <TextInput
+                label="อีเมล *"
+                placeholder="กรอก email"
+                type="email"
+                {...form.getInputProps('email')}
+                required
+              />
+              <TextInput
+                label="ชื่อเต็ม *"
+                placeholder="กรอกชื่อเต็ม"
+                {...form.getInputProps('name')}
+                required
+              />
+              <TextInput
+                label="ชื่อเล่น"
+                placeholder="กรอกชื่อเล่น (ถ้ามี)"
+                {...form.getInputProps('nick_name')}
+              />
+              <Select
+                label="Role *"
+                placeholder="เลือก role"
+                data={roleOptions}
+                {...form.getInputProps('role')}
+                required
+              />
+              <Select
+                label="Status *"
+                placeholder="เลือก status"
+                data={statusOptions}
+                {...form.getInputProps('status')}
+                required
+              />
+              <Group justify="flex-end" mt="md">
+                <Button
+                  variant="subtle"
+                  onClick={() => {
+                    setFormOpened(false)
+                    form.reset()
+                  }}
+                >
+                  ยกเลิก
+                </Button>
+                <Button
+                  type="submit"
+                  loading={createMutation.isLoading || updateMutation.isLoading}
+                  color="orange"
+                >
+                  {formMode === 'create' ? 'สร้าง' : 'บันทึก'}
+                </Button>
+              </Group>
+            </Stack>
+          </form>
         </Modal>
 
         {/* Detail Modal */}
@@ -907,7 +949,6 @@ export default function UserManagement() {
   )
 }
 
-// Reset Password Form Component
 function ResetPasswordForm({
   user,
   onSubmit,
@@ -919,81 +960,55 @@ function ResetPasswordForm({
   onCancel: () => void
   isLoading: boolean
 }) {
-  const [password, setPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
-  const [error, setError] = useState<string | null>(null)
-
-  const handleSubmit = () => {
-    setError(null)
-
-    if (!password) {
-      setError('กรุณากรอกรหัสผ่าน')
-      return
+  const form = useForm({
+    initialValues: {
+      password: '',
+      confirmPassword: '',
+    },
+    validate: {
+      password: (value) => value.length < 6 ? 'รหัสผ่านต้องมีความยาวอย่างน้อย 6 ตัวอักษร' : null,
+      confirmPassword: (value, values) => value !== values.password ? 'รหัสผ่านไม่ตรงกัน' : null,
     }
-
-    if (password.length < 6) {
-      setError('รหัสผ่านต้องมีความยาวอย่างน้อย 6 ตัวอักษร')
-      return
-    }
-
-    if (password !== confirmPassword) {
-      setError('รหัสผ่านไม่ตรงกัน')
-      return
-    }
-
-    onSubmit(password)
-  }
+  })
 
   return (
-    <Stack gap="md">
-      <Group>
-        <Text fw={500} w={120}>
-          Username:
-        </Text>
-        <Text>{user.username}</Text>
-      </Group>
-      <Group>
-        <Text fw={500} w={120}>
-          ชื่อ:
-        </Text>
-        <Text>{user.name}</Text>
-      </Group>
-      <TextInput
-        label="รหัสผ่านใหม่ *"
-        placeholder="กรอกรหัสผ่านใหม่"
-        type="password"
-        value={password}
-        onChange={(e) => {
-          setPassword(e.target.value)
-          setError(null)
-        }}
-        required
-      />
-      <TextInput
-        label="ยืนยันรหัสผ่าน *"
-        placeholder="กรอกรหัสผ่านอีกครั้ง"
-        type="password"
-        value={confirmPassword}
-        onChange={(e) => {
-          setConfirmPassword(e.target.value)
-          setError(null)
-        }}
-        required
-        error={error}
-      />
-      {error && (
-        <Alert icon={<TbAlertCircle size={16} />} color="red">
-          {error}
-        </Alert>
-      )}
-      <Group justify="flex-end" mt="md">
-        <Button variant="subtle" onClick={onCancel}>
-          ยกเลิก
-        </Button>
-        <Button onClick={handleSubmit} loading={isLoading} color="orange">
-          รีเซ็ตรหัสผ่าน
-        </Button>
-      </Group>
-    </Stack>
+    <form onSubmit={form.onSubmit((values) => onSubmit(values.password))}>
+      <Stack gap="md">
+        <Group>
+          <Text fw={500} w={120}>
+            Username:
+          </Text>
+          <Text>{user.username}</Text>
+        </Group>
+        <Group>
+          <Text fw={500} w={120}>
+            ชื่อ:
+          </Text>
+          <Text>{user.name}</Text>
+        </Group>
+        <TextInput
+          label="รหัสผ่านใหม่ *"
+          placeholder="กรอกรหัสผ่านใหม่"
+          type="password"
+          {...form.getInputProps('password')}
+          required
+        />
+        <TextInput
+          label="ยืนยันรหัสผ่าน *"
+          placeholder="กรอกรหัสผ่านอีกครั้ง"
+          type="password"
+          {...form.getInputProps('confirmPassword')}
+          required
+        />
+        <Group justify="flex-end" mt="md">
+          <Button variant="subtle" onClick={onCancel}>
+            ยกเลิก
+          </Button>
+          <Button type="submit" loading={isLoading} color="orange">
+            รีเซ็ตรหัสผ่าน
+          </Button>
+        </Group>
+      </Stack>
+    </form>
   )
 }

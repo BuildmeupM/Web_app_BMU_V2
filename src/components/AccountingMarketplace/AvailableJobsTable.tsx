@@ -1,4 +1,4 @@
-import { Table, Badge, Button, Text, Card, Loader, Center, Alert, Group, Stack, NumberFormatter } from '@mantine/core'
+import { Table, Button, Text, Card, Loader, Center, Alert, Group, Stack, NumberFormatter, Pagination } from '@mantine/core'
 import React, { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from 'react-query'
 import { TbShoppingCart, TbAlertCircle, TbChevronDown, TbChevronUp } from 'react-icons/tb'
@@ -48,10 +48,11 @@ const AvailableJobsTable = ({ page = 1, limit = 20, search = '', onPageChange }:
       })
       queryClient.invalidateQueries(['accounting-marketplace'])
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
+      const apiError = error as { response?: { data?: { message?: string } } }
       notifications.show({
         title: 'เกิดข้อผิดพลาด',
-        message: error.response?.data?.message || 'ไม่สามารถซื้องานได้',
+        message: apiError?.response?.data?.message || 'ไม่สามารถซื้องานได้',
         color: 'red',
         icon: <TbAlertCircle size={16} />,
       })
@@ -209,9 +210,12 @@ const AvailableJobsTable = ({ page = 1, limit = 20, search = '', onPageChange }:
 
         {response.pagination.totalPages > 1 && (
           <Group justify="center">
-            <Text size="sm" c="dimmed">
-              หน้า {response.pagination.page} จาก {response.pagination.totalPages} (ทั้งหมด {response.pagination.total} รายการ)
-            </Text>
+            <Pagination
+              total={response.pagination.totalPages}
+              value={response.pagination.page}
+              onChange={onPageChange}
+              color="orange"
+            />
           </Group>
         )}
       </Stack>

@@ -38,6 +38,7 @@ router.get('/', authenticateToken, async (req, res) => {
       year = '',
       month = '',
       search = '',
+      sync_status = 'all',
       sortBy = 'assigned_at',
       sortOrder = 'desc',
     } = req.query
@@ -52,6 +53,13 @@ router.get('/', authenticateToken, async (req, res) => {
     // Build WHERE clause
     const whereConditions = ['wa.deleted_at IS NULL']
     const queryParams = []
+
+    // Filter by sync status
+    if (sync_status === 'synced') {
+      whereConditions.push('wa.is_reset_completed = TRUE')
+    } else if (sync_status === 'unsynced') {
+      whereConditions.push('wa.is_reset_completed = FALSE')
+    }
 
     // Filter by build
     if (build) {
@@ -1433,6 +1441,86 @@ router.post('/:id/reset-data', authenticateToken, authorize('admin', 'audit'), a
     })
   } catch (error) {
     console.error('Reset monthly data error:', error)
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+    })
+  }
+})
+
+/**
+ * POST /api/work-assignments/bulk-sync
+ * ซิงค์รายการที่ไม่สำเร็จ (is_reset_completed = FALSE) ทั้งหมดในเดือน/ปี ที่ระบุ
+ * Access: Admin/HR only
+ */
+router.post('/bulk-sync', authenticateToken, authorize('admin', 'audit'), async (req, res) => {
+  try {
+    const { year, month } = req.body
+
+    const queryParams = []
+    let whereClause = 'WHERE deleted_at IS NULL AND is_reset_completed = FALSE'
+
+    if (year) {
+      whereClause += ' AND assignment_year = ?'
+      queryParams.push(year)
+    }
+    
+    if (month) {
+      whereClause += ' AND assignment_month = ?'
+      queryParams.push(month)
+    }
+
+    const [assignments] = await pool.execute(
+      `SELECT id, build, assignment_year, assignment_month, 
+      accounting_responsible, tax_inspection_responsible, 
+      wht_filer_responsible, vat_filer_responsible, document_entry_responsible 
+      FROM work_assignments ${whereClause}`,
+      queryParams
+    )
+
+    if (assignments.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'ไม่พบรายการที่ต้องซิงค์',
+      })
+    }
+
+    let successCount = 0
+
+    for (const assignment of assignments) {
+      try {
+        await resetMonthlyData(
+          assignment.build,
+          assignment.assignment_year,
+          assignment.assignment_month,
+          {
+            accounting_responsible: assignment.accounting_responsible,
+            tax_inspection_responsible: assignment.tax_inspection_responsible,
+            wht_filer_responsible: assignment.wht_filer_responsible,
+            vat_filer_responsible: assignment.vat_filer_responsible,
+            document_entry_responsible: assignment.document_entry_responsible,
+          }
+        )
+
+        await pool.execute(
+          'UPDATE work_assignments SET is_reset_completed = TRUE, reset_completed_at = CURRENT_TIMESTAMP WHERE id = ?',
+          [assignment.id]
+        )
+        successCount++
+      } catch (err) {
+        console.error(`Failed to sync assignment ID ${assignment.id}:`, err)
+      }
+    }
+
+    invalidateCache('GET:/work-assignments')
+
+    res.json({
+      success: true,
+      message: `ซิงค์ข้อมูลสำเร็จ ${successCount} จาก ${assignments.length} รายการ`,
+      data: { successCount, total: assignments.length }
+    })
+  } catch (error) {
+    console.error('Bulk sync error:', error)
     res.status(500).json({
       success: false,
       message: 'Internal server error',

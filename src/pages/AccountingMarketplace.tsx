@@ -1,6 +1,7 @@
-import { useState } from 'react'
-import { Container, Stack, Group, Text, Card, Tabs, Button, TextInput } from '@mantine/core'
-import { TbShoppingCart, TbList, TbPackage, TbHistory, TbChartLine, TbPlus, TbSearch } from 'react-icons/tb'
+import { useState, useEffect } from 'react'
+import { Container, Stack, Group, Text, Card, Tabs, Button, TextInput, Select } from '@mantine/core'
+import { TbShoppingCart, TbList, TbPackage, TbHistory, TbChartLine, TbPlus, TbSearch, TbFilter } from 'react-icons/tb'
+import { useDebouncedValue } from '@mantine/hooks'
 import AvailableJobsTable from '../components/AccountingMarketplace/AvailableJobsTable'
 import MyListingsTable from '../components/AccountingMarketplace/MyListingsTable'
 import PurchasedJobsTable from '../components/AccountingMarketplace/PurchasedJobsTable'
@@ -12,10 +13,31 @@ import { getCurrentTaxMonth } from '../utils/taxMonthUtils'
 export default function AccountingMarketplace() {
   const [activeTab, setActiveTab] = useState<string | null>('available')
   const [createModalOpened, setCreateModalOpened] = useState(false)
+  
+  // Search state with debouncing
   const [searchValue, setSearchValue] = useState('')
+  const [debouncedSearch] = useDebouncedValue(searchValue, 300)
+
+  // Filter states
   const [statusFilter, setStatusFilter] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
+
+  // Pagination states for each tab
+  const [availablePage, setAvailablePage] = useState(1)
+  const [myListingsPage, setMyListingsPage] = useState(1)
+  const [purchasedPage, setPurchasedPage] = useState(1)
+  const [historyPage, setHistoryPage] = useState(1)
+
   const currentTaxMonth = getCurrentTaxMonth()
+
+  // Reset search and pagination when changing tabs
+  useEffect(() => {
+    setSearchValue('')
+    setAvailablePage(1)
+    setMyListingsPage(1)
+    setPurchasedPage(1)
+    setHistoryPage(1)
+  }, [activeTab])
 
   return (
     <Container fluid px="xl" py="md">
@@ -36,7 +58,7 @@ export default function AccountingMarketplace() {
         </Card>
 
         {/* Tabs */}
-        <Tabs value={activeTab} onChange={setActiveTab}>
+        <Tabs value={activeTab} onChange={setActiveTab} keepMounted={false}>
           <Tabs.List>
             <Tabs.Tab value="available" leftSection={<TbShoppingCart size={16} />}>
               ตลาดกลาง
@@ -67,7 +89,11 @@ export default function AccountingMarketplace() {
                   style={{ flex: 1, maxWidth: 400 }}
                 />
               </Group>
-              <AvailableJobsTable search={searchValue} />
+              <AvailableJobsTable 
+                search={debouncedSearch} 
+                page={availablePage} 
+                onPageChange={setAvailablePage} 
+              />
             </Stack>
           </Tabs.Panel>
 
@@ -83,6 +109,21 @@ export default function AccountingMarketplace() {
                     onChange={(e) => setSearchValue(e.currentTarget.value)}
                     style={{ flex: 1, maxWidth: 300 }}
                   />
+                  <Select
+                    placeholder="ทุกสถานะ"
+                    leftSection={<TbFilter size={16} />}
+                    data={[
+                      { value: '', label: 'ทุกสถานะ' },
+                      { value: 'available', label: 'กำลังขาย' },
+                      { value: 'sold', label: 'ขายได้แล้ว' },
+                    ]}
+                    value={statusFilter}
+                    onChange={(val) => {
+                      setStatusFilter(val || '')
+                      setMyListingsPage(1)
+                    }}
+                    style={{ maxWidth: 200 }}
+                  />
                 </Group>
                 <Button
                   color="orange"
@@ -92,7 +133,12 @@ export default function AccountingMarketplace() {
                   ขายงาน
                 </Button>
               </Group>
-              <MyListingsTable status={statusFilter} search={searchValue} />
+              <MyListingsTable 
+                status={statusFilter} 
+                search={debouncedSearch} 
+                page={myListingsPage} 
+                onPageChange={setMyListingsPage} 
+              />
             </Stack>
           </Tabs.Panel>
 
@@ -108,7 +154,11 @@ export default function AccountingMarketplace() {
                   style={{ flex: 1, maxWidth: 400 }}
                 />
               </Group>
-              <PurchasedJobsTable search={searchValue} />
+              <PurchasedJobsTable 
+                search={debouncedSearch} 
+                page={purchasedPage} 
+                onPageChange={setPurchasedPage} 
+              />
             </Stack>
           </Tabs.Panel>
 
@@ -124,9 +174,29 @@ export default function AccountingMarketplace() {
                     onChange={(e) => setSearchValue(e.currentTarget.value)}
                     style={{ flex: 1, maxWidth: 300 }}
                   />
+                  <Select
+                    placeholder="ทุกประเภท"
+                    leftSection={<TbFilter size={16} />}
+                    data={[
+                      { value: '', label: 'ทุกประเภท' },
+                      { value: 'sell', label: 'ขาย' },
+                      { value: 'buy', label: 'ซื้อ' },
+                    ]}
+                    value={typeFilter}
+                    onChange={(val) => {
+                      setTypeFilter(val || '')
+                      setHistoryPage(1)
+                    }}
+                    style={{ maxWidth: 200 }}
+                  />
                 </Group>
               </Group>
-              <TransactionHistoryTable type={typeFilter as 'sell' | 'buy' | undefined} search={searchValue} />
+              <TransactionHistoryTable 
+                type={typeFilter as 'sell' | 'buy' | undefined} 
+                search={debouncedSearch} 
+                page={historyPage} 
+                onPageChange={setHistoryPage} 
+              />
             </Stack>
           </Tabs.Panel>
 

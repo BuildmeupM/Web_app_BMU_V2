@@ -624,6 +624,7 @@ router.put('/:build', authenticateToken, authorize('admin', 'hr'), async (req, r
   try {
     const { build } = req.params
     const {
+      build: newBuildBody,
       business_type,
       company_name,
       legal_entity_number,
@@ -654,11 +655,34 @@ router.put('/:build', authenticateToken, authorize('admin', 'hr'), async (req, r
       accounting_fees,
     } = req.body
 
+    const newBuild = newBuildBody || build
+
     // Check if client exists
     const [existingClients] = await pool.execute(
       'SELECT id FROM clients WHERE build = ? AND deleted_at IS NULL',
       [build]
     )
+
+    if (existingClients.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Client not found',
+      })
+    }
+
+    // If build is being changed, verify the new build doesn't already exist
+    if (newBuild !== build) {
+      const [duplicateBuild] = await pool.execute(
+        'SELECT id FROM clients WHERE build = ? AND deleted_at IS NULL',
+        [newBuild]
+      )
+      if (duplicateBuild.length > 0) {
+        return res.status(409).json({
+          success: false,
+          message: 'Build code already exists',
+        })
+      }
+    }
 
     if (existingClients.length === 0) {
       return res.status(404).json({
@@ -679,9 +703,10 @@ router.put('/:build', authenticateToken, authorize('admin', 'hr'), async (req, r
     // Note: We allow duplicate legal entity numbers because branch offices (e.g. 122.1, 122.2) 
     // mathematically share the identical 13-digit tax ID with the head office (122).
 
-    // Update client
+    // Update client (CASCADE will handle updating foreign keys in other tables)
     await pool.execute(
       `UPDATE clients SET
+        build = ?,
         business_type = ?,
         company_name = ?,
         legal_entity_number = ?,
@@ -708,6 +733,7 @@ router.put('/:build', authenticateToken, authorize('admin', 'hr'), async (req, r
         updated_at = CURRENT_TIMESTAMP
       WHERE build = ? AND deleted_at IS NULL`,
       [
+        newBuild,
         business_type,
         company_name,
         legal_entity_number,
@@ -737,7 +763,7 @@ router.put('/:build', authenticateToken, authorize('admin', 'hr'), async (req, r
 
     // Upsert related data: dbd_info (delete old + insert new)
     if (dbd_info !== undefined) {
-      await pool.execute('DELETE FROM dbd_info WHERE build = ? AND deleted_at IS NULL', [build])
+      await pool.execute('DELETE FROM dbd_info WHERE build = ? AND deleted_at IS NULL', [newBuild])
       if (dbd_info) {
         await pool.execute(
           `INSERT INTO dbd_info (
@@ -746,7 +772,7 @@ router.put('/:build', authenticateToken, authorize('admin', 'hr'), async (req, r
             latest_business_code, latest_business_objective
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
-            generateUUID(), build,
+            generateUUID(), newBuild,
             dbd_info.accounting_period || null,
             dbd_info.registered_capital || null,
             dbd_info.paid_capital || null,
@@ -761,14 +787,14 @@ router.put('/:build', authenticateToken, authorize('admin', 'hr'), async (req, r
 
     // Upsert related data: boi_info
     if (boi_info !== undefined) {
-      await pool.execute('DELETE FROM boi_info WHERE build = ? AND deleted_at IS NULL', [build])
+      await pool.execute('DELETE FROM boi_info WHERE build = ? AND deleted_at IS NULL', [newBuild])
       if (boi_info) {
         await pool.execute(
           `INSERT INTO boi_info (
             id, build, boi_approval_date, boi_first_use_date, boi_expiry_date
           ) VALUES (?, ?, ?, ?, ?)`,
           [
-            generateUUID(), build,
+            generateUUID(), newBuild,
             boi_info.boi_approval_date || null,
             boi_info.boi_first_use_date || null,
             boi_info.boi_expiry_date || null,
@@ -779,7 +805,7 @@ router.put('/:build', authenticateToken, authorize('admin', 'hr'), async (req, r
 
     // Upsert related data: agency_credentials
     if (agency_credentials !== undefined) {
-      await pool.execute('DELETE FROM agency_credentials WHERE build = ? AND deleted_at IS NULL', [build])
+      await pool.execute('DELETE FROM agency_credentials WHERE build = ? AND deleted_at IS NULL', [newBuild])
       if (agency_credentials) {
         await pool.execute(
           `INSERT INTO agency_credentials (
@@ -791,7 +817,7 @@ router.put('/:build', authenticateToken, authorize('admin', 'hr'), async (req, r
             enforcement_username, enforcement_password
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
-            generateUUID(), build,
+            generateUUID(), newBuild,
             agency_credentials.efiling_username || null,
             agency_credentials.efiling_password || null,
             agency_credentials.sso_username || null,
@@ -816,7 +842,7 @@ router.put('/:build', authenticateToken, authorize('admin', 'hr'), async (req, r
       // Check if a row already exists
       const [existingFees] = await pool.execute(
         'SELECT id FROM accounting_fees WHERE build = ? AND fee_year = ? AND deleted_at IS NULL',
-        [build, feeYear]
+        [newBuild, feeYear]
       )
 
       if (existingFees.length > 0) {
@@ -854,7 +880,7 @@ router.put('/:build', authenticateToken, authorize('admin', 'hr'), async (req, r
 
         if (updateFields.length > 0) {
           updateFields.push('updated_at = CURRENT_TIMESTAMP')
-          updateValues.push(build, feeYear)
+          updateValues.push(newBuild, feeYear)
           await pool.execute(
             `UPDATE accounting_fees SET ${updateFields.join(', ')} WHERE build = ? AND fee_year = ? AND deleted_at IS NULL`,
             updateValues
@@ -879,7 +905,7 @@ router.put('/:build', authenticateToken, authorize('admin', 'hr'), async (req, r
             accounting_fee_image_url
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
-            generateUUID(), build,
+            generateUUID(), newBuild,
             accounting_fees.peak_code || null,
             accounting_fees.accounting_start_date || null,
             accounting_fees.accounting_end_date || null,
@@ -925,7 +951,7 @@ router.put('/:build', authenticateToken, authorize('admin', 'hr'), async (req, r
     res.json({
       success: true,
       message: 'Client updated successfully',
-      data: { build },
+      data: { build: newBuild },
     })
   } catch (error) {
     console.error('Update client error:', error)
@@ -947,10 +973,10 @@ router.put('/:build', authenticateToken, authorize('admin', 'hr'), async (req, r
 
 /**
  * PATCH /api/clients/:build/accounting-fees
- * อัพเดทเฉพาะข้อมูลค่าทำบัญชี/HR (ไม่ต้องส่งข้อมูลลูกค้าทั้งหมด)
- * Access: Admin, HR, Data Entry, Data Entry & Service
+ * ยืนยันการชำระเงิน หรือแก้ไขยอด / อัปโหลดหลักฐาน
+ * Access: All authenticated users
  */
-router.patch('/:build/accounting-fees', authenticateToken, authorize('admin', 'hr', 'data_entry', 'data_entry_and_service'), async (req, res) => {
+router.patch('/:build/accounting-fees', authenticateToken, async (req, res) => {
   try {
     const { build } = req.params
     const accounting_fees = req.body

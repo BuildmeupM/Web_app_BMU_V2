@@ -68,6 +68,7 @@ const workAssignmentsService = {
     year?: string
     month?: string
     search?: string
+    sync_status?: string
     sortBy?: string
     sortOrder?: 'asc' | 'desc'
   }): Promise<WorkAssignmentListResponse> {
@@ -134,6 +135,17 @@ const workAssignmentsService = {
    */
   async resetData(id: string): Promise<void> {
     await api.post(`/work-assignments/${id}/reset-data`)
+  },
+
+  /**
+   * Bulk sync unsynced work assignments
+   */
+  async bulkSyncUnsynced(params?: { year?: string; month?: string }): Promise<{ successCount: number; total: number }> {
+    const response = await api.post<{ success: boolean; message: string; data: { successCount: number; total: number } }>(
+      '/work-assignments/bulk-sync',
+      params || {}
+    )
+    return response.data.data
   },
 
   /**

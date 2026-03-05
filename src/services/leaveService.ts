@@ -150,6 +150,7 @@ export const leaveService = {
     end_date?: string
     search?: string
     employee_id?: string
+    allEmployees?: boolean
   }) => {
     // If employee_id is provided, always filter by it (even for admin)
     // This ensures "ข้อมูลการลางาน" tab shows only own data
@@ -307,6 +308,7 @@ export const wfhService = {
     end_date?: string
     search?: string
     employee_id?: string
+    allEmployees?: boolean
   }) => {
     const response = await api.get<WFHRequestListResponse>(
       '/wfh-requests',

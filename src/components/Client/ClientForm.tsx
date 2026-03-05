@@ -339,7 +339,6 @@ export default function ClientForm({
                         label="Build Code"
                         placeholder="001"
                         required
-                        disabled={isEditMode}
                         {...form.getInputProps('build')}
                       />
                     </Grid.Col>
@@ -365,7 +364,6 @@ export default function ClientForm({
                         label="เลขทะเบียนนิติบุคคล"
                         placeholder="1234567890123"
                         required
-                        disabled={isEditMode}
                         {...form.getInputProps('legal_entity_number')}
                       />
                     </Grid.Col>

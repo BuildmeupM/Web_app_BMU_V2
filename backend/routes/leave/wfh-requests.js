@@ -966,8 +966,19 @@ router.put('/:id/approve', authenticateToken, authorize('admin', 'hr', 'audit'),
 
     // Check daily limit if it's the final approval step
     if (wfhRequest.status === 'รออนุมัติ' || wfhRequest.status === 'รออนุมัติ (ผู้บริหาร)') {
-      const approvedCount = await getApprovedWFHCount(pool, wfhRequest.wfh_date)
-      if (approvedCount >= 3) {
+      // Find how many OTHER requests are approved or pending (excluding this one)
+      const [approvedCounts] = await pool.execute(
+        `SELECT COUNT(*) as count 
+         FROM wfh_requests 
+         WHERE wfh_date = ? 
+           AND status IN ('รออนุมัติ', 'อนุมัติแล้ว')
+           AND id != ?
+           AND deleted_at IS NULL`,
+        [wfhRequest.wfh_date, id]
+      )
+      const otherApprovedCount = approvedCounts[0].count || 0
+
+      if (otherApprovedCount >= 3) {
         return res.status(409).json({
           success: false,
           message: 'Cannot approve - Daily limit reached (3/3)',

@@ -138,6 +138,10 @@ export default function WorkAssignment() {
   // Bulk create state
   const [bulkCreateModalOpened, setBulkCreateModalOpened] = useState(false)
 
+  // Sync status filter state
+  const [syncStatusFilter, setSyncStatusFilter] = useState<'all' | 'synced' | 'unsynced'>('all')
+  const [bulkSyncConfirmOpened, setBulkSyncConfirmOpened] = useState(false)
+
   // Import modal state
   const [importModalOpened, setImportModalOpened] = useState(false)
   const [selectedCompanyStatuses, setSelectedCompanyStatuses] = useState<string[]>([])
@@ -253,7 +257,7 @@ export default function WorkAssignment() {
   const [formBuild, setFormBuild] = useState('')
   const [formYear, setFormYear] = useState<number>(new Date().getFullYear())
   const [formMonth, setFormMonth] = useState<number>(new Date().getMonth() + 1) // เดือนปัจจุบัน
-  const [viewMode, setViewMode] = useState<'current' | 'next'>('current') // โหมดการดู: เดือนปัจจุบันหรือเดือนถัดไป
+  const [viewMode, setViewMode] = useState<'current' | 'previous'>('current') // โหมดการดู: เดือนปัจจุบันหรือเดือนก่อนหน้า
   const [formAccountingResponsible, setFormAccountingResponsible] = useState<string | null>(null)
   const [formTaxInspectionResponsible, setFormTaxInspectionResponsible] = useState<string | null>(null)
   const [formWhtFilerResponsible, setFormWhtFilerResponsible] = useState<string | null>(null)
@@ -266,7 +270,7 @@ export default function WorkAssignment() {
     if (viewMode === 'current') {
       return getCurrentMonth()
     } else {
-      return getNextMonth()
+      return getPreviousMonth()
     }
   }
 
@@ -278,7 +282,7 @@ export default function WorkAssignment() {
     refetch: refetchAssignments,
     isRefetching,
   } = useQuery(
-    ['work-assignments', page, limit, build, year, month, search, viewMode],
+    ['work-assignments', page, limit, build, year, month, search, syncStatusFilter, viewMode],
     () => {
       const viewMonth = getViewMonth()
       // ถ้ามีการตั้งค่า year หรือ month ไว้แล้ว ให้ใช้ค่าที่ตั้งไว้
@@ -290,6 +294,7 @@ export default function WorkAssignment() {
         year: year || viewMonth.year.toString(),
         month: month || viewMonth.month.toString(),
         search: search || undefined,
+        sync_status: syncStatusFilter !== 'all' ? syncStatusFilter : undefined,
         sortBy: 'build',
         sortOrder: 'asc',
       })
@@ -575,6 +580,34 @@ export default function WorkAssignment() {
       })
     },
   })
+
+  // Bulk Sync Data Mutation
+  const bulkSyncMutation = useMutation(
+    () => workAssignmentsService.bulkSyncUnsynced({
+      year: year || undefined,
+      month: month || undefined,
+    }),
+    {
+      onSuccess: (data) => {
+        queryClient.invalidateQueries(['work-assignments'])
+        setBulkSyncConfirmOpened(false)
+        notifications.show({
+          title: 'ซิงค์ข้อมูลสำเร็จ',
+          message: `ซิงค์ข้อมูลสำเร็จ ${data.successCount} จาก ${data.total} รายการ`,
+          color: 'green',
+          icon: <TbCheck size={16} />,
+        })
+      },
+      onError: (error: unknown) => {
+        notifications.show({
+          title: 'เกิดข้อผิดพลาด',
+          message: getErrorMessage(error) || 'ไม่สามารถซิงค์ข้อมูลทั้งหมดได้',
+          color: 'red',
+          icon: <TbAlertCircle size={16} />,
+        })
+      },
+    }
+  )
 
   // Handlers
   const handleAdd = () => {
@@ -934,13 +967,13 @@ export default function WorkAssignment() {
     if (viewMode === 'current' && (!month || month !== viewMonth.month.toString())) {
       setMonth(viewMonth.month.toString())
     }
-    if (viewMode === 'next') {
-      const nextMonth = getNextMonth()
-      if (!year || year !== nextMonth.year.toString()) {
-        setYear(nextMonth.year.toString())
+    if (viewMode === 'previous') {
+      const prevMonth = getPreviousMonth()
+      if (!year || year !== prevMonth.year.toString()) {
+        setYear(prevMonth.year.toString())
       }
-      if (!month || month !== nextMonth.month.toString()) {
-        setMonth(nextMonth.month.toString())
+      if (!month || month !== prevMonth.month.toString()) {
+        setMonth(prevMonth.month.toString())
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1001,20 +1034,22 @@ export default function WorkAssignment() {
   }
 
   /**
-   * คำนวณเดือนภาษีถัดไป (เท่ากับเดือนปฏิทินปัจจุบัน)
-   * ตัวอย่าง: ถ้าปัจจุบันเป็นมกราคม 2026 เดือนภาษีถัดไปจะเป็น มกราคม 2026
+   * คำนวณเดือนภาษีก่อนหน้า (ย้อนหลัง 2 เดือนจากเดือนปฏิทินปัจจุบัน)
+   * ตัวอย่าง: ถ้าปัจจุบันเป็นมกราคม 2026 เดือนภาษีจะเป็น ธันวาคม 2025, เดือนภาษีก่อนหน้าจะเป็น พฤศจิกายน 2025
    */
-  const getNextTaxMonth = () => {
+  const getPreviousTaxMonth = () => {
     const now = new Date()
+    // ย้อนหลัง 2 เดือนจากปฏิทินปัจจุบัน
+    const prevTaxMonth = new Date(now.getFullYear(), now.getMonth() - 2, 1)
     return {
-      year: now.getFullYear(),
-      month: now.getMonth() + 1,
+      year: prevTaxMonth.getFullYear(),
+      month: prevTaxMonth.getMonth() + 1,
     }
   }
 
-  // Get current and next month info (using tax month)
+  // Get current and previous month info (using tax month)
   const getCurrentMonth = () => getCurrentTaxMonth()
-  const getNextMonth = () => getNextTaxMonth()
+  const getPreviousMonth = () => getPreviousTaxMonth()
 
   /**
    * Validate preview data - ตรวจสอบข้อมูลที่ไม่ได้กรอก
@@ -1601,9 +1636,9 @@ export default function WorkAssignment() {
         setFormYear(current.year)
         setFormMonth(current.month)
       } else {
-        const next = getNextTaxMonth()
-        setFormYear(next.year)
-        setFormMonth(next.month)
+        const prev = getPreviousTaxMonth()
+        setFormYear(prev.year)
+        setFormMonth(prev.month)
       }
     }
   }, [viewMode, formOpened, formMode])
@@ -2247,7 +2282,7 @@ export default function WorkAssignment() {
             <Button
               variant="outline"
               color="orange"
-              onClick={() => setViewMode('next')}
+              onClick={() => setViewMode('previous')}
               radius="lg"
               style={{
                 backgroundColor: 'white',
@@ -2256,7 +2291,7 @@ export default function WorkAssignment() {
                 borderWidth: '1px',
               }}
             >
-              เดือนภาษีถัดไป ({getNextTaxMonth().year}/{getNextTaxMonth().month})
+              เดือนภาษีก่อนหน้า ({getPreviousTaxMonth().year}/{getPreviousTaxMonth().month})
             </Button>
             <Button
               leftSection={<TbPlus size={18} />}
@@ -2287,6 +2322,21 @@ export default function WorkAssignment() {
               }}
             >
               นำเข้าจาก Excel
+            </Button>
+            <Button
+              leftSection={<TbRefresh size={18} />}
+              radius="lg"
+              variant="outline"
+              color="red"
+              onClick={() => setBulkSyncConfirmOpened(true)}
+              style={{
+                backgroundColor: 'white',
+                borderColor: 'var(--mantine-color-red-6)',
+                borderWidth: '1px',
+                color: 'var(--mantine-color-red-6)',
+              }}
+            >
+              ซิงค์รายการที่ล้มเหลว
             </Button>
             {/* Toggle Previous Columns Button */}
             <Tooltip label={showPreviousColumns ? 'ซ่อนข้อมูลเดิม' : 'แสดงข้อมูลเดิม'}>
@@ -2438,6 +2488,24 @@ export default function WorkAssignment() {
                   />
                 </Stack>
               </Grid.Col>
+              <Grid.Col span={{ base: 12, sm: 6, md: 2 }}>
+                <Stack gap={4}>
+                  <Text size="xs" c="dimmed" fw={500}>
+                    สถานะซิงค์
+                  </Text>
+                  <Select
+                    placeholder="ทั้งหมด"
+                    data={[
+                      { value: 'all', label: 'ทั้งหมด' },
+                      { value: 'synced', label: 'ซิงค์สำเร็จ' },
+                      { value: 'unsynced', label: 'ซิงค์ไม่สำเร็จ' },
+                    ]}
+                    value={syncStatusFilter}
+                    onChange={(val) => setSyncStatusFilter((val as any) || 'all')}
+                    radius="lg"
+                  />
+                </Stack>
+              </Grid.Col>
             </Grid>
           </Stack>
         </Card>
@@ -2505,7 +2573,7 @@ export default function WorkAssignment() {
                   </>
                 ) : (
                   <Text c="dimmed" size="xs" mt="xs">
-                    💡 ลองเปลี่ยนปีหรือเดือนใน Filter หรือเลือก "เดือนภาษีถัดไป" เพื่อดูข้อมูล
+                    💡 ลองเปลี่ยนปีหรือเดือนใน Filter หรือเลือก "เดือนภาษีก่อนหน้า" เพื่อดูข้อมูล
                   </Text>
                 )}
               </Stack>
@@ -2759,17 +2827,44 @@ export default function WorkAssignment() {
                 </Table>
               </Table.ScrollContainer>
 
-              {/* Pagination */}
-              {assignmentsData?.pagination.totalPages && assignmentsData.pagination.totalPages > 1 && (
-                <Group justify="center" mt="md">
+              {/* Pagination & Limit Selection */}
+              <Group justify="space-between" align="center" mt="md">
+                <Group gap="xs">
+                  <Text size="sm" c="dimmed">
+                    แสดงหน้าละ
+                  </Text>
+                  <Select
+                    value={limit.toString()}
+                    onChange={(val) => {
+                      if (val) {
+                        setLimit(parseInt(val, 10))
+                        setPage(1) // Reset to first page when limit changes
+                      }
+                    }}
+                    data={[
+                      { value: '20', label: '20' },
+                      { value: '50', label: '50' },
+                      { value: '100', label: '100' },
+                    ]}
+                    style={{ width: 80 }}
+                    size="sm"
+                    radius="md"
+                    allowDeselect={false}
+                  />
+                  <Text size="sm" c="dimmed">
+                    รายการ
+                  </Text>
+                </Group>
+                
+                {assignmentsData?.pagination.totalPages && assignmentsData.pagination.totalPages > 1 && (
                   <Pagination
                     value={page}
                     onChange={setPage}
                     total={assignmentsData.pagination.totalPages}
                     radius="lg"
                   />
-                </Group>
-              )}
+                )}
+              </Group>
             </>
           )}
         </Card>
@@ -2856,17 +2951,14 @@ export default function WorkAssignment() {
                   ใช้เดือนภาษีปัจจุบัน ({getCurrentTaxMonth().year}/{getCurrentTaxMonth().month})
                 </Button>
                 <Button
-                  variant={viewMode === 'next' ? 'filled' : 'light'}
-                  color="blue"
-                  size="sm"
-                  onClick={() => {
-                    const next = getNextTaxMonth()
-                    setFormYear(next.year)
-                    setFormMonth(next.month)
-                    setViewMode('next')
-                  }}
+                  w="50%"
+                  variant={viewMode === 'previous' ? 'filled' : 'outline'}
+                  color="orange"
+                  onClick={() => setViewMode('previous')}
+                  radius="xl"
+                  size="md"
                 >
-                  ใช้เดือนภาษีถัดไป ({getNextTaxMonth().year}/{getNextTaxMonth().month})
+                  เดือนภาษีก่อนหน้า ({getPreviousTaxMonth().year}/{getPreviousTaxMonth().month})
                 </Button>
               </Group>
             )}
@@ -5230,6 +5322,37 @@ export default function WorkAssignment() {
               </Group>
             </Stack>
           )}
+        </Modal>
+
+        {/* Bulk Sync Confirm Modal */}
+        <Modal
+          opened={bulkSyncConfirmOpened}
+          onClose={() => setBulkSyncConfirmOpened(false)}
+          title={
+            <Group gap="xs">
+              <TbRefresh size={20} color="orange" />
+              <Text fw={600} c="orange">ยืนยันซิงค์รายการที่ล้มเหลว</Text>
+            </Group>
+          }
+          centered
+        >
+          <Stack gap="md">
+            <Text>
+              คุณต้องการสั่งซิงค์ข้อมูลที่ไม่สำเร็จทั้งหมดของเดือน {month || getViewMonth().month} ปี {year || getViewMonth().year} ใช่หรือไม่?
+            </Text>
+            <Group justify="flex-end" mt="md">
+              <Button variant="default" onClick={() => setBulkSyncConfirmOpened(false)}>
+                ยกเลิก
+              </Button>
+              <Button
+                color="orange"
+                onClick={() => bulkSyncMutation.mutate()}
+                loading={bulkSyncMutation.isLoading}
+              >
+                ยืนยันซิงค์ข้อมูล
+              </Button>
+            </Group>
+          </Stack>
         </Modal>
 
         {/* Import Modal */}

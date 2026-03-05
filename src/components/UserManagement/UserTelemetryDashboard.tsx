@@ -31,6 +31,7 @@ export function UserTelemetryDashboard({ getRoleLabel }: UserTelemetryDashboardP
       usersService.getList({
         role: 'all',
         status: 'all',
+        limit: 10000, // Fetch all users for accurate telemetry
       }),
     {
       staleTime: 5 * 60 * 1000, // 5 minutes cache

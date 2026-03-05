@@ -21,6 +21,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from 'react-query'
 import { useAuthStore } from '../store/authStore'
 import { companyFeedService, type Post, type Comment, type CompanyEvent } from '../services/companyFeedService'
+import { leaveService, wfhService } from '../services/leaveService'
 import { getHolidays } from '../services/holidayService'
 import type { Holiday } from '../services/holidayService'
 import {
@@ -46,6 +47,24 @@ export default function Dashboard() {
   const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
   const [calendarDate, setCalendarDate] = useState(new Date(now.getFullYear(), now.getMonth(), 1))
   const [selectedDate, setSelectedDate] = useState<string | null>(todayStr)
+
+  // ── Calendar Filter State ──
+  const [showMeeting, setShowMeeting] = useState(true)
+  const [showTax, setShowTax] = useState(true)
+  const [showDeadline, setShowDeadline] = useState(true)
+  const [showOther, setShowOther] = useState(true)
+
+  const [showHolidays, setShowHolidays] = useState(true)
+  const [showLeaves, setShowLeaves] = useState(true)
+  const [showWfh, setShowWfh] = useState(true)
+
+  const allEventsChecked = showMeeting && showTax && showDeadline && showOther
+  const toggleAllEvents = (val: boolean) => {
+    setShowMeeting(val)
+    setShowTax(val)
+    setShowDeadline(val)
+    setShowOther(val)
+  }
 
   // ── Event Modal ──
   const [eventModalOpened, { open: openEventModal, close: closeEventModal }] = useDisclosure(false)
@@ -100,36 +119,169 @@ export default function Dashboard() {
     { staleTime: 5 * 60 * 1000 }
   )
 
+  // ── Leaves & WFH query ──
+  const isHrOrAdmin = user?.role === 'admin' || user?.role === 'hr'
+  const isAudit = user?.role === 'audit'
+  // If user is Admin, HR, or Audit, we want to fetch all employees data
+  // to be able to show them on the calendar based on their role
+  const fetchAllEmployees = isHrOrAdmin || isAudit
+
+  const { data: leavesPageData } = useQuery(
+    ['leave-requests', 'dashboard-calendar', calendarDate.getFullYear(), calendarDate.getMonth()],
+    () => leaveService.getAll({ 
+        limit: 500, // Large enough limit to fetch all leaves for the month
+        allEmployees: fetchAllEmployees ? true : undefined 
+    }),
+    { staleTime: 30_000 }
+  )
+  const leavesData = useMemo(() => leavesPageData?.data?.leave_requests || [], [leavesPageData])
+
+  const { data: wfhPageData } = useQuery(
+    ['wfh-requests', 'dashboard-calendar', calendarDate.getFullYear(), calendarDate.getMonth()],
+    () => wfhService.getAll({ 
+        limit: 500, // Large enough limit to fetch all wfh for the month
+        allEmployees: fetchAllEmployees ? true : undefined 
+    }),
+    { staleTime: 30_000 }
+  )
+  const wfhData = useMemo(() => wfhPageData?.data?.wfh_requests || [], [wfhPageData])
+
   const eventsByDate = useMemo(() => {
     const map: Record<string, CompanyEvent[]> = {}
+    
     events.forEach(ev => {
       const d = ev.event_date?.split('T')[0]
-      if (d) (map[d] ??= []).push(ev)
-    })
-    // Merge holidays as special events
-    holidays.forEach(h => {
-      const d = h.holiday_date?.split('T')[0]
       if (d) {
-        const holidayEvent: CompanyEvent = {
-          id: `holiday-${h.id}`,
-          title: `🎌 ${h.name}`,
-          description: h.name_en || null,
-          event_date: h.holiday_date,
+        if (ev.event_type === 'meeting' && !showMeeting) return
+        if (ev.event_type === 'holiday' && !showTax) return
+        if (ev.event_type === 'deadline' && !showDeadline) return
+        if (ev.event_type === 'other' && !showOther) return
+        
+        // If it falls under another unexpected type but it's not excluded explicitly, show it (or hide it?)
+        // Assuming we only hide if specifically false
+        (map[d] ??= []).push(ev)
+      }
+    })
+    
+    if (showHolidays) {
+      // Merge holidays as special events
+      holidays.forEach(h => {
+        const d = h.holiday_date?.split('T')[0]
+        if (d) {
+          const holidayEvent: CompanyEvent = {
+            id: `holiday-${h.id}`,
+            title: `🎌 ${h.name}`,
+            description: h.name_en || null,
+            event_date: h.holiday_date,
+            event_end_date: null,
+            start_time: null,
+            end_time: null,
+            event_type: 'holiday',
+            color: '#e03131',
+            is_all_day: true,
+            location: null,
+            created_by: '',
+            created_by_name: 'ระบบ',
+          };
+          (map[d] ??= []).unshift(holidayEvent)
+        }
+      })
+    }
+
+    // Prepare role-based flags
+    const isHrOrAdmin = user?.role === 'admin' || user?.role === 'hr'
+    const isAudit = user?.role === 'audit'
+
+    // Process Leaves
+    if (showLeaves && leavesData) {
+      leavesData.forEach(leave => {
+        // Filter based on roles
+        if (!isHrOrAdmin) {
+          if (isAudit) {
+            // Audit sees audit + service + data_entry
+            const role = leave.employee_position?.toLowerCase() || ''
+            const allowedRoles = ['audit', 'service', 'data_entry', 'data_entry_and_service']
+            if (!allowedRoles.some(r => role.includes(r))) {
+              if (leave.employee_id !== user?.employee_id) return // skip if not allowed and not own
+            }
+          } else {
+            // Normal user sees only own
+            if (leave.employee_id !== user?.employee_id) return
+          }
+        }
+
+        // Only show approved or pending status for clarity on calendar, skip rejected
+        if (leave.status === 'ไม่อนุมัติ') return
+
+        const startDate = new Date(leave.leave_start_date)
+        const endDate = new Date(leave.leave_end_date || leave.leave_start_date)
+        const cd = new Date(startDate)
+
+        while (cd <= endDate) {
+            const d = cd.toISOString().split('T')[0]
+            const leaveEvent: CompanyEvent = {
+              id: `leave-${leave.id}-${d}`,
+              title: `🏖️ ลา: ${leave.employee_nick_name || leave.employee_name}`,
+              description: `${leave.leave_type} - ${leave.reason || 'ไม่มีหมายเหตุ'} (${leave.status})`,
+              event_date: d,
+              event_end_date: null,
+              start_time: null,
+              end_time: null,
+              event_type: 'other',
+              color: '#fcc419', // Yellow for leaves
+              is_all_day: true,
+              location: null,
+              created_by: leave.employee_id,
+              created_by_name: leave.employee_name || '',
+            };
+            (map[d] ??= []).push(leaveEvent)
+            cd.setDate(cd.getDate() + 1)
+        }
+      })
+    }
+
+    // Process WFH
+    if (showWfh && wfhData) {
+      wfhData.forEach(wfh => {
+        // Filter based on roles
+        if (!isHrOrAdmin) {
+          if (isAudit) {
+            // Audit sees audit + service + data_entry
+            const role = wfh.employee_position?.toLowerCase() || ''
+            const allowedRoles = ['audit', 'service', 'data_entry', 'data_entry_and_service']
+            if (!allowedRoles.some(r => role.includes(r))) {
+              if (wfh.employee_id !== user?.employee_id) return // skip if not allowed and not own
+            }
+          } else {
+            // Normal user sees only own
+            if (wfh.employee_id !== user?.employee_id) return
+          }
+        }
+
+        if (wfh.status === 'ไม่อนุมัติ') return
+
+        const d = wfh.wfh_date.split('T')[0]
+        const wfhEvent: CompanyEvent = {
+          id: `wfh-${wfh.id}`,
+          title: `🏠 WFH: ${wfh.employee_nick_name || wfh.employee_name}`,
+          description: `ทำงานที่บ้าน (${wfh.status})`,
+          event_date: d,
           event_end_date: null,
           start_time: null,
           end_time: null,
-          event_type: 'holiday',
-          color: '#e03131',
+          event_type: 'other',
+          color: '#20c997', // Teal for WFH
           is_all_day: true,
           location: null,
-          created_by: '',
-          created_by_name: 'ระบบ',
+          created_by: wfh.employee_id,
+          created_by_name: wfh.employee_name || '',
         };
-        (map[d] ??= []).unshift(holidayEvent)
-      }
-    })
+        (map[d] ??= []).push(wfhEvent)
+      })
+    }
+
     return map
-  }, [events, holidays])
+  }, [events, holidays, leavesData, wfhData, user, showMeeting, showTax, showDeadline, showOther, showHolidays, showLeaves, showWfh])
 
   // ── Posts query ──
   const { data: postsData, isLoading: loadingPosts } = useQuery(
@@ -411,6 +563,33 @@ export default function Dashboard() {
                 </Title>
               </Group>
               <Group gap="xs">
+                {/* ── Filter Popover ── */}
+                <Popover width={200} position="bottom-end" shadow="md">
+                  <Popover.Target>
+                    <Tooltip label="ตัวกรองภาพรวม" withArrow>
+                      <ActionIcon variant="light" size="md" radius="xl" color="gray">
+                        <TbFilter size={18} />
+                      </ActionIcon>
+                    </Tooltip>
+                  </Popover.Target>
+                  <Popover.Dropdown>
+                    <Stack gap="xs">
+                      <Text size="xs" fw={600} c="dimmed">อีเวนต์บริษัท</Text>
+                      <Checkbox label="ทั้งหมด (อีเวนต์บริษัท)" size="xs" checked={allEventsChecked} onChange={(e) => toggleAllEvents(e.currentTarget.checked)} color="blue" />
+                      <Checkbox label="🤝 ประชุม" size="xs" checked={showMeeting} onChange={(e) => setShowMeeting(e.currentTarget.checked)} color="blue" ml="md" />
+                      <Checkbox label="🧾 เกี่ยวกับภาษี" size="xs" checked={showTax} onChange={(e) => setShowTax(e.currentTarget.checked)} color="red" ml="md" />
+                      <Checkbox label="⏰ กำหนดส่ง" size="xs" checked={showDeadline} onChange={(e) => setShowDeadline(e.currentTarget.checked)} color="orange" ml="md" />
+                      <Checkbox label="📌 อื่นๆ" size="xs" checked={showOther} onChange={(e) => setShowOther(e.currentTarget.checked)} color="gray" ml="md" />
+                      
+                      <Divider my={4} />
+                      <Text size="xs" fw={600} c="dimmed">ข้อมูลอื่นๆ</Text>
+                      <Checkbox label="วันหยุด" size="xs" checked={showHolidays} onChange={(e) => setShowHolidays(e.currentTarget.checked)} color="red" />
+                      <Checkbox label="วันลา" size="xs" checked={showLeaves} onChange={(e) => setShowLeaves(e.currentTarget.checked)} color="yellow" />
+                      <Checkbox label="WFH" size="xs" checked={showWfh} onChange={(e) => setShowWfh(e.currentTarget.checked)} color="teal" />
+                    </Stack>
+                  </Popover.Dropdown>
+                </Popover>
+
                 <Tooltip label="รีเฟรชข้อมูล" withArrow>
                   <ActionIcon
                     variant="light" size="md" radius="xl" color="gray"
@@ -443,7 +622,7 @@ export default function Dashboard() {
 
             {/* Day-of-week header */}
             <div style={{
-              display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)',
+              display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
               borderBottom: '1px solid var(--mantine-color-gray-2)',
               backgroundColor: 'var(--mantine-color-gray-0)',
             }}>
@@ -459,7 +638,7 @@ export default function Dashboard() {
 
             {/* Calendar Grid */}
             <div style={{
-              display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)',
+              display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
               gridAutoRows: 'minmax(100px, auto)',
             }}>
               {calendarDays.map((day, i) => {
@@ -488,7 +667,7 @@ export default function Dashboard() {
                     style={{
                       borderRight: !isLastCol ? '1px solid var(--mantine-color-gray-2)' : undefined,
                       borderBottom: '1px solid var(--mantine-color-gray-2)',
-                      padding: '4px 5px 6px', minHeight: 100,
+                      padding: '4px 5px 6px', minHeight: 100, minWidth: 0, overflow: 'hidden',
                       backgroundColor: isSelected ? 'rgba(66, 99, 235, 0.06)' : isToday ? 'rgba(66, 99, 235, 0.02)' : undefined,
                       outline: isSelected ? '2px solid var(--mantine-color-blue-4)' : undefined,
                       outlineOffset: '-2px', borderRadius: isSelected ? 4 : undefined,

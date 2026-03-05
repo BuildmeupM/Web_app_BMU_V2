@@ -1,4 +1,4 @@
-import { Table, Badge, Text, Card, Loader, Center, Alert, Group, Stack, NumberFormatter } from '@mantine/core'
+import { Table, Badge, Text, Card, Loader, Center, Alert, Group, Stack, NumberFormatter, Pagination } from '@mantine/core'
 import { useQuery } from 'react-query'
 import { TbAlertCircle } from 'react-icons/tb'
 import accountingMarketplaceService from '../../services/accountingMarketplaceService'
@@ -19,7 +19,7 @@ interface TransactionHistoryTableProps {
   onPageChange?: (page: number) => void
 }
 
-const TransactionHistoryTable = ({ page = 1, limit = 20, type = '', search = '', onPageChange }: TransactionHistoryTableProps) => {
+const TransactionHistoryTable = ({ page = 1, limit = 20, type, search = '', onPageChange }: TransactionHistoryTableProps) => {
   const {
     data: response,
     isLoading,
@@ -60,13 +60,6 @@ const TransactionHistoryTable = ({ page = 1, limit = 20, type = '', search = '',
     return <Badge color="gray">-</Badge>
   }
 
-  const formatEmployeeName = (firstName?: string, nickName?: string): string => {
-    if (!firstName) return '-'
-    if (nickName) {
-      return `${firstName} (${nickName})`
-    }
-    return firstName
-  }
 
   const formatDate = (dateStr: string | null | undefined) => {
     if (!dateStr) return '-'
@@ -183,9 +176,12 @@ const TransactionHistoryTable = ({ page = 1, limit = 20, type = '', search = '',
 
         {response.pagination.totalPages > 1 && (
           <Group justify="center">
-            <Text size="sm" c="dimmed">
-              หน้า {response.pagination.page} จาก {response.pagination.totalPages} (ทั้งหมด {response.pagination.total} รายการ)
-            </Text>
+            <Pagination
+              total={response.pagination.totalPages}
+              value={response.pagination.page}
+              onChange={onPageChange}
+              color="orange"
+            />
           </Group>
         )}
       </Stack>

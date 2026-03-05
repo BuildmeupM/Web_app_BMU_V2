@@ -15,7 +15,6 @@ import {
     Card,
     Group,
     TextInput,
-    MultiSelect,
     Table,
     Text,
     Badge,
@@ -28,6 +27,9 @@ import {
     Box,
     SegmentedControl,
     Collapse,
+    Popover,
+    Checkbox,
+    Divider,
 } from '@mantine/core'
 import {
     TbSearch,
@@ -45,7 +47,6 @@ import {
     TbFileSpreadsheet,
 } from 'react-icons/tb'
 import { useQuery, useQueryClient } from 'react-query'
-import { useAuthStore } from '../store/authStore'
 import clientsService, { Client, AccountingFees } from '../services/clientsService'
 import MonthlyFeesForm from '../components/Client/MonthlyFeesForm'
 import { notifications } from '@mantine/notifications'
@@ -61,9 +62,8 @@ import {
 // ─── Main Component ─────────────────────────────────────────
 
 export default function AccountingFeesManagement() {
-    const { user } = useAuthStore()
     const queryClient = useQueryClient()
-    const canEdit = user?.role === 'admin' || user?.role === 'hr' || user?.role === 'data_entry' || user?.role === 'data_entry_and_service'
+    const canEdit = true // เปิดให้ทุก role สามารถแก้ไขข้อมูลค่าทำบัญชีได้ตาม request
 
     // Filters
     const [search, setSearch] = useState('')
@@ -237,20 +237,64 @@ export default function AccountingFeesManagement() {
                             }}
                             style={{ flex: 1, minWidth: 200 }}
                         />
-                        <MultiSelect
-                            label="สถานะบริษัท"
-                            placeholder="เลือกสถานะ"
-                            data={companyStatusOptions}
-                            value={selectedStatuses}
-                            onChange={(val) => {
-                                setSelectedStatuses(val)
-                                setPage(1)
-                            }}
-                            clearable
-                            searchable
-                            leftSection={<TbFilter size={16} />}
-                            style={{ flex: 1, minWidth: 280 }}
-                        />
+                        <Box style={{ flex: 1, minWidth: 280 }}>
+                            <Text size="sm" fw={500} mb={4}>สถานะบริษัท</Text>
+                            <Popover width={280} position="bottom-start" withArrow shadow="md">
+                                <Popover.Target>
+                                    <Button
+                                        variant="default"
+                                        fullWidth
+                                        justify="space-between"
+                                        rightSection={<TbChevronDown size={14} />}
+                                        leftSection={<TbFilter size={16} />}
+                                        styles={{
+                                            root: { fontWeight: 400, color: 'var(--mantine-color-text)', paddingPrefix: '10px' },
+                                            inner: { justifyContent: 'flex-start' },
+                                            label: { flex: 1, textAlign: 'left' }
+                                        }}
+                                    >
+                                        {selectedStatuses.length === 0 
+                                            ? 'เลือกสถานะ' 
+                                            : selectedStatuses.length === companyStatusOptions.length 
+                                                ? 'ทั้งหมด' 
+                                                : `เลือกแล้ว ${selectedStatuses.length} รายการ`
+                                        }
+                                    </Button>
+                                </Popover.Target>
+                                <Popover.Dropdown>
+                                    <Stack gap="sm">
+                                        <Checkbox
+                                            label="เลือกทั้งหมด"
+                                            checked={selectedStatuses.length === companyStatusOptions.length}
+                                            indeterminate={selectedStatuses.length > 0 && selectedStatuses.length < companyStatusOptions.length}
+                                            onChange={() => {
+                                                if (selectedStatuses.length === companyStatusOptions.length) {
+                                                    setSelectedStatuses([])
+                                                } else {
+                                                    setSelectedStatuses(companyStatusOptions.map(o => o.value))
+                                                }
+                                                setPage(1)
+                                            }}
+                                            fw={600}
+                                        />
+                                        <Divider />
+                                        <Checkbox.Group
+                                            value={selectedStatuses}
+                                            onChange={(val) => {
+                                                setSelectedStatuses(val)
+                                                setPage(1)
+                                            }}
+                                        >
+                                            <Stack gap="xs">
+                                                {companyStatusOptions.map(option => (
+                                                    <Checkbox key={option.value} value={option.value} label={option.label} />
+                                                ))}
+                                            </Stack>
+                                        </Checkbox.Group>
+                                    </Stack>
+                                </Popover.Dropdown>
+                            </Popover>
+                        </Box>
                         <div>
                             <Text size="sm" fw={500} mb={4}>
                                 <Group gap={4}>

@@ -16,7 +16,7 @@ import {
   Divider,
   Card,
 } from '@mantine/core'
-import { useMutation, useQueryClient } from 'react-query'
+import { useMutation, useQueryClient, QueryKey } from 'react-query'
 import { leaveService, wfhService } from '../../services/leaveService'
 import { notifications } from '@mantine/notifications'
 import { TbAlertCircle } from 'react-icons/tb'
@@ -27,6 +27,42 @@ import buddhistEra from 'dayjs/plugin/buddhistEra'
 // Configure dayjs with Thai locale and Buddhist Era
 dayjs.locale('th')
 dayjs.extend(buddhistEra)
+
+interface ApiError {
+  response?: {
+    data?: {
+      message?: string
+      errors?: Record<string, string[]>
+    }
+  }
+  request?: unknown
+  message?: string
+}
+
+interface RequestItem {
+  id: string
+  [key: string]: unknown
+}
+
+interface PaginatedData {
+  data?: {
+    leave_requests?: RequestItem[]
+    wfh_requests?: RequestItem[]
+    pagination?: {
+      total: number
+      [key: string]: unknown
+    }
+  }
+}
+
+interface MutationContext {
+  previousQueries: [QueryKey, unknown][]
+}
+
+interface ApprovalResponse {
+  leave_request?: unknown
+  wfh_request?: unknown
+}
 
 interface ApprovalModalProps {
   opened: boolean
@@ -62,32 +98,34 @@ export default function ApprovalModal({
   const dataKey = type === 'leave' ? 'leave_requests' : 'wfh_requests'
 
   // Helper: Extract error message from error response
-  const extractErrorMessage = (error: any, defaultMsg: string) => {
+  const extractErrorMessage = (error: unknown, defaultMsg: string) => {
     let errorMessage = defaultMsg
     let errorTitle = 'เกิดข้อผิดพลาด'
 
-    if (error.response) {
-      const errorData = error.response.data
+    const apiError = error as ApiError
+
+    if (apiError.response) {
+      const errorData = apiError.response.data
       if (errorData?.message) {
         errorMessage = errorData.message
       } else if (errorData?.errors) {
-        const errorMessages = Object.values(errorData.errors).filter(Boolean)
+        const errorMessages = Object.values(errorData.errors).flat().filter(Boolean)
         if (errorMessages.length > 0) {
-          errorMessage = (errorMessages as string[]).join(', ')
+          errorMessage = errorMessages.join(', ')
         }
       }
-    } else if (error.request) {
+    } else if (apiError.request) {
       errorTitle = 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์'
       errorMessage = 'กรุณาตรวจสอบว่า backend server กำลังทำงานอยู่ หรือตรวจสอบการเชื่อมต่อเครือข่าย'
-    } else {
-      errorMessage = error.message || defaultMsg
+    } else if (apiError.message) {
+      errorMessage = apiError.message
     }
 
     return { errorTitle, errorMessage }
   }
 
   // Helper: Optimistic update - remove item from all matching query caches
-  const optimisticRemoveItem = async () => {
+  const optimisticRemoveItem = async (): Promise<MutationContext> => {
     // Cancel any outgoing refetches so they don't overwrite our optimistic update
     await queryClient.cancelQueries({ queryKey: [queryKey] })
 
@@ -95,15 +133,20 @@ export default function ApprovalModal({
     const previousQueries = queryClient.getQueriesData({ queryKey: [queryKey] })
 
     // Optimistically remove the approved/rejected item from cache
-    queryClient.setQueriesData({ queryKey: [queryKey] }, (old: any) => {
-      if (!old?.data?.[dataKey]) return old
+    queryClient.setQueriesData({ queryKey: [queryKey] }, (old: unknown) => {
+      const oldData = old as PaginatedData | undefined
+      if (!oldData?.data) return oldData
+
+      const targetData = dataKey === 'leave_requests' ? oldData.data.leave_requests : oldData.data.wfh_requests
+      if (!targetData) return oldData
+
       return {
-        ...old,
+        ...oldData,
         data: {
-          ...old.data,
-          [dataKey]: old.data[dataKey].filter((item: any) => item.id !== requestId),
-          pagination: old.data.pagination
-            ? { ...old.data.pagination, total: Math.max(0, old.data.pagination.total - 1) }
+          ...oldData.data,
+          [dataKey]: targetData.filter((item) => item.id !== requestId),
+          pagination: oldData.data.pagination
+            ? { ...oldData.data.pagination, total: Math.max(0, oldData.data.pagination.total - 1) }
             : undefined,
         },
       }
@@ -113,23 +156,25 @@ export default function ApprovalModal({
   }
 
   // Helper: Rollback on error
-  const rollbackOnError = (_error: any, _variables: any, context: any) => {
-    if (context?.previousQueries) {
-      context.previousQueries.forEach(([key, data]: [any, any]) => {
+  const rollbackOnError = (_error: unknown, _variables: unknown, context: unknown) => {
+    const ctx = context as MutationContext | undefined
+    if (ctx?.previousQueries) {
+      ctx.previousQueries.forEach(([key, data]) => {
         queryClient.setQueryData(key, data)
       })
     }
   }
 
   const approveMutation = useMutation<
-    { success: boolean; data: { leave_request?: any; wfh_request?: any } },
+    { success: boolean; data: ApprovalResponse },
     Error,
-    { approver_note?: string } | undefined
+    { approver_note?: string } | undefined,
+    MutationContext
   >(
     (data) =>
       type === 'leave'
-        ? leaveService.approve(requestId, data as any)
-        : wfhService.approve(requestId, data as any),
+        ? leaveService.approve(requestId, data as Parameters<typeof leaveService.approve>[1])
+        : wfhService.approve(requestId, data as Parameters<typeof wfhService.approve>[1]),
     {
       onMutate: optimisticRemoveItem,
       onSuccess: () => {
@@ -140,7 +185,7 @@ export default function ApprovalModal({
         })
         handleClose()
       },
-      onError: (error: any, _variables: any, context: any) => {
+      onError: (error: Error, _variables: { approver_note?: string } | undefined, context: MutationContext | undefined) => {
         // Rollback optimistic update
         rollbackOnError(error, _variables, context)
 
@@ -160,9 +205,10 @@ export default function ApprovalModal({
   )
 
   const rejectMutation = useMutation<
-    { success: boolean; data: { leave_request?: any; wfh_request?: any } },
+    { success: boolean; data: ApprovalResponse },
     Error,
-    { approver_note: string }
+    { approver_note: string },
+    MutationContext
   >(
     (data) =>
       type === 'leave'
@@ -178,7 +224,7 @@ export default function ApprovalModal({
         })
         handleClose()
       },
-      onError: (error: any, _variables: any, context: any) => {
+      onError: (error: Error, _variables: { approver_note: string }, context: MutationContext | undefined) => {
         // Rollback optimistic update
         rollbackOnError(error, _variables, context)
 
@@ -200,7 +246,8 @@ export default function ApprovalModal({
   const voteMutation = useMutation<
     { success: boolean; data: { status: string; approveCount: number; rejectCount: number } },
     Error,
-    { vote: 'approve' | 'reject'; approver_note?: string }
+    { vote: 'approve' | 'reject'; approver_note?: string },
+    MutationContext
   >(
     (data) =>
       type === 'leave'
@@ -216,7 +263,7 @@ export default function ApprovalModal({
         })
         handleClose()
       },
-      onError: (error: any, _variables: any, context: any) => {
+      onError: (error: Error, _variables: { vote: 'approve' | 'reject'; approver_note?: string }, context: MutationContext | undefined) => {
         rollbackOnError(error, _variables, context)
         const { errorTitle, errorMessage } = extractErrorMessage(error, 'ไม่สามารถโหวตได้')
         notifications.show({

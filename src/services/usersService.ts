@@ -26,6 +26,11 @@ export interface UsersListResponse {
   success: boolean
   data: User[]
   total: number
+  pagination?: {
+    page: number
+    limit: number
+    totalPages: number
+  }
 }
 
 /**
@@ -103,6 +108,10 @@ const usersService = {
     roles?: string // comma-separated roles (e.g., "service,data_entry_and_service")
     status?: string
     search?: string
+    page?: number
+    limit?: number
+    sortBy?: string
+    sortDir?: 'asc' | 'desc'
   }): Promise<UsersListResponse> {
     const response = await api.get<UsersListResponse>('/users', { params })
     return response.data
