@@ -441,7 +441,7 @@ export default function WorkAssignment() {
   // Fetch users for accounting (service, data_entry_and_service)
   const { data: accountingUsersData } = useQuery(
     ['users-accounting'],
-    () => usersService.getList({ roles: 'service,data_entry_and_service', status: 'active' }),
+    () => usersService.getList({ roles: 'admin,service,data_entry_and_service', status: 'active' }),
     {
       enabled: isAdmin && (formOpened || bulkCreateModalOpened || previewData.length > 0),
       staleTime: 5 * 60 * 1000,

@@ -63,7 +63,7 @@ router.get('/', authenticateToken, async (req, res) => {
     } = req.query
 
     const pageNum = parseInt(page)
-    const limitNum = Math.min(parseInt(limit), 100)
+    const limitNum = Math.min(parseInt(limit), 10000)
     const offset = (pageNum - 1) * limitNum
 
     // Build WHERE clause
