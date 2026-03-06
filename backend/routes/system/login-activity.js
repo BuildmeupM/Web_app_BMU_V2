@@ -18,15 +18,14 @@ const KNOWN_INTERNAL_IPS = [
   '::ffff:127.0.0.1'
 ]
 
-// ทุก route ต้อง authenticate + admin only
+// ทุก route นี้ต้องผ่าน verify token ก่อน
 router.use(authenticateToken)
-router.use(authorize('admin'))
 
 /**
  * GET /api/login-activity/stats
  * สถิติรวมของการ login/logout
  */
-router.get('/stats', async (req, res) => {
+router.get('/stats', authorize('admin'), async (req, res) => {
   try {
     // Login สำเร็จวันนี้
     const [loginToday] = await pool.execute(
@@ -90,7 +89,7 @@ router.get('/stats', async (req, res) => {
  * GET /api/login-activity/attempts
  * รายการ login attempts (pagination + filters)
  */
-router.get('/attempts', async (req, res) => {
+router.get('/attempts', authorize('admin'), async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1
     const limit = parseInt(req.query.limit) || 20
@@ -180,7 +179,7 @@ router.get('/attempts', async (req, res) => {
  * GET /api/login-activity/online-users
  * รายชื่อ users ที่ online อยู่
  */
-router.get('/online-users', async (req, res) => {
+router.get('/online-users', authorize('admin'), async (req, res) => {
   try {
     const [onlineUsers] = await pool.execute(
       `SELECT us.user_id, us.username, us.login_at, us.last_active_at,
@@ -220,7 +219,7 @@ router.get('/online-users', async (req, res) => {
  * GET /api/login-activity/chart
  * ข้อมูลกราฟ 7 วันล่าสุด
  */
-router.get('/chart', async (req, res) => {
+router.get('/chart', authorize('admin'), async (req, res) => {
   try {
     const days = parseInt(req.query.days) || 7
 
@@ -269,7 +268,7 @@ router.use('/heartbeat', (req, res, next) => {
  * สรุปเวลาใช้งานรายวันของพนักงานแต่ละคน
  * ถ้าไม่ส่ง date → ใช้วันนี้
  */
-router.get('/session-summary', async (req, res) => {
+router.get('/session-summary', authorize('admin'), async (req, res) => {
   try {
     const date = req.query.date || new Date().toISOString().slice(0, 10)
 
@@ -322,7 +321,7 @@ router.get('/session-summary', async (req, res) => {
  * ประวัติ login/logout ของพนักงานแต่ละคนในวันที่เลือก
  * return array ของ users พร้อม sessions
  */
-router.get('/session-history', async (req, res) => {
+router.get('/session-history', authorize('admin'), async (req, res) => {
   try {
     const date = req.query.date || new Date().toISOString().slice(0, 10)
 
@@ -400,7 +399,7 @@ router.get('/session-history', async (req, res) => {
  * GET /api/login-activity/external-ips
  * ดึง login attempts ทั้งหมดที่มาจาก IP ภายนอก
  */
-router.get('/external-ips', async (req, res) => {
+router.get('/external-ips', authorize('admin'), async (req, res) => {
   try {
     const { today } = req.query
     const placeholders = KNOWN_INTERNAL_IPS.map(() => '?').join(',')
@@ -450,7 +449,7 @@ router.get('/external-ips', async (req, res) => {
  * DELETE /api/login-activity/attempts/:id
  * ลบ login attempt รายการเดียว
  */
-router.delete('/attempts/:id', async (req, res) => {
+router.delete('/attempts/:id', authorize('admin'), async (req, res) => {
   try {
     const { id } = req.params
     const [result] = await pool.execute(
@@ -478,7 +477,7 @@ router.delete('/attempts/:id', async (req, res) => {
  * ลบ login attempts หลายรายการ (ส่ง ids[] หรือ ลบทั้งหมด)
  * Body: { ids: string[] } หรือ { deleteAll: true, beforeDate?: string }
  */
-router.delete('/attempts', async (req, res) => {
+router.delete('/attempts', authorize('admin'), async (req, res) => {
   try {
     const { ids, deleteAll, beforeDate } = req.body
 

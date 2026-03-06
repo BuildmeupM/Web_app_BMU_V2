@@ -261,11 +261,9 @@ router.get('/calendar', authenticateToken, async (req, res) => {
 
     // Get all days in the month with WFH count
     // Count both "รออนุมัติ" (pending) and "อนุมัติแล้ว" (approved) - exclude "ไม่อนุมัติ" (rejected)
-    const [calendarData] = await pool.execute(
-      `SELECT 
-        DATE_FORMAT(wr.wfh_date, '%Y-%m-%d') as date,
-        COUNT(CASE WHEN wr.status IN ('รออนุมัติ', 'อนุมัติแล้ว') THEN 1 END) as approved_count,
-        GROUP_CONCAT(
+    
+    const isAudit = req.user.role === 'audit';
+    let requestsCase = `
           CONCAT(
             wr.id, '|',
             wr.employee_id, '|',
@@ -273,10 +271,37 @@ router.get('/calendar', authenticateToken, async (req, res) => {
             COALESCE(e.nick_name, ''), '|',
             COALESCE(e.position, ''), '|',
             wr.status
-          ) SEPARATOR '||'
+          )
+    `;
+    
+    if (isAudit) {
+      requestsCase = `
+          CASE 
+            WHEN u.role IN ('service', 'data_entry', 'data_entry_and_service') THEN
+              CONCAT(
+                wr.id, '|',
+                wr.employee_id, '|',
+                COALESCE(e.full_name, ''), '|',
+                COALESCE(e.nick_name, ''), '|',
+                COALESCE(e.position, ''), '|',
+                wr.status
+              )
+            ELSE NULL
+          END
+      `;
+    }
+
+    const [calendarData] = await pool.execute(
+      `SELECT 
+        DATE_FORMAT(wr.wfh_date, '%Y-%m-%d') as date,
+        COUNT(CASE WHEN wr.status IN ('รออนุมัติ', 'อนุมัติแล้ว') THEN 1 END) as approved_count,
+        GROUP_CONCAT(
+          ${requestsCase}
+          SEPARATOR '||'
         ) as requests
        FROM wfh_requests wr
        LEFT JOIN employees e ON wr.employee_id = e.employee_id
+       LEFT JOIN users u ON wr.employee_id = u.employee_id
        WHERE DATE_FORMAT(wr.wfh_date, '%Y-%m') = ?
          AND wr.deleted_at IS NULL
        GROUP BY wr.wfh_date
@@ -373,7 +398,7 @@ router.get('/calendar', authenticateToken, async (req, res) => {
  * 
  * NOTE: Route นี้ต้องอยู่ก่อน route /:id เพื่อไม่ให้ Express match /:id ก่อน
  */
-router.get('/work-reports', authenticateToken, authorize('admin', 'hr'), async (req, res) => {
+router.get('/work-reports', authenticateToken, authorize('admin', 'hr', 'audit'), async (req, res) => {
   try {
     const { month } = req.query
 
@@ -392,26 +417,40 @@ router.get('/work-reports', authenticateToken, authorize('admin', 'hr'), async (
     const today = new Date()
     today.setHours(0, 0, 0, 0)
 
+    const isAudit = req.user.role === 'audit';
+    let joinUsers = '';
+    let roleCondition = '';
+    
+    if (isAudit) {
+      joinUsers = 'LEFT JOIN users u ON wr.employee_id = u.employee_id';
+      roleCondition = "AND u.role IN ('service', 'data_entry', 'data_entry_and_service')";
+    }
+
     // Get all approved WFH requests in the month
-    // Use DATE() function to ensure proper date comparison
+    // Use CASE WHEN for work report to avoid fetching heavy payload
     const [wfhRequests] = await pool.execute(
       `SELECT 
         wr.id,
         wr.employee_id,
         DATE_FORMAT(wr.wfh_date, '%Y-%m-%d') as wfh_date,
-        wr.work_report,
+        CASE WHEN wr.work_report IS NOT NULL AND TRIM(wr.work_report) != '' THEN 1 ELSE 0 END as has_work_report,
         DATE_FORMAT(wr.work_report_submitted_at, '%Y-%m-%d %H:%i:%s') as work_report_submitted_at,
         e.full_name as employee_name,
         e.nick_name as employee_nick_name,
         e.position as employee_position
        FROM wfh_requests wr
        LEFT JOIN employees e ON wr.employee_id = e.employee_id
+       ${joinUsers}
        WHERE wr.status = 'อนุมัติแล้ว'
-         AND DATE(wr.wfh_date) >= DATE(?)
-         AND DATE(wr.wfh_date) <= DATE(?)
          AND wr.deleted_at IS NULL
+         AND (
+           (DATE(wr.wfh_date) >= DATE(?) AND DATE(wr.wfh_date) <= DATE(?))
+           OR 
+           (DATE(wr.wfh_date) < DATE(?) AND (wr.work_report IS NULL OR TRIM(wr.work_report) = ''))
+         )
+         ${roleCondition}
        ORDER BY wr.wfh_date ASC, e.full_name ASC`,
-      [firstDayStr, lastDayStr]
+      [firstDayStr, lastDayStr, firstDayStr]
     )
 
     // Categorize work reports
@@ -426,8 +465,8 @@ router.get('/work-reports', authenticateToken, authorize('admin', 'hr'), async (
       wfhDate.setHours(0, 0, 0, 0)
       const daysDiff = Math.floor((today.getTime() - wfhDate.getTime()) / (1000 * 60 * 60 * 24))
 
-      // Check if work_report exists and is not empty
-      const hasWorkReport = req.work_report && req.work_report.trim() !== ''
+      // Check if work_report exists and is not empty using the boolean
+      const hasWorkReport = req.has_work_report === 1
 
       if (hasWorkReport) {
         // Already submitted
@@ -476,15 +515,24 @@ router.get('/work-reports', authenticateToken, authorize('admin', 'hr'), async (
 router.get('/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params
-    const isHRorAdmin = req.user.role === 'admin' || req.user.role === 'hr'
+    const userRole = req.user.role;
+    const isHRorAdmin = userRole === 'admin' || userRole === 'hr'
+    const isAudit = userRole === 'audit'
 
     // Build WHERE clause with access control
     let whereClause = 'WHERE wr.id = ? AND wr.deleted_at IS NULL'
     const params = [id]
+    let joinUsers = ''
 
     if (!isHRorAdmin) {
-      whereClause += ' AND wr.employee_id = ?'
-      params.push(req.user.employee_id)
+      if (isAudit) {
+        joinUsers = 'LEFT JOIN users u_audit ON wr.employee_id = u_audit.employee_id'
+        whereClause += ` AND (wr.employee_id = ? OR u_audit.role IN ('service', 'data_entry', 'data_entry_and_service'))`
+        params.push(req.user.employee_id)
+      } else {
+        whereClause += ' AND wr.employee_id = ?'
+        params.push(req.user.employee_id)
+      }
     }
 
     // Get WFH request
@@ -508,6 +556,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
        FROM wfh_requests wr
        LEFT JOIN employees e ON wr.employee_id = e.employee_id
        LEFT JOIN users u ON wr.approved_by = u.id
+       ${joinUsers}
        ${whereClause}`,
       params
     )
@@ -604,7 +653,7 @@ router.get('/dashboard/summary', authenticateToken, async (req, res) => {
  * ดึงข้อมูล WFH รายวันสำหรับกราฟ (สำหรับ Admin)
  * Access: Admin only
  */
-router.get('/dashboard/daily', authenticateToken, authorize('admin', 'hr'), async (req, res) => {
+router.get('/dashboard/daily', authenticateToken, authorize('admin', 'hr', 'audit'), async (req, res) => {
   try {
     const { month } = req.query
 
@@ -619,6 +668,15 @@ router.get('/dashboard/daily', authenticateToken, authorize('admin', 'hr'), asyn
     // Format dates as YYYY-MM-DD
     const firstDayStr = `${year}-${String(monthNum).padStart(2, '0')}-01`
     const lastDayStr = `${year}-${String(monthNum).padStart(2, '0')}-${String(lastDay.getDate()).padStart(2, '0')}`
+
+    const isAudit = req.user.role === 'audit';
+    let joinUsers = '';
+    let roleCondition = '';
+    
+    if (isAudit) {
+      joinUsers = 'LEFT JOIN users u ON wr_inner.employee_id = u.employee_id';
+      roleCondition = "AND u.role IN ('service', 'data_entry', 'data_entry_and_service')";
+    }
 
     // Get daily WFH statistics for target month
     const [dailyStats] = await pool.execute(
@@ -643,7 +701,11 @@ router.get('/dashboard/daily', authenticateToken, authorize('admin', 'hr'), asyn
          ) seq
          WHERE DATE_ADD(?, INTERVAL seq.seq DAY) <= ?
        ) dates
-       LEFT JOIN wfh_requests wr ON (
+       LEFT JOIN (
+           SELECT wr_inner.* FROM wfh_requests wr_inner
+           ${joinUsers}
+           WHERE 1=1 ${roleCondition}
+       ) wr ON (
          wr.status IN ('อนุมัติแล้ว', 'รออนุมัติ')
          AND wr.deleted_at IS NULL
          AND DATE(dates.date) = DATE(wr.wfh_date)

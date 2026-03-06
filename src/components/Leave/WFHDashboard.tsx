@@ -17,9 +17,10 @@ import {
   Grid,
   Select,
   ScrollArea,
+  Modal,
 } from '@mantine/core'
 import { DateInput, DatesProvider } from '@mantine/dates'
-import { TbAlertCircle, TbX, TbCheck, TbClock } from 'react-icons/tb'
+import { TbAlertCircle, TbX, TbCheck, TbClock, TbFileText } from 'react-icons/tb'
 import { useQuery } from 'react-query'
 import { wfhService, WFHRequest } from '../../services/leaveService'
 import { useAuthStore } from '../../store/authStore'
@@ -35,9 +36,26 @@ dayjs.extend(buddhistEra)
 export default function WFHDashboard() {
   const user = useAuthStore((state) => state.user)
   const isAdmin = user?.role === 'admin' || user?.role === 'hr'
+  const isAudit = user?.role === 'audit'
+  const hasAccess = isAdmin || isAudit
+
   const [page, setPage] = useState(1)
   const [limit] = useState(5) // แสดง 5 รายการต่อหน้า
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
+  
+  // For viewing work reports
+  const [reportModalOpened, setReportModalOpened] = useState(false)
+  const [selectedReportId, setSelectedReportId] = useState<string | null>(null)
+
+  // Fetch detailed work report on demand
+  const { data: reportDetailData, isLoading: isLoadingReportDetail } = useQuery(
+    ['wfh-request-detail', selectedReportId],
+    () => wfhService.getById(selectedReportId!),
+    {
+      enabled: !!selectedReportId,
+      staleTime: 5 * 60 * 1000,
+    }
+  )
   const [calendarMonth, setCalendarMonth] = useState<Date>(new Date())
   const [chartMonth, setChartMonth] = useState<string>(dayjs().format('YYYY-MM'))
   const [filterDays, setFilterDays] = useState<string>('all') // '3', '7', '14', '30', 'all'
@@ -143,7 +161,7 @@ export default function WFHDashboard() {
         wfh_date: selectedDate ? dayjs(selectedDate).format('YYYY-MM-DD') : undefined,
       }),
     {
-      enabled: isAdmin, // Only for admin
+      enabled: hasAccess, // Only for admin
       staleTime: 1 * 60 * 1000, // 1 minute cache
       retry: false,
     }
@@ -161,7 +179,7 @@ export default function WFHDashboard() {
     ['wfh-daily-stats', chartMonth],
     () => wfhService.getDailyStats({ month: chartMonth }),
     {
-      enabled: isAdmin,
+      enabled: hasAccess,
       staleTime: 2 * 60 * 1000, // 2 minutes cache
     }
   )
@@ -171,7 +189,7 @@ export default function WFHDashboard() {
     ['wfh-work-reports', chartMonth],
     () => wfhService.getWorkReports({ month: chartMonth }),
     {
-      enabled: isAdmin,
+      enabled: hasAccess,
       staleTime: 2 * 60 * 1000, // 2 minutes cache
     }
   )
@@ -185,7 +203,7 @@ export default function WFHDashboard() {
         month: filterMonthStr,
       }),
     {
-      enabled: isAdmin,
+      enabled: hasAccess,
       staleTime: 2 * 60 * 1000,
       retry: false,
     }
@@ -199,7 +217,7 @@ export default function WFHDashboard() {
         month: currentMonthStr,
       }),
     {
-      enabled: isAdmin,
+      enabled: hasAccess,
       staleTime: 2 * 60 * 1000, // 2 minutes cache
       retry: false,
     }
@@ -213,7 +231,7 @@ export default function WFHDashboard() {
         month: prevMonthStr,
       }),
     {
-      enabled: isAdmin,
+      enabled: hasAccess,
       staleTime: 2 * 60 * 1000,
       retry: false,
     }
@@ -227,7 +245,7 @@ export default function WFHDashboard() {
         month: nextMonthStr,
       }),
     {
-      enabled: isAdmin,
+      enabled: hasAccess,
       staleTime: 2 * 60 * 1000,
       retry: false,
     }
@@ -601,7 +619,7 @@ export default function WFHDashboard() {
     }
   }, [filterSelectedDate, filterCalendarMonth])
 
-  if (!isAdmin) {
+  if (!hasAccess) {
     return (
       <Alert color="yellow">
         คุณไม่มีสิทธิ์เข้าถึงหน้านี้
@@ -928,10 +946,10 @@ export default function WFHDashboard() {
           </Group>
         </Card>
 
-        {/* Work Reports Grid - 2 Columns */}
+        {/* Work Reports Grid - 3 Columns */}
         <Grid>
           {/* Column 1: Submitted Work Reports */}
-          <Grid.Col span={{ base: 12, md: 6 }}>
+          <Grid.Col span={{ base: 12, md: 4 }}>
             <Card withBorder padding="lg" radius="md" h="100%">
               <Group mb="md">
                 <TbCheck size={24} color="#4caf50" />
@@ -975,11 +993,24 @@ export default function WFHDashboard() {
                           <Text size="xs" c="dimmed" mt="xs">
                             วันที่ WFH: {formatThaiDate(report.wfh_date as string)}
                           </Text>
-                          {report.work_report_submitted_at && (
-                            <Text size="xs" c="dimmed">
-                              ส่งเมื่อ: {dayjs(report.work_report_submitted_at as string).format('DD/MM/YYYY HH:mm')}
-                            </Text>
-                          )}
+                          <Group justify="space-between" mt="xs" align="center">
+                            {report.work_report_submitted_at ? (
+                              <Text size="xs" c="dimmed">
+                                ส่งเมื่อ: {dayjs(report.work_report_submitted_at as string).format('DD/MM/YYYY HH:mm')}
+                              </Text>
+                            ) : <span />}
+                            <Button
+                              size="xs"
+                              variant="light"
+                              leftSection={<TbFileText size={14} />}
+                              onClick={() => {
+                                setSelectedReportId(report.id)
+                                setReportModalOpened(true)
+                              }}
+                            >
+                              ดูรายงาน
+                            </Button>
+                          </Group>
                         </Card>
                       ))}
                     </Stack>
@@ -995,18 +1026,15 @@ export default function WFHDashboard() {
             </Card>
           </Grid.Col>
 
-          {/* Column 2: Not Submitted Work Reports */}
-          <Grid.Col span={{ base: 12, md: 6 }}>
+          {/* Column 2: Not Submitted Work Reports (Pending) */}
+          <Grid.Col span={{ base: 12, md: 4 }}>
             <Card withBorder padding="lg" radius="md" h="100%">
               <Group mb="md">
                 <TbClock size={24} color="#ff9800" />
-                <Title order={3}>ยังไม่ได้รายงาน</Title>
+                <Title order={3}>รอดำเนินการ</Title>
                 <Badge color="orange" size="lg">
                   {filterSelectedDate
                     ? (workReportsData?.data?.not_submitted?.filter(
-                      (r: WFHRequest) => dayjs(r.wfh_date as string).format('YYYY-MM-DD') === dayjs(filterSelectedDate).format('YYYY-MM-DD')
-                    ).length || 0) +
-                    (workReportsData?.data?.overdue?.filter(
                       (r: WFHRequest) => dayjs(r.wfh_date as string).format('YYYY-MM-DD') === dayjs(filterSelectedDate).format('YYYY-MM-DD')
                     ).length || 0)
                     : workReportsData?.data?.summary?.not_submitted || 0}{' '}
@@ -1023,24 +1051,16 @@ export default function WFHDashboard() {
                   ) || []
                   : workReportsData?.data?.not_submitted || []
 
-                const overdueData = filterSelectedDate
-                  ? workReportsData?.data?.overdue?.filter(
-                    (r: WFHRequest) => dayjs(r.wfh_date as string).format('YYYY-MM-DD') === dayjs(filterSelectedDate).format('YYYY-MM-DD')
-                  ) || []
-                  : workReportsData?.data?.overdue || []
-
-                const allNotSubmitted = [...notSubmittedData, ...overdueData]
-
-                return allNotSubmitted.length > 0 ? (
+                return notSubmittedData.length > 0 ? (
                   <ScrollArea h={400}>
                     <Stack gap="xs">
-                      {allNotSubmitted.map((report: WFHRequest) => {
+                      {notSubmittedData.map((report: WFHRequest) => {
                         const wfhDate = new Date(report.wfh_date as string)
                         wfhDate.setHours(0, 0, 0, 0)
                         const today = new Date()
                         today.setHours(0, 0, 0, 0)
                         const daysDiff = Math.floor((today.getTime() - wfhDate.getTime()) / (1000 * 60 * 60 * 24))
-                        const canStillSubmit = daysDiff >= 0 && daysDiff <= 2
+                        const daysRemaining = Math.max(0, 2 - daysDiff)
 
                         return (
                           <Card key={report.id} withBorder padding="sm" radius="md">
@@ -1049,8 +1069,8 @@ export default function WFHDashboard() {
                                 {report.employee_name as string}
                                 {report.employee_nick_name && ` (${report.employee_nick_name})`}
                               </Text>
-                              <Badge color={canStillSubmit ? 'orange' : 'red'} size="sm">
-                                {canStillSubmit ? `ส่งภายใน ${2 - daysDiff} วัน` : 'เลยกำหนด'}
+                              <Badge color="orange" size="sm">
+                                ส่งภายใน {daysRemaining} วัน
                               </Badge>
                             </Group>
                             <Text size="xs" c="dimmed">
@@ -1067,8 +1087,70 @@ export default function WFHDashboard() {
                 ) : (
                   <Alert color="green">
                     {filterSelectedDate
-                      ? `ไม่มีรายงานการทำงานที่ยังไม่ได้ส่งในวันที่ ${formatThaiDate(dayjs(filterSelectedDate).format('YYYY-MM-DD'))}`
-                      : 'ไม่มีรายงานการทำงานที่ยังไม่ได้ส่ง'}
+                      ? `ไม่มีรายงานการทำงานที่รอดำเนินการในวันที่ ${formatThaiDate(dayjs(filterSelectedDate).format('YYYY-MM-DD'))}`
+                      : 'ไม่มีรายงานการทำงานที่รอดำเนินการ'}
+                  </Alert>
+                )
+              })()}
+            </Card>
+          </Grid.Col>
+
+          {/* Column 3: Overdue Work Reports */}
+          <Grid.Col span={{ base: 12, md: 4 }}>
+            <Card withBorder padding="lg" radius="md" h="100%" shadow="sm" style={{ borderColor: '#ffe3e3' }}>
+              <Group mb="md">
+                <TbAlertCircle size={24} color="#f03e3e" />
+                <Title order={3} c="red.8">ไม่รายงานการทำงาน</Title>
+                <Badge color="red" size="lg">
+                  {filterSelectedDate
+                    ? (workReportsData?.data?.overdue?.filter(
+                      (r: WFHRequest) => dayjs(r.wfh_date as string).format('YYYY-MM-DD') === dayjs(filterSelectedDate).format('YYYY-MM-DD')
+                    ).length || 0)
+                    : workReportsData?.data?.summary?.overdue || 0}{' '}
+                  รายการ
+                </Badge>
+              </Group>
+
+              {isLoadingWorkReports ? (
+                <Text>กำลังโหลดข้อมูล...</Text>
+              ) : (() => {
+                const overdueData = filterSelectedDate
+                  ? workReportsData?.data?.overdue?.filter(
+                    (r: WFHRequest) => dayjs(r.wfh_date as string).format('YYYY-MM-DD') === dayjs(filterSelectedDate).format('YYYY-MM-DD')
+                  ) || []
+                  : workReportsData?.data?.overdue || []
+
+                return overdueData.length > 0 ? (
+                  <ScrollArea h={400}>
+                    <Stack gap="xs">
+                      {overdueData.map((report: WFHRequest) => {
+                        return (
+                          <Card key={report.id} withBorder padding="sm" radius="md" style={{ backgroundColor: '#fff5f5', borderColor: '#ffc9c9' }}>
+                            <Group gap="xs" mb="xs">
+                              <Text fw={500} size="sm" c="red.9">
+                                {report.employee_name as string}
+                                {report.employee_nick_name && ` (${report.employee_nick_name})`}
+                              </Text>
+                              <Badge color="red" size="sm" variant="filled">
+                                เลยกำหนด
+                              </Badge>
+                            </Group>
+                            <Text size="xs" c="red.7">
+                              {report.employee_position} • {report.employee_id}
+                            </Text>
+                            <Text size="xs" c="red.7" mt="xs">
+                              วันที่ WFH: {formatThaiDate(report.wfh_date)}
+                            </Text>
+                          </Card>
+                        )
+                      })}
+                    </Stack>
+                  </ScrollArea>
+                ) : (
+                  <Alert color="green">
+                    {filterSelectedDate
+                      ? `ไม่มีพนักงานที่ไม่ส่งรายงานในวันที่ ${formatThaiDate(dayjs(filterSelectedDate).format('YYYY-MM-DD'))}`
+                      : 'ไม่มีพนักงานที่เลยกำหนดส่งรายงาน'}
                   </Alert>
                 )
               })()}
@@ -1076,6 +1158,59 @@ export default function WFHDashboard() {
           </Grid.Col>
         </Grid>
       </Card>
+
+      {/* Work Report Detail Modal */}
+      <Modal
+        opened={reportModalOpened}
+        onClose={() => {
+          setReportModalOpened(false)
+          setSelectedReportId(null)
+        }}
+        title={
+          <Group gap="sm">
+            <TbFileText size={24} color="#228be6" />
+            <Text fw={600} size="lg">
+              รายละเอียดรายงานการทำงาน
+            </Text>
+          </Group>
+        }
+        size="lg"
+        centered
+        overlayProps={{ blur: 3 }}
+      >
+        <Stack gap="md">
+          {isLoadingReportDetail ? (
+            <Text>กำลังโหลดข้อมูล...</Text>
+          ) : reportDetailData?.data?.wfh_request ? (
+            <>
+              <Group justify="space-between">
+                <div>
+                  <Text fw={500}>{reportDetailData.data.wfh_request.employee_name}</Text>
+                  <Text size="sm" c="dimmed">
+                    วันที่ WFH: {formatThaiDate(reportDetailData.data.wfh_request.wfh_date)}
+                  </Text>
+                </div>
+                {reportDetailData.data.wfh_request.work_report_submitted_at && (
+                  <Badge color="green" variant="light">
+                    ส่งเมื่อ {dayjs(reportDetailData.data.wfh_request.work_report_submitted_at).format('DD/MM/YYYY HH:mm')}
+                  </Badge>
+                )}
+              </Group>
+              
+              <Alert color="blue" variant="light" title="เนื้อหารายงาน">
+                <Text style={{ whiteSpace: 'pre-wrap' }}>
+                  {reportDetailData.data.wfh_request.work_report || `ไม่มีข้อมูลระบุ`}
+                </Text>
+              </Alert>
+            </>
+          ) : (
+            <Alert color="red">ไม่พบข้อมูลรายงาน</Alert>
+          )}
+          <Group justify="flex-end">
+            <Button onClick={() => setReportModalOpened(false)}>ปิด</Button>
+          </Group>
+        </Stack>
+      </Modal>
     </Stack>
   )
 }

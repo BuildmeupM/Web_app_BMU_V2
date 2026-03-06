@@ -6,6 +6,7 @@
 import express from 'express'
 import pool from '../../config/database.js'
 import { authenticateToken, authorize } from '../../middleware/auth.js'
+import crypto from 'crypto'
 
 const router = express.Router()
 
