@@ -67,6 +67,34 @@ async function createChatTables() {
 
     console.log('🎉 Chat tables created successfully!')
 
+    // 4. Add performance indexes
+    console.log('🛠️ Adding performance indexes...')
+    try {
+      await connection.execute(`
+        CREATE INDEX idx_chat_messages_conv_created 
+        ON chat_messages (conversation_id, created_at)
+      `)
+    } catch (e) {
+      if (e.code !== 'ER_DUP_KEYNAME') console.warn('Index may already exist:', e.message)
+    }
+    try {
+      await connection.execute(`
+        CREATE INDEX idx_chat_messages_sender 
+        ON chat_messages (sender_id)
+      `)
+    } catch (e) {
+      if (e.code !== 'ER_DUP_KEYNAME') console.warn('Index may already exist:', e.message)
+    }
+    try {
+      await connection.execute(`
+        CREATE INDEX idx_conv_participants_user 
+        ON conversation_participants (user_id)
+      `)
+    } catch (e) {
+      if (e.code !== 'ER_DUP_KEYNAME') console.warn('Index may already exist:', e.message)
+    }
+    console.log('🎉 Indexes created successfully!')
+
   } catch (error) {
     console.error('❌ Error creating chat tables:', error)
   } finally {

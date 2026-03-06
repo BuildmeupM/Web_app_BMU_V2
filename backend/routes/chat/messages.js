@@ -74,10 +74,9 @@ router.get('/conversations', authenticateToken, async (req, res) => {
             AND cm.sender_id != ?
         ) AS unread_count
       FROM conversations c
-      JOIN conversation_participants cp ON c.id = cp.conversation_id
+      JOIN conversation_participants cp ON c.id = cp.conversation_id AND cp.user_id = ?
       JOIN conversation_participants other_cp ON c.id = other_cp.conversation_id AND other_cp.user_id != ?
       JOIN users u ON other_cp.user_id = u.id
-      WHERE cp.user_id = ?
       ORDER BY last_message_time IS NULL, last_message_time DESC
     `, [userId, userId, userId])
 
@@ -111,17 +110,20 @@ router.get('/conversations/:id/messages', authenticateToken, async (req, res) =>
     }
 
     const [messages] = await pool.execute(`
-      SELECT 
-        m.id, 
-        m.conversation_id, 
-        m.sender_id, 
-        m.message_text, 
-        m.created_at,
-        u.name AS sender_name
-      FROM chat_messages m
-      JOIN users u ON m.sender_id = u.id
-      WHERE m.conversation_id = ?
-      ORDER BY m.created_at ASC
+      SELECT * FROM (
+        SELECT 
+          m.id, 
+          m.conversation_id, 
+          m.sender_id, 
+          m.message_text, 
+          m.created_at,
+          u.name AS sender_name
+        FROM chat_messages m
+        JOIN users u ON m.sender_id = u.id
+        WHERE m.conversation_id = ?
+        ORDER BY m.created_at DESC
+        LIMIT 100
+      ) recent_msgs ORDER BY created_at ASC
     `, [conversationId])
 
     // Update last_read_at since user opened it

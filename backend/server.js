@@ -1,3 +1,4 @@
+/* eslint-env node */
 /**
  * BMU Work Management System - Backend API Server
  * Express.js server สำหรับ Backend API
@@ -46,7 +47,7 @@ import activityLogsRoutes from './routes/system/activity-logs.js'
 import chatMessagesRoutes from './routes/chat/messages.js'
 
 import { apiRateLimiter } from './middleware/rateLimiter.js'
-import cacheMiddleware, { invalidateCache } from './middleware/cache.js'
+import cacheMiddleware from './middleware/cache.js'
 import performanceLogger from './middleware/performanceLogger.js'
 
 // Load environment variables
@@ -216,11 +217,34 @@ io.on('connection', (socket) => {
         created_at: new Date().toISOString()
       }
 
+      // Verify room membership before broadcasting
+      const senderRoom = `user:${senderId}`
+      const receiverRoom = `user:${receiverId}`
+      
+      // Auto-join the sender to their room if they lost membership
+      const senderSockets = await io.in(senderRoom).allSockets()
+      const receiverSockets = await io.in(receiverRoom).allSockets()
+      
+      console.log(`💬 [WebSocket Chat] Room check:`, {
+        senderRoom,
+        senderSocketCount: senderSockets.size,
+        receiverRoom,
+        receiverSocketCount: receiverSockets.size,
+        currentSocketId: socket.id,
+        currentSocketRooms: [...socket.rooms]
+      })
+      
+      // If sender's socket is not in their own room, re-join them
+      if (!socket.rooms.has(senderRoom)) {
+        socket.join(senderRoom)
+        console.log(`⚠️ [WebSocket Chat] Auto-rejoined sender ${senderId} to room ${senderRoom}`)
+      }
+
       // Emit to Sender (so their UI updates cleanly)
-      io.to(`user:${senderId}`).emit('chat:receiveMessage', messagePayload)
+      io.to(senderRoom).emit('chat:receiveMessage', messagePayload)
       
       // Emit to Receiver
-      io.to(`user:${receiverId}`).emit('chat:receiveMessage', messagePayload)
+      io.to(receiverRoom).emit('chat:receiveMessage', messagePayload)
 
       // Update Receiver's Notification Bell dynamically (Simulate unread notification badge trigger)
       io.to(`user:${receiverId}`).emit('notification:new', {
@@ -396,7 +420,8 @@ app.get('*', (req, res) => {
 })
 
 // Error handler
-app.use((err, req, res, next) => {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+app.use((err, req, res, _next) => {
   console.error('❌ [Express Error Handler] Error:', {
     message: err.message,
     stack: err.stack,

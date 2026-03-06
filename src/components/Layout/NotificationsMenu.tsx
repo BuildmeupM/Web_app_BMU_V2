@@ -142,9 +142,9 @@ export default function NotificationsMenu() {
     socket.on('chat:receiveMessage', handleNewChatMessage)
 
     return () => {
-      if (user?.id) {
-        socket.emit('unsubscribe:user', { userId: user.id })
-      }
+      // Only remove event listeners on cleanup - DO NOT unsubscribe:user
+      // because that removes us from the Socket.IO room, which breaks chat delivery.
+      // The room subscription should persist for the entire session until logout/disconnect.
       socket.off('notification:new', handleNewNotification)
       socket.off('chat:receiveMessage', handleNewChatMessage)
     }
@@ -178,7 +178,7 @@ export default function NotificationsMenu() {
   const { data: conversationsData, isLoading: isLoadingChats } = useQuery(
     ['chat-conversations'],
     () => chatService.getConversations(),
-    { enabled: !!user && activeTab === 'chat' }
+    { enabled: !!user && activeTab === 'chat', staleTime: 30000 }
   )
   const conversations = conversationsData?.data || []
   const totalChatUnread = conversations.reduce((acc, curr) => acc + curr.unread_count, 0)
@@ -187,7 +187,7 @@ export default function NotificationsMenu() {
   const { data: directoryData } = useQuery(
     ['chat-directory'],
     () => chatService.getDirectory(),
-    { enabled: !!user && activeTab === 'chat' }
+    { enabled: !!user && activeTab === 'chat', staleTime: 60000 }
   )
   const directory = directoryData?.data || []
 

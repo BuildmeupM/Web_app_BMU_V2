@@ -6,8 +6,7 @@
 import { useEffect, useRef } from 'react'
 import { useQueryClient } from 'react-query'
 import { useAuthStore } from '../store/authStore'
-import { createSocketConnection, disconnectSocket, getSocket } from '../services/socketService'
-import { derivePp30Status } from '../utils/pp30StatusUtils'
+import { createSocketConnection } from '../services/socketService'
 import { MonthlyTaxData } from '../services/monthlyTaxDataService'
 
 /**
@@ -16,7 +15,7 @@ import { MonthlyTaxData } from '../services/monthlyTaxDataService'
  */
 export function useRealtimeUpdates(employeeId: string | null) {
   const queryClient = useQueryClient()
-  const { token, user } = useAuthStore()
+  const { token } = useAuthStore()
   const socketRef = useRef<ReturnType<typeof createSocketConnection> | null>(null)
   const subscribedEmployeeIdRef = useRef<string | null>(null)
 
@@ -83,8 +82,8 @@ export function useRealtimeUpdates(employeeId: string | null) {
           detailQueryKey = [
             'monthly-tax-data',
             updatedData.build,
-            updatedData.tax_year,
-            updatedData.tax_month,
+            String(updatedData.tax_year),
+            String(updatedData.tax_month),
           ]
         }
 
@@ -95,7 +94,7 @@ export function useRealtimeUpdates(employeeId: string | null) {
         if (import.meta.env.DEV) {
           listQueryKeys.forEach((queryKey) => {
             const activeQueries = queryClient.getQueriesData({ queryKey, exact: false })
-            const activeQueriesFiltered = activeQueries.filter(([_, data]) => {
+            const activeQueriesFiltered = activeQueries.filter(() => {
               const queryState = queryClient.getQueryState(queryKey)
               return queryState?.status === 'success' || queryState?.status === 'loading'
             })
@@ -109,13 +108,13 @@ export function useRealtimeUpdates(employeeId: string | null) {
         }
         
         listQueryKeys.forEach((queryKey) => {
-          queryClient.invalidateQueries({ queryKey, exact: false }, { refetchType: 'active' })
+          queryClient.invalidateQueries(queryKey)
         })
         summaryQueryKeys.forEach((queryKey) => {
-          queryClient.invalidateQueries({ queryKey, exact: false }, { refetchType: 'active' })
+          queryClient.invalidateQueries(queryKey)
         })
         if (detailQueryKey) {
-          queryClient.invalidateQueries({ queryKey: detailQueryKey, exact: false }, { refetchType: 'active' })
+          queryClient.invalidateQueries(detailQueryKey)
         }
 
         console.log('🔄 [useRealtimeUpdates] Invalidated queries and triggered active refetch', {
@@ -136,8 +135,8 @@ export function useRealtimeUpdates(employeeId: string | null) {
               // 🔍 Debug: Log active queries ก่อน refetch
               if (import.meta.env.DEV) {
                 const allQueries = queryClient.getQueriesData({ queryKey, exact: false })
-                const activeQueries = allQueries.filter(([key, data]) => {
-                  const queryState = queryClient.getQueryState(key as any[])
+                const activeQueries = allQueries.filter(([key]) => {
+                  const queryState = queryClient.getQueryState(key as string[])
                   return queryState?.status === 'success' || queryState?.status === 'loading'
                 })
                 console.log('🔍 [useRealtimeUpdates] Before refetch list query', {
@@ -150,12 +149,7 @@ export function useRealtimeUpdates(employeeId: string | null) {
               
               // ⚠️ สำคัญ: ใช้ invalidateQueries กับ refetchType: 'active' เพื่อบังคับ refetch
               // แล้วรอให้ React Query refetch อัตโนมัติ (เร็วกว่าและเชื่อถือได้กว่า refetchQueries)
-              queryClient.invalidateQueries({ 
-                queryKey, 
-                exact: false
-              }, { 
-                refetchType: 'active' // ⚠️ สำคัญ: บังคับ refetch queries ที่ active
-              })
+              queryClient.invalidateQueries(queryKey)
               
               // ⚠️ สำคัญ: รอสักครู่เพื่อให้ invalidateQueries trigger refetch
               await new Promise((resolve) => setTimeout(resolve, 100))
@@ -170,12 +164,7 @@ export function useRealtimeUpdates(employeeId: string | null) {
             
             // Invalidate summary queries หลังจาก list queries เสร็จ (รองลงมา)
             for (const queryKey of summaryQueryKeys) {
-              queryClient.invalidateQueries({ 
-                queryKey, 
-                exact: false
-              }, { 
-                refetchType: 'active' // ⚠️ สำคัญ: บังคับ refetch queries ที่ active
-              })
+              queryClient.invalidateQueries(queryKey)
               // ⚠️ สำคัญ: รอสักครู่เพื่อให้ invalidateQueries trigger refetch
               await new Promise((resolve) => setTimeout(resolve, 100))
               console.log('✅ [useRealtimeUpdates] Invalidated and triggered refetch for summary query', {
@@ -185,12 +174,7 @@ export function useRealtimeUpdates(employeeId: string | null) {
             
             // Invalidate detail query ถ้ามี (สำหรับ modal)
             if (detailQueryKey) {
-              queryClient.invalidateQueries({ 
-                queryKey: detailQueryKey, 
-                exact: false
-              }, { 
-                refetchType: 'active' // ⚠️ สำคัญ: บังคับ refetch queries ที่ active
-              })
+              queryClient.invalidateQueries(detailQueryKey)
               // ⚠️ สำคัญ: รอสักครู่เพื่อให้ invalidateQueries trigger refetch
               await new Promise((resolve) => setTimeout(resolve, 100))
               console.log('✅ [useRealtimeUpdates] Invalidated and triggered refetch for detail query', {
@@ -209,9 +193,10 @@ export function useRealtimeUpdates(employeeId: string | null) {
             // 🔍 Debug: Log refetched data for the updated record
             if (import.meta.env.DEV) {
               const listQueries = queryClient.getQueriesData({ queryKey: ['monthly-tax-data', 'tax-status'], exact: false })
-              listQueries.forEach(([queryKey, queryData]: [any, any]) => {
-                if (queryData?.data?.data) {
-                  const matchingRecord = queryData.data.data.find((item: any) => item.id === updatedData.id || item.build === updatedData.build)
+              listQueries.forEach(([, queryData]: [unknown, unknown]) => {
+                const data = queryData as Record<string, Record<string, MonthlyTaxData[]>> | null
+                if (data?.data?.data) {
+                  const matchingRecord = data.data.data.find((item: MonthlyTaxData) => item.id === updatedData.id || item.build === updatedData.build)
                   if (matchingRecord) {
                     console.log('🔍 [useRealtimeUpdates] Refetched data for updated record:', {
                       build: matchingRecord.build,
@@ -235,30 +220,25 @@ export function useRealtimeUpdates(employeeId: string | null) {
     // Cleanup on unmount or employeeId change
     return () => {
       if (socketRef.current) {
-        // ✅ BUG-156: ตรวจสอบว่า socket connected ก่อน unsubscribe และ disconnect
-        // เพื่อป้องกัน error "WebSocket is closed before the connection is established"
+        // Unsubscribe from room but DO NOT disconnect the shared global socket
+        // because it is also used by the chat system in NotificationsMenu
         if (socketRef.current.connected && subscribedEmployeeIdRef.current) {
           try {
             socketRef.current.emit('unsubscribe:monthly-tax-data', {
               employeeId: subscribedEmployeeIdRef.current,
             })
-            console.log('🔌 [useRealtimeUpdates] Unsubscribed from room before disconnect')
+            console.log('🔌 [useRealtimeUpdates] Unsubscribed from room')
           } catch (error) {
             console.warn('⚠️ [useRealtimeUpdates] Error unsubscribing:', error)
           }
         }
         
-        // ✅ BUG-156: ตรวจสอบว่า socket connected ก่อน disconnect
-        if (socketRef.current.connected) {
-          disconnectSocket()
-        } else {
-          // ถ้า socket ยังไม่ connected ให้ set เป็น null โดยไม่ต้อง disconnect
-          socketRef.current = null
-        }
+        // Only remove our own event listener, DO NOT call disconnectSocket()
+        socketRef.current.off('monthly-tax-data:updated')
         
         socketRef.current = null
         subscribedEmployeeIdRef.current = null
-        console.log('🔌 [useRealtimeUpdates] Cleaned up socket connection')
+        console.log('🔌 [useRealtimeUpdates] Cleaned up listeners (socket kept alive for chat)')
       }
     }
   }, [employeeId, token, queryClient])
