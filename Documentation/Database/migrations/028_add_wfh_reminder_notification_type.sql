@@ -1,0 +1,1 @@
+ALTER TABLE notifications MODIFY COLUMN type enum('system','leave_request','wfh_request','work_assignment','tax_monthly','tax_inspection_completed','tax_review_pending','tax_review_pending_recheck','tax_data_updated','wfh_reminder') NOT NULL DEFAULT 'system';

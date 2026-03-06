@@ -13,11 +13,12 @@ let socket: Socket | null = null
  * @returns Socket instance
  */
 export function createSocketConnection(token: string | null): Socket {
-  // ✅ BUG-156: Disconnect existing connection if any (ตรวจสอบ connected ก่อน)
+  // ✅ BUG-156 + Chat Fix: Reuse existing connection if active to preserve global listeners
   if (socket) {
     if (socket.connected) {
-      socket.disconnect()
+      return socket
     }
+    socket.disconnect()
     socket = null // Clear old socket reference
   }
 
@@ -34,7 +35,6 @@ export function createSocketConnection(token: string | null): Socket {
     
     // Check if we're accessing via IP address (not localhost)
     const currentHost = window.location.hostname
-    const currentPort = window.location.port || '3000'
     
     // If accessing via IP (not localhost or 127.0.0.1), use same IP for backend
     if (currentHost !== 'localhost' && currentHost !== '127.0.0.1' && currentHost !== '') {

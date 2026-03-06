@@ -27,6 +27,7 @@ import accountingMarketplaceRoutes from './routes/accounting/marketplace.js'
 import accountingFeeNotesRoutes from './routes/accounting/fee-notes.js'
 import usersRoutes from './routes/system/users.js'
 import notificationsRoutes, { cleanupExpiredNotifications } from './routes/system/notifications.js'
+import { checkOverdueWFHReports } from './routes/leave/notifications.js'
 import holidaysRoutes from './routes/content/holidays.js'
 import attendanceDashboardRoutes from './routes/employees/attendance-dashboard.js'
 import registrationWorkRoutes from './routes/registration/work.js'
@@ -42,6 +43,8 @@ import documentRequestsRoutes from './routes/content/document-requests.js'
 import companyFeedRoutes from './routes/content/company-feed.js'
 import errorReportsRoutes from './routes/system/error-reports.js'
 import activityLogsRoutes from './routes/system/activity-logs.js'
+import chatMessagesRoutes from './routes/chat/messages.js'
+
 import { apiRateLimiter } from './middleware/rateLimiter.js'
 import cacheMiddleware, { invalidateCache } from './middleware/cache.js'
 import performanceLogger from './middleware/performanceLogger.js'
@@ -179,6 +182,65 @@ io.on('connection', (socket) => {
     }
   })
 
+  // ✅ CHAT: Handle incoming chat messages (2-way chat)
+  socket.on('chat:sendMessage', async (data) => {
+    try {
+      const { conversationId, senderId, receiverId, text } = data
+      if (!conversationId || !senderId || !receiverId || !text) return
+
+      console.log(`💬 [WebSocket Chat] Message from ${senderId} to ${receiverId} in conv ${conversationId}`)
+      
+      const { generateUUID } = await import('./utils/leaveHelpers.js')
+      const pool = (await import('./config/database.js')).default
+
+      // Generate message ID
+      const messageId = generateUUID()
+
+      // Save to Database
+      await pool.execute(
+        'INSERT INTO chat_messages (id, conversation_id, sender_id, message_text) VALUES (?, ?, ?, ?)',
+        [messageId, conversationId, senderId, text]
+      )
+
+      // Get sender details securely from DB
+      const [senders] = await pool.execute('SELECT username, name FROM users WHERE id = ?', [senderId])
+      const senderName = senders.length > 0 ? senders[0].name : 'Unknown User'
+
+      // Construct payload to broadcast
+      const messagePayload = {
+        id: messageId,
+        conversation_id: conversationId,
+        sender_id: senderId,
+        sender_name: senderName,
+        message_text: text,
+        created_at: new Date().toISOString()
+      }
+
+      // Emit to Sender (so their UI updates cleanly)
+      io.to(`user:${senderId}`).emit('chat:receiveMessage', messagePayload)
+      
+      // Emit to Receiver
+      io.to(`user:${receiverId}`).emit('chat:receiveMessage', messagePayload)
+
+      // Update Receiver's Notification Bell dynamically (Simulate unread notification badge trigger)
+      io.to(`user:${receiverId}`).emit('notification:new', {
+        notification: {
+          id: messageId,
+          type: 'chat_message',
+          title: `แชทใหม่จาก ${senderName}`,
+          message: text.substring(0, 50) + (text.length > 50 ? '...' : ''),
+          icon: 'message',
+          color: 'orange',
+          is_read: false
+        },
+        unread_count_increment: 1
+      })
+
+    } catch (error) {
+      console.error('❌ [WebSocket Chat] Error saving message:', error)
+    }
+  })
+
   // Handle disconnection (log ถูกปิดเพื่อลดความรก - คง log เฉพาะ error)
   socket.on('disconnect', () => {
     // Disconnect logging disabled to reduce console clutter
@@ -298,6 +360,9 @@ app.use('/api/company-feed', companyFeedRoutes)
 app.use('/api/error-reports', errorReportsRoutes)
 app.use('/api/activity-logs', activityLogsRoutes)
 
+// Internal Chat Routes
+app.use('/api/chat', chatMessagesRoutes)
+
 // ✅ SPA Fallback: Serve React frontend in production
 // When deployed, serve the built React app and handle client-side routing
 const __filename = fileURLToPath(import.meta.url)
@@ -414,8 +479,9 @@ async function startServer() {
       console.log(`🌐 CORS Origin: ${CORS_ORIGIN}`)
       console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`)
 
-      // Start scheduled job for cleaning up expired notifications (every hour)
+      // Start scheduled jobs (every hour)
       setInterval(async () => {
+        // 1. Cleanup expired notifications
         try {
           const result = await cleanupExpiredNotifications()
           if (result.success && result.deletedCount > 0) {
@@ -423,11 +489,26 @@ async function startServer() {
           }
         } catch (error) {
           console.error('❌ Error in scheduled notification cleanup:', error)
-          // Don't crash server if scheduled job fails
         }
-      }, 60 * 60 * 1000) // Run every hour (60 minutes)
+        
+        // 2. Check and alert unsubmitted WFH reports
+        try {
+          await checkOverdueWFHReports(app)
+        } catch (error) {
+          console.error('❌ Error in WFH notification job:', error)
+        }
+      }, 60 * 60 * 1000)
 
-      console.log('⏰ Scheduled job started: Cleanup expired notifications (every hour)')
+      console.log('⏰ Scheduled jobs started: Cleanup expired & WFH Reminders (every hour)')
+      
+      // Run the WFH check once on startup (after 5 seconds) to ensure it triggers right away on deployment
+      setTimeout(async () => {
+        try {
+          await checkOverdueWFHReports(app)
+        } catch (error) {
+          console.error('❌ Error in initial WFH notification job:', error)
+        }
+      }, 5000)
     })
 
     // ✅ Handle server errors

@@ -453,20 +453,15 @@ router.delete('/:id', authenticateToken, async (req, res) => {
 })
 
 /**
- * Helper function: ลบ notification ที่หมดอายุ (12 ชั่วโมงหลังจาก read_at)
+ * Helper function: ลบ notification ถาวรออกจาก DB หากมีอายุเกิน 24 ชั่วโมง
  * เรียกใช้จาก scheduled job หรือ manual endpoint
  */
 export async function cleanupExpiredNotifications() {
   try {
-    // ลบ notification ที่ read_at ผ่านไปแล้ว 12 ชั่วโมง
+    // ลบ notification ที่ created_at ผ่านไปแล้ว 24 ชั่วโมง (Hard Delete ตามที่ขอ)
     const [result] = await pool.execute(
-      `UPDATE notifications 
-      SET deleted_at = CURRENT_TIMESTAMP 
-      WHERE is_read = TRUE 
-        AND read_at IS NOT NULL 
-        AND read_at < DATE_SUB(NOW(), INTERVAL 12 HOUR)
-        AND deleted_at IS NULL`,
-      []
+      `DELETE FROM notifications 
+       WHERE created_at < DATE_SUB(NOW(), INTERVAL 24 HOUR)`
     )
 
     return {
@@ -484,7 +479,7 @@ export async function cleanupExpiredNotifications() {
 
 /**
  * POST /api/notifications/cleanup-expired
- * ลบ notification ที่หมดอายุ (12 ชั่วโมงหลังจาก read_at)
+ * ลบ notification แบบ Hard Delete หากอายุเกิน 24 ชั่วโมง
  * Access: Admin only หรือ System
  * Note: ควรเรียกใช้จาก scheduled job หรือ cron job
  */
