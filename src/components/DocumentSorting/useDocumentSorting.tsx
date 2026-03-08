@@ -12,7 +12,7 @@ import type { RecordWithAcknowledgmentFields } from '../../utils/taxAcknowledgme
 
 interface ErrorResponse {
   message?: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export function useDocumentSorting() {
