@@ -59,7 +59,6 @@ export function useDocumentSorting() {
     submissionComment.trim() !== '' ||
     returnComment.trim() !== ''
 
-  // === Fetch existing document entry work ===
   const {
     isLoading: isLoadingExisting,
     isError: isErrorExisting,
@@ -72,13 +71,12 @@ export function useDocumentSorting() {
     },
     {
       enabled: !!selectedBuild,
-      staleTime: 10 * 1000,
-      cacheTime: 30 * 1000,
+      staleTime: 0,
+      cacheTime: 5 * 1000,
+      refetchOnMount: 'always',
       refetchOnWindowFocus: false,
       refetchOnReconnect: false,
       onSuccess: (data) => {
-        if (data?.data?.build && data.data.build !== selectedBuild) return
-
         const currentSubmissionCount = data?.submission_count || 0
         setSubmissionCount(currentSubmissionCount)
         setTaxRegistrationStatus(data?.tax_registration_status || null)

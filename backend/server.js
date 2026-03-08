@@ -44,7 +44,6 @@ import documentRequestsRoutes from './routes/content/document-requests.js'
 import companyFeedRoutes from './routes/content/company-feed.js'
 import errorReportsRoutes from './routes/system/error-reports.js'
 import activityLogsRoutes from './routes/system/activity-logs.js'
-import chatMessagesRoutes from './routes/chat/messages.js'
 
 import { apiRateLimiter } from './middleware/rateLimiter.js'
 import cacheMiddleware from './middleware/cache.js'
@@ -183,88 +182,6 @@ io.on('connection', (socket) => {
     }
   })
 
-  // ✅ CHAT: Handle incoming chat messages (2-way chat)
-  socket.on('chat:sendMessage', async (data) => {
-    try {
-      const { conversationId, senderId, receiverId, text } = data
-      if (!conversationId || !senderId || !receiverId || !text) return
-
-      console.log(`💬 [WebSocket Chat] Message from ${senderId} to ${receiverId} in conv ${conversationId}`)
-      
-      const { generateUUID } = await import('./utils/leaveHelpers.js')
-      const pool = (await import('./config/database.js')).default
-
-      // Generate message ID
-      const messageId = generateUUID()
-
-      // Save to Database
-      await pool.execute(
-        'INSERT INTO chat_messages (id, conversation_id, sender_id, message_text) VALUES (?, ?, ?, ?)',
-        [messageId, conversationId, senderId, text]
-      )
-
-      // Get sender details securely from DB
-      const [senders] = await pool.execute('SELECT username, name FROM users WHERE id = ?', [senderId])
-      const senderName = senders.length > 0 ? senders[0].name : 'Unknown User'
-
-      // Construct payload to broadcast
-      const messagePayload = {
-        id: messageId,
-        conversation_id: conversationId,
-        sender_id: senderId,
-        sender_name: senderName,
-        message_text: text,
-        created_at: new Date().toISOString()
-      }
-
-      // Verify room membership before broadcasting
-      const senderRoom = `user:${senderId}`
-      const receiverRoom = `user:${receiverId}`
-      
-      // Auto-join the sender to their room if they lost membership
-      const senderSockets = await io.in(senderRoom).allSockets()
-      const receiverSockets = await io.in(receiverRoom).allSockets()
-      
-      console.log(`💬 [WebSocket Chat] Room check:`, {
-        senderRoom,
-        senderSocketCount: senderSockets.size,
-        receiverRoom,
-        receiverSocketCount: receiverSockets.size,
-        currentSocketId: socket.id,
-        currentSocketRooms: [...socket.rooms]
-      })
-      
-      // If sender's socket is not in their own room, re-join them
-      if (!socket.rooms.has(senderRoom)) {
-        socket.join(senderRoom)
-        console.log(`⚠️ [WebSocket Chat] Auto-rejoined sender ${senderId} to room ${senderRoom}`)
-      }
-
-      // Emit to Sender (so their UI updates cleanly)
-      io.to(senderRoom).emit('chat:receiveMessage', messagePayload)
-      
-      // Emit to Receiver
-      io.to(receiverRoom).emit('chat:receiveMessage', messagePayload)
-
-      // Update Receiver's Notification Bell dynamically (Simulate unread notification badge trigger)
-      io.to(`user:${receiverId}`).emit('notification:new', {
-        notification: {
-          id: messageId,
-          type: 'chat_message',
-          title: `แชทใหม่จาก ${senderName}`,
-          message: text.substring(0, 50) + (text.length > 50 ? '...' : ''),
-          icon: 'message',
-          color: 'orange',
-          is_read: false
-        },
-        unread_count_increment: 1
-      })
-
-    } catch (error) {
-      console.error('❌ [WebSocket Chat] Error saving message:', error)
-    }
-  })
-
   // Handle disconnection (log ถูกปิดเพื่อลดความรก - คง log เฉพาะ error)
   socket.on('disconnect', () => {
     // Disconnect logging disabled to reduce console clutter
@@ -384,8 +301,6 @@ app.use('/api/company-feed', companyFeedRoutes)
 app.use('/api/error-reports', errorReportsRoutes)
 app.use('/api/activity-logs', activityLogsRoutes)
 
-// Internal Chat Routes
-app.use('/api/chat', chatMessagesRoutes)
 
 // ✅ SPA Fallback: Serve React frontend in production
 // When deployed, serve the built React app and handle client-side routing

@@ -77,7 +77,7 @@ export const routePermissions: RoutePermission[] = [
   {
     path: "/document-sorting",
     label: "คัดแยกเอกสาร",
-    roles: ["admin", "service", "audit"],
+    roles: ["admin", "service", "data_entry_and_service", "audit"],
   },
   // 10. คีย์เอกสาร - admin, data_entry, data_entry_and_service
   {
