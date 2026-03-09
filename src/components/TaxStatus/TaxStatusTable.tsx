@@ -290,7 +290,7 @@ const TaxStatusTable = memo(function TaxStatusTable({
     isLoading,
     error,
   } = useQuery(
-    ['monthly-tax-data', 'tax-status', page, limit, employeeId, currentTaxMonth.year, currentTaxMonth.month, filters?.filterMode, filters?.whtStatus, filters?.pp30Status, filters?.pp30PaymentStatus, sortBy, sortOrder],
+    ['monthly-tax-data', 'tax-status', page, limit, employeeId, currentTaxMonth.year, currentTaxMonth.month, filters?.filterType, filters?.searchValue, filters?.dateFrom, filters?.dateTo, filters?.filterMode, filters?.whtStatus, filters?.pp30Status, filters?.pp30PaymentStatus, sortBy, sortOrder],
     () =>
       monthlyTaxDataService.getList({
         page,
@@ -299,6 +299,12 @@ const TaxStatusTable = memo(function TaxStatusTable({
         month: currentTaxMonth.month.toString(),
         accounting_responsible: employeeId || undefined,
         tax_registration_status: taxRegistrationStatus,
+        // ✅ Text and Date filtering
+        build: filters?.filterType === 'build' && filters?.searchValue ? filters.searchValue : undefined,
+        search: filters?.filterType === 'build' && filters?.searchValue ? filters.searchValue : undefined,
+        filterMode: filters?.filterMode,
+        dateFrom: filters?.filterType === 'date' && filters?.dateFrom ? dayjs(filters.dateFrom).format('YYYY-MM-DD') : undefined,
+        dateTo: filters?.filterType === 'date' && filters?.dateTo ? dayjs(filters.dateTo).format('YYYY-MM-DD') : undefined,
         // ✅ Server-side status filtering
         pnd_status: filters?.whtStatus?.length ? filters.whtStatus.join(',') : undefined,
         pp30_status: filters?.pp30Status?.length ? filters.pp30Status.join(',') : undefined,

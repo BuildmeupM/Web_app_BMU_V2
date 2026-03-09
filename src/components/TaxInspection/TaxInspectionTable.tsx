@@ -118,14 +118,19 @@ export type TaxInspectionTableRecord = {
 interface TaxInspectionTableProps {
   onSelectCompany?: (record: TaxInspectionTableRecord) => void
   filters?: {
+    filterType?: 'build' | 'date'
+    filterMode?: 'all' | 'wht' | 'vat'
     build?: string
     year?: string
     month?: string
     search?: string
+    searchValue?: string
     pndStatus?: string[]
     pp30Status?: string[]
     pp30PaymentStatus?: string[]
     tax_inspection_responsible?: string
+    dateFrom?: string | Date | null
+    dateTo?: string | Date | null
   }
   page?: number
   limit?: number
@@ -265,20 +270,24 @@ const TaxInspectionTable = memo(function TaxInspectionTable({
     isLoading,
     error,
   } = useQuery(
-    ['monthly-tax-data', 'tax-inspection', page, limit, filters, employeeId, currentTaxMonth.year, currentTaxMonth.month, sortBy, sortOrder],
+    ['monthly-tax-data', 'tax-inspection', page, limit, filters, employeeId, currentTaxMonth.year, currentTaxMonth.month, filters.filterType, filters.searchValue, filters.dateFrom, filters.dateTo, sortBy, sortOrder],
     () =>
       monthlyTaxDataService.getList({
         page,
         limit,
-        build: filters.build,
         year: filters.year || currentTaxMonth.year.toString(),
         month: filters.month || currentTaxMonth.month.toString(),
-        search: filters.search,
         tax_inspection_responsible: employeeId || undefined,
         // ✅ Server-side status filtering (fixes pagination + filter bug)
         pnd_status: filters.pndStatus?.join(',') || undefined,
         pp30_status: filters.pp30Status?.join(',') || undefined,
         pp30_payment_status: filters.pp30PaymentStatus?.join(',') || undefined,
+        // ✅ Text and Date filtering
+        build: filters.filterType === 'build' && filters.searchValue ? filters.searchValue : filters.build,
+        search: filters.filterType === 'build' && filters.searchValue ? filters.searchValue : filters.search,
+        filterMode: filters.filterMode,
+        dateFrom: filters.filterType === 'date' && filters.dateFrom ? dayjs(filters.dateFrom).format('YYYY-MM-DD') : undefined,
+        dateTo: filters.filterType === 'date' && filters.dateTo ? dayjs(filters.dateTo).format('YYYY-MM-DD') : undefined,
         sortBy,
         sortOrder,
       }),
@@ -538,46 +547,56 @@ const TaxInspectionTable = memo(function TaxInspectionTable({
                   )}
                 </Group>
               </Table.Th>
-              <Table.Th style={{ cursor: !isDateFilterActive ? 'pointer' : 'default', userSelect: 'none' }} onClick={() => !isDateFilterActive && onSortChange?.('pnd_sent_for_review_date')}>
-                <Group gap={4} wrap="nowrap">
-                  วันที่ส่งตรวจ ภ.ง.ด.
-                  {!isDateFilterActive && sortBy === 'pnd_sent_for_review_date' && (
-                    <Text size="xs" c="orange" fw={700}>{sortOrder === 'asc' ? '▲' : '▼'}</Text>
-                  )}
-                </Group>
-              </Table.Th>
-              <Table.Th style={{ cursor: !isDateFilterActive ? 'pointer' : 'default', userSelect: 'none' }} onClick={() => !isDateFilterActive && onSortChange?.('pnd_status')}>
-                <Group gap={4} wrap="nowrap">
-                  สถานะ ภ.ง.ด.
-                  {!isDateFilterActive && sortBy === 'pnd_status' && (
-                    <Text size="xs" c="orange" fw={700}>{sortOrder === 'asc' ? '▲' : '▼'}</Text>
-                  )}
-                </Group>
-              </Table.Th>
-              <Table.Th style={{ cursor: !isDateFilterActive ? 'pointer' : 'default', userSelect: 'none' }} onClick={() => !isDateFilterActive && onSortChange?.('pp30_sent_for_review_date')}>
-                <Group gap={4} wrap="nowrap">
-                  วันที่ส่งตรวจ ภ.พ. 30
-                  {!isDateFilterActive && sortBy === 'pp30_sent_for_review_date' && (
-                    <Text size="xs" c="orange" fw={700}>{sortOrder === 'asc' ? '▲' : '▼'}</Text>
-                  )}
-                </Group>
-              </Table.Th>
-              <Table.Th style={{ cursor: !isDateFilterActive ? 'pointer' : 'default', userSelect: 'none' }} onClick={() => !isDateFilterActive && onSortChange?.('pp30_form')}>
-                <Group gap={4} wrap="nowrap">
-                  แบบ ภพ.30
-                  {!isDateFilterActive && sortBy === 'pp30_form' && (
-                    <Text size="xs" c="orange" fw={700}>{sortOrder === 'asc' ? '▲' : '▼'}</Text>
-                  )}
-                </Group>
-              </Table.Th>
-              <Table.Th style={{ cursor: !isDateFilterActive ? 'pointer' : 'default', userSelect: 'none' }} onClick={() => !isDateFilterActive && onSortChange?.('pp30_payment_status')}>
-                <Group gap={4} wrap="nowrap">
-                  สถานะยอดชำระ ภ.พ.30
-                  {!isDateFilterActive && sortBy === 'pp30_payment_status' && (
-                    <Text size="xs" c="orange" fw={700}>{sortOrder === 'asc' ? '▲' : '▼'}</Text>
-                  )}
-                </Group>
-              </Table.Th>
+              {filters?.filterMode !== 'vat' && (
+                <Table.Th style={{ cursor: !isDateFilterActive ? 'pointer' : 'default', userSelect: 'none' }} onClick={() => !isDateFilterActive && onSortChange?.('pnd_sent_for_review_date')}>
+                  <Group gap={4} wrap="nowrap">
+                    วันที่ส่งตรวจ ภ.ง.ด.
+                    {!isDateFilterActive && sortBy === 'pnd_sent_for_review_date' && (
+                      <Text size="xs" c="orange" fw={700}>{sortOrder === 'asc' ? '▲' : '▼'}</Text>
+                    )}
+                  </Group>
+                </Table.Th>
+              )}
+              {filters?.filterMode !== 'vat' && (
+                <Table.Th style={{ cursor: !isDateFilterActive ? 'pointer' : 'default', userSelect: 'none' }} onClick={() => !isDateFilterActive && onSortChange?.('pnd_status')}>
+                  <Group gap={4} wrap="nowrap">
+                    สถานะ ภ.ง.ด.
+                    {!isDateFilterActive && sortBy === 'pnd_status' && (
+                      <Text size="xs" c="orange" fw={700}>{sortOrder === 'asc' ? '▲' : '▼'}</Text>
+                    )}
+                  </Group>
+                </Table.Th>
+              )}
+              {filters?.filterMode !== 'wht' && (
+                <Table.Th style={{ cursor: !isDateFilterActive ? 'pointer' : 'default', userSelect: 'none' }} onClick={() => !isDateFilterActive && onSortChange?.('pp30_sent_for_review_date')}>
+                  <Group gap={4} wrap="nowrap">
+                    วันที่ส่งตรวจ ภ.พ. 30
+                    {!isDateFilterActive && sortBy === 'pp30_sent_for_review_date' && (
+                      <Text size="xs" c="orange" fw={700}>{sortOrder === 'asc' ? '▲' : '▼'}</Text>
+                    )}
+                  </Group>
+                </Table.Th>
+              )}
+              {filters?.filterMode !== 'wht' && (
+                <Table.Th style={{ cursor: !isDateFilterActive ? 'pointer' : 'default', userSelect: 'none' }} onClick={() => !isDateFilterActive && onSortChange?.('pp30_form')}>
+                  <Group gap={4} wrap="nowrap">
+                    แบบ ภพ.30
+                    {!isDateFilterActive && sortBy === 'pp30_form' && (
+                      <Text size="xs" c="orange" fw={700}>{sortOrder === 'asc' ? '▲' : '▼'}</Text>
+                    )}
+                  </Group>
+                </Table.Th>
+              )}
+              {filters?.filterMode !== 'wht' && (
+                <Table.Th style={{ cursor: !isDateFilterActive ? 'pointer' : 'default', userSelect: 'none' }} onClick={() => !isDateFilterActive && onSortChange?.('pp30_payment_status')}>
+                  <Group gap={4} wrap="nowrap">
+                    สถานะยอดชำระ ภ.พ.30
+                    {!isDateFilterActive && sortBy === 'pp30_payment_status' && (
+                      <Text size="xs" c="orange" fw={700}>{sortOrder === 'asc' ? '▲' : '▼'}</Text>
+                    )}
+                  </Group>
+                </Table.Th>
+              )}
               <Table.Th>ข้อมูลผู้รับผิดชอบ</Table.Th>
               <Table.Th>จัดการ</Table.Th>
             </Table.Tr>
@@ -609,19 +628,29 @@ const TaxInspectionTable = memo(function TaxInspectionTable({
                 >
                   {record.companyName}
                 </Table.Td>
-                <Table.Td style={{ minWidth: 180, whiteSpace: 'nowrap' }}>{record.pndSentDate || '-'}</Table.Td>
-                <Table.Td style={{ minWidth: 120, whiteSpace: 'nowrap' }}>{getPndStatusBadge(record.pndStatus)}</Table.Td>
-                <Table.Td style={{ minWidth: 180, whiteSpace: 'nowrap' }}>{record.pp30SentDate || '-'}</Table.Td>
-                <Table.Td style={{ minWidth: 120, whiteSpace: 'nowrap' }}>{getPp30StatusBadge(record.pp30Status)}</Table.Td>
-                <Table.Td style={{ minWidth: 120, whiteSpace: 'nowrap' }}>
-                  {record.pp30PaymentStatus === 'has_payment' ? (
-                    <Badge color="red" variant="light">มียอดชำระ</Badge>
-                  ) : record.pp30PaymentStatus === 'no_payment' ? (
-                    <Badge color="green" variant="light">ไม่มียอดชำระ</Badge>
-                  ) : (
-                    <Text size="sm" c="dimmed">-</Text>
-                  )}
-                </Table.Td>
+                {filters?.filterMode !== 'vat' && (
+                  <Table.Td style={{ minWidth: 180, whiteSpace: 'nowrap' }}>{record.pndSentDate || '-'}</Table.Td>
+                )}
+                {filters?.filterMode !== 'vat' && (
+                  <Table.Td style={{ minWidth: 120, whiteSpace: 'nowrap' }}>{getPndStatusBadge(record.pndStatus)}</Table.Td>
+                )}
+                {filters?.filterMode !== 'wht' && (
+                  <Table.Td style={{ minWidth: 180, whiteSpace: 'nowrap' }}>{record.pp30SentDate || '-'}</Table.Td>
+                )}
+                {filters?.filterMode !== 'wht' && (
+                  <Table.Td style={{ minWidth: 120, whiteSpace: 'nowrap' }}>{getPp30StatusBadge(record.pp30Status)}</Table.Td>
+                )}
+                {filters?.filterMode !== 'wht' && (
+                  <Table.Td style={{ minWidth: 120, whiteSpace: 'nowrap' }}>
+                    {record.pp30PaymentStatus === 'has_payment' ? (
+                      <Badge color="red" variant="light">มียอดชำระ</Badge>
+                    ) : record.pp30PaymentStatus === 'no_payment' ? (
+                      <Badge color="green" variant="light">ไม่มียอดชำระ</Badge>
+                    ) : (
+                      <Text size="sm" c="dimmed">-</Text>
+                    )}
+                  </Table.Td>
+                )}
                 <Table.Td style={{ minWidth: 220, whiteSpace: 'nowrap' }}>
                   {record.performer === '-' ? (
                     <Text size="sm" c="dimmed">-</Text>

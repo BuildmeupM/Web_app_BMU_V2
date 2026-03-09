@@ -176,8 +176,10 @@ router.get('/', authenticateToken, async (req, res) => {
 
     // Filter by date (sent for review date)
     if (dateFrom || dateTo) {
-      const pndDateCol = 'DATE(mtd.pnd_sent_for_review_date)'
-      const pp30DateCol = 'DATE(mtd.pp30_sent_for_review_date)'
+      // ⚠️ สำคัญ: ฐานข้อมูลเก็บเวลาเป็น UTC ต้องชดเชยเวลาเป็นเวลาไทย (UTC+7) ก่อนแยกแค่วันที่
+      // เพื่อป้องกันไม่ให้ข้อมูลของวันที่ 6 รั่วไหลมาเป็นวันที่ 5 (เนื่องจาก 06/03/2026 01:00 TH = 05/03/2026 18:00 UTC)
+      const pndDateCol = 'DATE(DATE_ADD(mtd.pnd_sent_for_review_date, INTERVAL 7 HOUR))'
+      const pp30DateCol = 'DATE(DATE_ADD(mtd.pp30_sent_for_review_date, INTERVAL 7 HOUR))'
       
       let pndCond = ''
       let pp30Cond = ''

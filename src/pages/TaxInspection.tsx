@@ -326,18 +326,13 @@ export default function TaxInspection() {
         <TaxInspectionTable
           key={`tax-inspection-table-${location?.key || 'default'}`}
           onSelectCompany={handleSelectCompany}
-          filters={{
-            build: filters.filterType === 'build' ? filters.searchValue : undefined,
-            search: filters.filterType === 'build' ? filters.searchValue : undefined,
-            pndStatus: filters.whtStatus.length > 0 ? filters.whtStatus : undefined,
-            pp30Status: filters.pp30Status.length > 0 ? filters.pp30Status : undefined,
-            pp30PaymentStatus: filters.pp30PaymentStatus.length > 0 ? filters.pp30PaymentStatus : undefined,
-          }}
+          filters={filters}
           page={currentPage}
           limit={itemsPerPage}
           sortBy={sortBy}
           sortOrder={sortOrder}
           onSortChange={handleSortChange}
+          isDateFilterActive={filters.filterType === 'date'}
         />
 
         {/* Pagination */}

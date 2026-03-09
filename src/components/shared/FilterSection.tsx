@@ -1,9 +1,10 @@
 import { Group, Text, Radio, TextInput, MultiSelect, Button, Stack, Card, Badge, Flex, Paper } from '@mantine/core'
 import { DatePickerInput, DateValue } from '@mantine/dates'
-import { TbSearch, TbRefresh, TbFilter, TbX, TbCalendar } from 'react-icons/tb'
+import { TbSearch, TbRefresh, TbFilter, TbX, TbCalendar, TbAlertCircle } from 'react-icons/tb'
+import { notifications } from '@mantine/notifications'
 import { useState, useEffect } from 'react'
 import dayjs from 'dayjs'
-
+import 'dayjs/locale/th'
 // สถานะสำหรับการกรองข้อมูล
 const statusOptions = [
   { value: 'received_receipt', label: 'รับใบเสร็จแล้ว' },
@@ -53,11 +54,11 @@ export default function FilterSection({ onFilterChange, onRefresh, isRefreshing 
   const [pp30Status, setPp30Status] = useState<string[]>([]) // สถานะ ภ.พ.30 (เปลี่ยนชื่อจาก vatStatus)
   const [pp30PaymentStatus, setPp30PaymentStatus] = useState<string[]>([]) // สถานะยอดชำระ ภ.พ.30
 
-  // คำนวณจำนวน Active Filters
+  // คำนวณจำนวน Active Filters (นับเฉพาะฟิลด์ที่สอดคล้องกับ filterType)
   const activeFiltersCount =
     (filterMode !== 'all' ? 1 : 0) +
-    (searchValue ? 1 : 0) +
-    (dateFrom || dateTo ? 1 : 0) +
+    (filterType === 'build' && searchValue ? 1 : 0) +
+    (filterType === 'date' && (dateFrom || dateTo) ? 1 : 0) +
     (whtStatus.length > 0 ? 1 : 0) +
     (pp30Status.length > 0 ? 1 : 0) +
     (pp30PaymentStatus.length > 0 ? 1 : 0)
@@ -68,9 +69,10 @@ export default function FilterSection({ onFilterChange, onRefresh, isRefreshing 
       onFilterChange({
         filterType,
         filterMode,
-        searchValue,
-        dateFrom: dateFrom ? new Date(dateFrom) : null,
-        dateTo: dateTo ? new Date(dateTo) : null,
+        // ส่งเฉพาะค่าที่เกี่ยวข้องกับประเภทการกรองปัจจุบัน เพื่อไม่ให้ API สับสน
+        searchValue: filterType === 'build' ? searchValue : '',
+        dateFrom: filterType === 'date' && dateFrom ? new Date(dateFrom) : null,
+        dateTo: filterType === 'date' && dateTo ? new Date(dateTo) : null,
         whtStatus,
         pp30Status,
         pp30PaymentStatus,
@@ -116,7 +118,22 @@ export default function FilterSection({ onFilterChange, onRefresh, isRefreshing 
           <Text size="sm" fw={500} mb="xs">
             โหมดการแสดงผล:
           </Text>
-          <Radio.Group value={filterMode} onChange={(value) => setFilterMode(value as 'all' | 'wht' | 'vat')}>
+          <Radio.Group value={filterMode} onChange={(value) => {
+            const newMode = value as 'all' | 'wht' | 'vat';
+            setFilterMode(newMode);
+            // ถ้าย้ายกลับมา "ทั้งหมด" ขณะที่เลือก "วันที่" อยู่ ให้ปรับกลับเป็น "Build"
+            if (newMode === 'all' && filterType === 'date') {
+              setFilterType('build');
+              setDateFrom(null);
+              setDateTo(null);
+              notifications.show({
+                title: 'เปลี่ยนประเภทการกรอง',
+                message: 'ระบบเปลี่ยนกลับเป็นการค้นหาด้วยหมายเลข Build เนื่องจากโหมด "ทั้งหมด" ไม่สามารถระบุเจาะจงวันที่ได้',
+                color: 'blue',
+                icon: <TbAlertCircle size={16} />,
+              });
+            }
+          }}>
             <Group mt="xs">
               <Radio value="all" label="ทั้งหมด" />
               <Radio value="wht" label="ภาษีหัก ณ ที่จ่าย" />
@@ -131,7 +148,29 @@ export default function FilterSection({ onFilterChange, onRefresh, isRefreshing 
             <Text size="sm" fw={500} mb="xs">
               เลือกประเภทการกรอง:
             </Text>
-            <Radio.Group value={filterType} onChange={(value) => setFilterType(value as 'build' | 'date')}>
+            <Radio.Group value={filterType} onChange={(value) => {
+              const newFilterType = value as 'build' | 'date';
+              
+              if (newFilterType === 'date' && filterMode === 'all') {
+                notifications.show({
+                  title: 'จำเป็นต้องระบุโหมดการแสดงผล',
+                  message: 'กรุณาเลือกโหมดการแสดงผลเป็น "ภาษีหัก ณ ที่จ่าย" หรือ "ภาษีมูลค่าเพิ่ม" ก่อนเลือกกรองด้วยวันที่',
+                  color: 'orange',
+                  icon: <TbAlertCircle size={16} />,
+                });
+                return; // ไม่อนุญาตให้เปลี่ยนเป็น 'date' จนกว่าจะเลือกโหมด
+              }
+
+              setFilterType(newFilterType);
+              
+              // ล้างค่าข้อมูลของอีกฝั่งทิ้งป้องกันการตกค้าง
+              if (newFilterType === 'build') {
+                setDateFrom(null);
+                setDateTo(null);
+              } else {
+                setSearchValue('');
+              }
+            }}>
               <Group mt="xs">
                 <Radio value="build" label="หมายเลข Build" />
                 <Radio value="date" label="วันที่และเวลา" />
@@ -168,6 +207,8 @@ export default function FilterSection({ onFilterChange, onRefresh, isRefreshing 
                 radius="lg"
                 clearable
                 style={{ flex: 1 }}
+                locale="th"
+                valueFormat="DD MMMM YYYY"
               />
               <DatePickerInput
                 label="วันที่สิ้นสุด"
@@ -179,6 +220,8 @@ export default function FilterSection({ onFilterChange, onRefresh, isRefreshing 
                 clearable
                 style={{ flex: 1 }}
                 minDate={dateFrom || undefined}
+                locale="th"
+                valueFormat="DD MMMM YYYY"
               />
             </Group>
           )}

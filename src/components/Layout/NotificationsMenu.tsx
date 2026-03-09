@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { 
   Drawer, Badge, Text, ScrollArea, Group, Stack, Button, ActionIcon, Tooltip, 
-  Avatar, Box, Affix
+  Avatar, Box
 } from '@mantine/core'
 import { useQuery, useMutation, useQueryClient } from 'react-query'
 import { notifications as mantineNotifications } from '@mantine/notifications'
@@ -98,36 +98,42 @@ export default function NotificationsMenu() {
   // RENDER SECTIONS
   // ==========================================
   
-  // 1. Floating Button Bubble
-  const FloatButton = () => (
-    <Affix position={{ bottom: 30, right: 30 }} zIndex={1000}>
-      <Tooltip label={botUnreadCount > 0 ? `แจ้งเตือนใหม่ (${botUnreadCount})` : 'ระบบแจ้งเตือน'}>
-        <div style={{ position: 'relative', cursor: 'pointer', display: 'inline-block' }} onClick={() => setOpened(true)}>
-          <Button
-            variant={botUnreadCount > 0 ? "filled" : "light"}
-            color={botUnreadCount > 0 ? "orange" : "blue"}
-            leftSection={<TbBell size={20} />}
-            radius="xl"
-            size="md"
-            style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}
+  // 1. Header Button
+  const HeaderButton = () => (
+    <Tooltip label={botUnreadCount > 0 ? `แจ้งเตือนใหม่ (${botUnreadCount})` : 'ระบบแจ้งเตือน'}>
+      <div style={{ position: 'relative', cursor: 'pointer', display: 'inline-block' }} onClick={() => setOpened(true)}>
+        <ActionIcon
+          variant={botUnreadCount > 0 ? "light" : "subtle"}
+          color={botUnreadCount > 0 ? "orange" : "gray"}
+          size="lg"
+          radius="xl"
+          style={{
+            transition: 'all 0.2s ease',
+          }}
+          styles={{
+            root: {
+              '&:hover': {
+                 backgroundColor: botUnreadCount > 0 ? 'rgba(255, 107, 53, 0.2)' : 'rgba(0, 0, 0, 0.05)',
+              },
+            },
+          }}
+        >
+          <TbBell size={22} />
+        </ActionIcon>
+        {botUnreadCount > 0 && (
+          <Badge
+            size="sm" color="red" variant="filled"
+            style={{
+              position: 'absolute', top: -2, right: -2, minWidth: 18, height: 18,
+              padding: '0 4px', fontSize: '10px', fontWeight: 700,
+              boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+            }}
           >
-            แจ้งเตือน
-          </Button>
-          {botUnreadCount > 0 && (
-            <Badge
-              size="sm" color="red" variant="filled"
-              style={{
-                position: 'absolute', top: -8, right: -8, minWidth: 22, height: 22,
-                padding: '0 6px', fontSize: '11px', fontWeight: 700,
-                boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
-              }}
-            >
-              {botUnreadCount > 99 ? '99+' : botUnreadCount}
-            </Badge>
-          )}
-        </div>
-      </Tooltip>
-    </Affix>
+            {botUnreadCount > 99 ? '99+' : botUnreadCount}
+          </Badge>
+        )}
+      </div>
+    </Tooltip>
   )
 
 
@@ -136,7 +142,7 @@ export default function NotificationsMenu() {
   // ==========================================
   return (
     <>
-      {FloatButton()}
+      {HeaderButton()}
 
       <Drawer
         opened={opened}
