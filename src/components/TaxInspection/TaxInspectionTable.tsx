@@ -125,7 +125,7 @@ interface TaxInspectionTableProps {
     month?: string
     search?: string
     searchValue?: string
-    pndStatus?: string[]
+    whtStatus?: string[]
     pp30Status?: string[]
     pp30PaymentStatus?: string[]
     tax_inspection_responsible?: string
