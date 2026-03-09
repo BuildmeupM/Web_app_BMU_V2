@@ -521,7 +521,13 @@ router.put('/team-statuses/:id', authenticateToken, authorize('admin', 'registra
                 sort_order = COALESCE(?, sort_order),
                 is_active = COALESCE(?, is_active)
              WHERE id = ?`,
-            [name, color, sort_order, is_active, id]
+            [
+                name !== undefined ? name : null,
+                color !== undefined ? color : null,
+                sort_order !== undefined ? sort_order : null,
+                is_active !== undefined ? is_active : null,
+                id
+            ]
         )
 
         const [updated] = await pool.execute(

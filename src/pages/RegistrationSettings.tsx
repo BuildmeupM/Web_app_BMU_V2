@@ -11,15 +11,16 @@ import {
     ColorSwatch, ColorPicker,
 } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
+import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd'
 import {
     TbPlus, TbTrash, TbEdit, TbCheck, TbX, TbBuildingBank, TbReceiptTax,
     TbShieldCheck, TbUsers, TbSettings, TbListDetails, TbChevronRight,
-    TbUsersGroup,
+    TbUsersGroup, TbGripVertical,
 } from 'react-icons/tb'
 import {
     WorkType, Department,
-    getWorkTypes, createWorkType, updateWorkType, deleteWorkType,
-    createSubType, updateSubType, deleteSubType,
+    getWorkTypes, createWorkType, updateWorkType, deleteWorkType, reorderWorkTypes,
+    createSubType, updateSubType, deleteSubType, reorderSubTypes,
     TeamStatus, getTeamStatuses, createTeamStatus, updateTeamStatus, deleteTeamStatus,
 } from '../services/registrationWorkService'
 
@@ -193,6 +194,75 @@ export default function RegistrationSettings() {
 
     const totalSubs = workTypes.reduce((sum, t) => sum + t.sub_types.length, 0)
     const DeptIcon = currentDept.icon
+
+    // ============================================================
+    // Drag and Drop Handler
+    // ============================================================
+    const handleDragEnd = async (result: DropResult) => {
+        if (!result.destination) return
+
+        const sourceId = result.source.droppableId
+        const destinationId = result.destination.droppableId
+        const sourceIndex = result.source.index
+        const destinationIndex = result.destination.index
+
+        if (sourceId === destinationId && sourceIndex === destinationIndex) {
+            return
+        }
+
+        if (sourceId === 'work-types-list' && destinationId === 'work-types-list') {
+            const newWorkTypes = Array.from(workTypes)
+            const [movedItem] = newWorkTypes.splice(sourceIndex, 1)
+            newWorkTypes.splice(destinationIndex, 0, movedItem)
+
+            setWorkTypes(newWorkTypes)
+
+            const itemsToUpdate = newWorkTypes.map((t, idx) => ({
+                id: t.id,
+                sort_order: idx + 1
+            }))
+
+            try {
+                await reorderWorkTypes(itemsToUpdate)
+                notifications.show({ title: 'สำเร็จ', message: 'เรียงลำดับประเภทงานใหม่แล้ว', color: 'green' })
+            } catch (error: any) {
+                console.error('Reorder types error:', error)
+                notifications.show({ title: 'เกิดข้อผิดพลาด', message: 'ไม่สามารถเปลี่ยนลำดับได้', color: 'red' })
+                fetchTypes()
+            }
+        } else if (sourceId.startsWith('sub-types-') && sourceId === destinationId) {
+            const typeId = sourceId.replace('sub-types-', '')
+            const typeIndex = workTypes.findIndex(t => t.id === typeId)
+            
+            if (typeIndex === -1) return
+
+            const newWorkTypes = Array.from(workTypes)
+            const typeTarget = { ...newWorkTypes[typeIndex] }
+            const newSubTypes = Array.from(typeTarget.sub_types)
+            
+            const [movedItem] = newSubTypes.splice(sourceIndex, 1)
+            newSubTypes.splice(destinationIndex, 0, movedItem)
+            
+            typeTarget.sub_types = newSubTypes
+            newWorkTypes[typeIndex] = typeTarget
+            
+            setWorkTypes(newWorkTypes)
+
+            const itemsToUpdate = newSubTypes.map((sub, idx) => ({
+                id: sub.id,
+                sort_order: idx + 1
+            }))
+
+            try {
+                await reorderSubTypes(itemsToUpdate)
+                notifications.show({ title: 'สำเร็จ', message: 'เรียงลำดับรายการย่อยใหม่แล้ว', color: 'green' })
+            } catch (error: any) {
+                console.error('Reorder sub-types error:', error)
+                notifications.show({ title: 'เกิดข้อผิดพลาด', message: 'ไม่สามารถเปลี่ยนลำดับได้', color: 'red' })
+                fetchTypes()
+            }
+        }
+    }
 
     // ============================================================
     // Team Status Handlers
@@ -491,11 +561,25 @@ export default function RegistrationSettings() {
 
                                     {/* Work Types List */}
                                     {!loading && workTypes.length > 0 && (
-                                        <Accordion variant="separated" radius="md">
-                                            {workTypes.map(type => (
-                                                <Accordion.Item key={type.id} value={type.id}>
-                                                    <Accordion.Control>
-                                                        <Group justify="space-between" wrap="nowrap" pr="xs">
+                                        <DragDropContext onDragEnd={handleDragEnd}>
+                                            <Droppable droppableId="work-types-list" type="work-types">
+                                                {(provided) => (
+                                                    <div {...provided.droppableProps} ref={provided.innerRef}>
+                                                        <Accordion variant="separated" radius="md">
+                                                            {workTypes.map((type, index) => (
+                                                                <Draggable key={type.id} draggableId={type.id} index={index}>
+                                                                    {(provided) => (
+                                                                        <Accordion.Item 
+                                                                            value={type.id}
+                                                                            ref={provided.innerRef}
+                                                                            {...provided.draggableProps}
+                                                                            style={{
+                                                                                ...provided.draggableProps.style,
+                                                                                zIndex: 1, // Fix drag overlap
+                                                                            }}
+                                                                        >
+                                                                            <Accordion.Control>
+                                                                                <Group justify="space-between" wrap="nowrap" pr="xs">
                                                             {editingTypeId === type.id ? (
                                                                 <Group gap="xs" style={{ flex: 1 }} onClick={(e) => e.stopPropagation()}>
                                                                     <TextInput
@@ -518,6 +602,9 @@ export default function RegistrationSettings() {
                                                                 </Group>
                                                             ) : (
                                                                 <Group gap="sm">
+                                                                    <div {...provided.dragHandleProps} onClick={e => e.stopPropagation()}>
+                                                                        <TbGripVertical size={20} color="gray" style={{ cursor: 'grab' }} />
+                                                                    </div>
                                                                     <ThemeIcon size={28} radius="md" variant="light" color={currentDept.color}>
                                                                         <TbListDetails size={16} />
                                                                     </ThemeIcon>
@@ -547,16 +634,28 @@ export default function RegistrationSettings() {
                                                         </Group>
                                                     </Accordion.Control>
                                                     <Accordion.Panel>
-                                                        <Stack gap="xs">
-                                                            {/* Sub types list */}
-                                                            {type.sub_types.map(sub => (
-                                                                <Group key={sub.id} gap="xs" justify="space-between"
-                                                                    style={{
-                                                                        padding: '8px 14px',
-                                                                        borderRadius: 8,
-                                                                        backgroundColor: '#f8f9fa',
-                                                                    }}
-                                                                >
+                                                        <Droppable droppableId={`sub-types-${type.id}`} type={`sub-types-${type.id}`}>
+                                                            {(provided) => (
+                                                                <div {...provided.droppableProps} ref={provided.innerRef}>
+                                                                    <Stack gap="xs">
+                                                                        {/* Sub types list */}
+                                                                        {type.sub_types.map((sub, subIdx) => (
+                                                                            <Draggable key={sub.id} draggableId={sub.id} index={subIdx}>
+                                                                                {(provided) => (
+                                                                                    <div
+                                                                                        ref={provided.innerRef}
+                                                                                        {...provided.draggableProps}
+                                                                                        style={{
+                                                                                            ...provided.draggableProps.style,
+                                                                                        }}
+                                                                                    >
+                                                                                        <Group gap="xs" justify="space-between"
+                                                                                            style={{
+                                                                                                padding: '8px 14px',
+                                                                                                borderRadius: 8,
+                                                                                                backgroundColor: '#f8f9fa',
+                                                                                            }}
+                                                                                        >
                                                                     {editingSubId === sub.id ? (
                                                                         <Group gap="xs" style={{ flex: 1 }}>
                                                                             <TextInput
@@ -579,7 +678,12 @@ export default function RegistrationSettings() {
                                                                         </Group>
                                                                     ) : (
                                                                         <>
-                                                                            <Text size="sm">• {sub.name}</Text>
+                                                                            <Group gap="xs">
+                                                                                <div {...provided.dragHandleProps}>
+                                                                                    <TbGripVertical size={16} color="gray" style={{ cursor: 'grab' }} />
+                                                                                </div>
+                                                                                <Text size="sm">• {sub.name}</Text>
+                                                                            </Group>
                                                                             <Group gap={4}>
                                                                                 <ActionIcon size="xs" variant="subtle" color="blue" onClick={() => {
                                                                                     setEditingSubId(sub.id)
@@ -594,9 +698,13 @@ export default function RegistrationSettings() {
                                                                         </>
                                                                     )}
                                                                 </Group>
-                                                            ))}
+                                                            </div>
+                                                        )}
+                                                    </Draggable>
+                                                ))}
+                                                {provided.placeholder}
 
-                                                            {type.sub_types.length === 0 && (
+                                                {type.sub_types.length === 0 && (
                                                                 <Text size="xs" c="dimmed" ta="center" py="xs">
                                                                     ยังไม่มีรายการย่อย
                                                                 </Text>
@@ -625,11 +733,21 @@ export default function RegistrationSettings() {
                                                                 </Button>
                                                             </Group>
                                                         </Stack>
-                                                    </Accordion.Panel>
-                                                </Accordion.Item>
-                                            ))}
-                                        </Accordion>
-                                    )}
+                                                    </div>
+                                                )}
+                                            </Droppable>
+                                        </Accordion.Panel>
+                                    </Accordion.Item>
+                                )}
+                            </Draggable>
+                        ))}
+                        {provided.placeholder}
+                    </Accordion>
+                </div>
+            )}
+        </Droppable>
+    </DragDropContext>
+)}
                                 </Stack>
                             </Box>
                         </Card>
