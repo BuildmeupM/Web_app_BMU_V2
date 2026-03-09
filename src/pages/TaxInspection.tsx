@@ -2,10 +2,9 @@ import { useState, useCallback, lazy, Suspense, useEffect, useRef } from 'react'
 import { useLocation } from 'react-router-dom'
 import { Container, Stack, Group, Text, Card } from '@mantine/core'
 import { TbQuestionMark, TbBell, TbRefresh, TbCheck } from 'react-icons/tb'
-import { useQuery, useQueryClient } from 'react-query'
+import { useQueryClient } from 'react-query'
 import { notifications } from '@mantine/notifications'
 import { useAuthStore } from '../store/authStore'
-import { getCurrentTaxMonth } from '../utils/taxMonthUtils'
 import SummaryCard from '../components/TaxInspection/SummaryCard'
 import FilterSection, { FilterValues } from '../components/shared/FilterSection'
 import TaxInspectionTable from '../components/TaxInspection/TaxInspectionTable'
@@ -14,8 +13,6 @@ import LoadingSpinner from '../components/Loading/LoadingSpinner'
 import AcknowledgmentModal from '../components/TaxInspection/AcknowledgmentModal'
 import { hasAcknowledgmentData, getSectionsWithData } from '../utils/taxAcknowledgmentUtils'
 import type { RecordWithAcknowledgmentFields } from '../utils/taxAcknowledgmentUtils'
-import monthlyTaxDataService from '../services/monthlyTaxDataService'
-import dayjs from 'dayjs'
 
 // ✅ Performance Optimization: Lazy load TaxInspectionForm (4115 lines) เพื่อลด initial bundle size
 const TaxInspectionForm = lazy(() => import('../components/TaxInspection/TaxInspectionForm'))
@@ -57,6 +54,9 @@ export default function TaxInspection() {
   const lastUpdateTimeRef = useRef<Date>(new Date())
   const isRefreshingRef = useRef(false)
 
+  const [totalItems, setTotalItems] = useState(0)
+  const [totalPages, setTotalPages] = useState(1)
+
   // Get employee_id from logged-in user (for tax_inspection_responsible filter)
   const employeeId = user?.employee_id || null
 
@@ -74,53 +74,15 @@ export default function TaxInspection() {
   }, [user, employeeId, _hasHydrated])
 
   // Get current tax month (ย้อนหลัง 1 เดือนจากเดือนปฏิทินปัจจุบัน)
-  const currentTaxMonth = getCurrentTaxMonth()
+  // (Left empty: no longer need currentTaxMonth for fetching in the parent wrapper unless it's sent to children, but TaxInspectionTable handles it internally anyway)
 
-  // Fetch data for pagination - filter by tax_inspection_responsible and tax month
-  const { data: taxDataResponse, isLoading, error } = useQuery(
-    ['monthly-tax-data', 'tax-inspection', currentPage, itemsPerPage, filters, employeeId, currentTaxMonth.year, currentTaxMonth.month, sortBy, sortOrder],
-    () =>
-      monthlyTaxDataService.getList({
-        page: currentPage,
-        limit: itemsPerPage,
-        build: filters.filterType === 'build' && filters.searchValue ? filters.searchValue : undefined,
-        search: filters.filterType === 'build' && filters.searchValue ? filters.searchValue : undefined,
-        dateFrom: filters.filterType === 'date' && filters.dateFrom ? dayjs(filters.dateFrom).format('YYYY-MM-DD') : undefined,
-        dateTo: filters.filterType === 'date' && filters.dateTo ? dayjs(filters.dateTo).format('YYYY-MM-DD') : undefined,
-        filterMode: filters.filterMode,
-        year: currentTaxMonth.year.toString(),
-        month: currentTaxMonth.month.toString(),
-        tax_inspection_responsible: employeeId || undefined,
-        // ✅ Server-side status filtering (fixes pagination + filter bug)
-        pnd_status: filters.whtStatus?.length > 0 ? filters.whtStatus.join(',') : undefined,
-        pp30_status: filters.pp30Status?.length > 0 ? filters.pp30Status.join(',') : undefined,
-        pp30_payment_status: filters.pp30PaymentStatus?.length > 0 ? filters.pp30PaymentStatus.join(',') : undefined,
-        sortBy,
-        sortOrder,
-      }),
-    {
-      keepPreviousData: true,
-      enabled: !!employeeId && _hasHydrated, // ✅ BUG-168: รอ hydration เสร็จก่อน enable query
-      refetchOnMount: true, // ✅ BUG-168: refetch เมื่อ navigate ไปหน้าอื่น
-    }
-  )
-
-  // ✅ BUG-168: Debug logging เพื่อตรวจสอบว่า query ทำงานหรือไม่
-  useEffect(() => {
-    if (import.meta.env.DEV) {
-      console.log('[TaxInspection] Query state:', {
-        enabled: !!employeeId && _hasHydrated,
-        isLoading,
-        hasData: !!taxDataResponse,
-        dataLength: taxDataResponse?.data?.length || 0,
-        error: error ? (error as Error)?.message || 'Unknown error' : null,
-        timestamp: new Date().toISOString(),
-      })
-    }
-  }, [employeeId, _hasHydrated, isLoading, taxDataResponse, error])
-
-  const totalItems = taxDataResponse?.pagination.total || 0
-  const totalPages = taxDataResponse?.pagination.totalPages || 1
+  // Handle pagination change from TaxInspectionTable
+  // ⚠️ สำคัญ: อัพเดทเฉพาะ total และ totalPages เท่านั้น
+  // ไม่ต้องอัพเดท page และ limit เพราะผู้ใช้อาจจะเปลี่ยนเองผ่าน PaginationSection
+  const handlePaginationChange = useCallback((pagination: { total: number; totalPages: number; page: number; limit: number }) => {
+    setTotalItems(pagination.total)
+    setTotalPages(pagination.totalPages)
+  }, [])
 
   const handleSelectCompany = (record: { build: string } & RecordWithAcknowledgmentFields) => {
     // ⚠️ แสดง acknowledgment modal เฉพาะเมื่อมีข้อมูล สอบถาม/ตอบกลับ (inquiry) เท่านั้น
@@ -148,7 +110,7 @@ export default function TaxInspection() {
     setAcknowledgmentRecord(null)
   }
 
-  const handleFilterChange = (newFilters: FilterValues) => {
+  const handleFilterChange = useCallback((newFilters: FilterValues) => {
     setFilters(newFilters)
     setCurrentPage(1) // Reset to first page when filters change
     
@@ -158,7 +120,7 @@ export default function TaxInspection() {
       setSortBy(dateSortCol)
       setSortOrder('asc')
     }
-  }
+  }, [])
 
   const handleSortChange = (field: string) => {
     if (sortBy === field) {
@@ -329,6 +291,7 @@ export default function TaxInspection() {
           filters={filters}
           page={currentPage}
           limit={itemsPerPage}
+          onPaginationChange={handlePaginationChange}
           sortBy={sortBy}
           sortOrder={sortOrder}
           onSortChange={handleSortChange}

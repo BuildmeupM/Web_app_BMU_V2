@@ -134,6 +134,7 @@ interface TaxInspectionTableProps {
   }
   page?: number
   limit?: number
+  onPaginationChange?: (pagination: { total: number; totalPages: number; page: number; limit: number }) => void
   sortBy?: string
   sortOrder?: 'asc' | 'desc'
   onSortChange?: (field: string) => void
@@ -218,6 +219,7 @@ const TaxInspectionTable = memo(function TaxInspectionTable({
   filters = {},
   page = 1,
   limit = 20,
+  onPaginationChange,
   sortBy = 'build',
   sortOrder = 'asc',
   onSortChange,
@@ -342,6 +344,18 @@ const TaxInspectionTable = memo(function TaxInspectionTable({
       })
     }
   }, [employeeId, _hasHydrated, isLoading, taxDataResponse, error])
+
+  // Send pagination data to parent component when data changes
+  useEffect(() => {
+    if (taxDataResponse?.pagination && onPaginationChange) {
+      onPaginationChange({
+        total: taxDataResponse.pagination.total,
+        totalPages: taxDataResponse.pagination.totalPages,
+        page: taxDataResponse.pagination.page,
+        limit: taxDataResponse.pagination.limit,
+      })
+    }
+  }, [taxDataResponse?.pagination, onPaginationChange])
 
   // Transform API data to table format
   const tableData = useMemo(() => {

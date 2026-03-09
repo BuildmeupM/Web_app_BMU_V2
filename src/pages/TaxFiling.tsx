@@ -113,7 +113,19 @@ export default function TaxFiling() {
     setAcknowledgmentRecord(null)
   }
 
-  // Handle refresh from FilterSection - ใช้ queryClient.refetchQueries โดยตรง
+  const handleFilterChange = useCallback((newFilters: FilterValues) => {
+    setFilters(newFilters)
+    setCurrentPage(1)
+    
+    // ตั้งค่าเรียงลำดับใหม่เมื่อเลือกประเภทวันที่ (ให้เรียงตามวันที่ขึ้นก่อน - น้อยไปมาก)
+    if (newFilters.filterType === 'date') {
+      const dateSortCol = newFilters.filterMode === 'vat' ? 'pp30_sent_for_review_date' : 'pnd_sent_for_review_date';
+      setSortBy(dateSortCol)
+      setSortOrder('asc')
+    }
+  }, [])
+
+  // Handle refreshจาก FilterSection - ใช้ queryClient.refetchQueries โดยตรง
   // ทำแบบ staggered (list ก่อน แล้วค่อย summary) เพื่อลด burst request และโอกาสโดน 429
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true)
@@ -268,18 +280,7 @@ export default function TaxFiling() {
         {/* ✅ BUG-168: เพิ่ม key prop เพื่อ force re-render เมื่อ route เปลี่ยน (ใช้ location.key เพื่อให้เปลี่ยนทุกครั้งที่ navigate) */}
         <SummaryCard key={`tax-filing-summary-${location?.key || 'default'}`} />
 
-        {/* Filter Section */}
-        <FilterSection onFilterChange={(newFilters: FilterValues) => {
-          setFilters(newFilters)
-          setCurrentPage(1)
-          
-          // ตั้งค่าเรียงลำดับใหม่เมื่อเลือกประเภทวันที่ (ให้เรียงตามวันที่ขึ้นก่อน - น้อยไปมาก)
-          if (newFilters.filterType === 'date') {
-            const dateSortCol = newFilters.filterMode === 'vat' ? 'pp30_sent_for_review_date' : 'pnd_sent_for_review_date';
-            setSortBy(dateSortCol)
-            setSortOrder('asc')
-          }
-        }} onRefresh={handleRefresh} isRefreshing={isRefreshing} />
+        <FilterSection onFilterChange={handleFilterChange} onRefresh={handleRefresh} isRefreshing={isRefreshing} />
 
         {/* Table */}
         {/* ✅ BUG-168: เพิ่ม key prop เพื่อ force re-render เมื่อ route เปลี่ยน (ใช้ location.key เพื่อให้เปลี่ยนทุกครั้งที่ navigate) */}

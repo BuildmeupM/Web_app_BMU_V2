@@ -63,7 +63,6 @@ export default function TaxStatus() {
   })
 
   // ⏱️ Track last update time for auto-refresh feature
-  const [lastUpdateTime, setLastUpdateTime] = useState<Date>(new Date())
   const [elapsedSeconds, setElapsedSeconds] = useState(0)
   const autoRefreshTriggeredRef = useRef(false)
   const lastUpdateTimeRef = useRef<Date>(new Date())
@@ -107,7 +106,18 @@ export default function TaxStatus() {
     setPendingBuildId(undefined)
     setAcknowledgmentSections([])
     setAcknowledgmentRecord(null)
+    setAcknowledgmentRecord(null)
   }, [pendingBuildId])
+
+  const handleFilterChange = useCallback((newFilters: FilterValues) => {
+    setFilters(newFilters)
+    setCurrentPage(1)
+    // Reset sort when switching to date filter (date sorting conflicts with column sort)
+    if (newFilters.filterType === 'date') {
+      setSortBy('build')
+      setSortOrder('asc')
+    }
+  }, [])
 
   // Handle refresh from FilterSection - ใช้ queryClient.refetchQueries โดยตรง
   // ทำแบบ staggered (list ก่อน แล้วค่อย summary) เพื่อลด burst request และโอกาสโดน 429
@@ -155,7 +165,6 @@ export default function TaxStatus() {
 
       // ⏱️ Reset last update time after successful refresh
       const newUpdateTime = new Date()
-      setLastUpdateTime(newUpdateTime)
       lastUpdateTimeRef.current = newUpdateTime
       setElapsedSeconds(0)
       autoRefreshTriggeredRef.current = false
@@ -219,7 +228,6 @@ export default function TaxStatus() {
   useEffect(() => {
     // Reset timer when component mounts
     const newUpdateTime = new Date()
-    setLastUpdateTime(newUpdateTime)
     lastUpdateTimeRef.current = newUpdateTime
     setElapsedSeconds(0)
     autoRefreshTriggeredRef.current = false
@@ -303,16 +311,7 @@ export default function TaxStatus() {
         {/* Summary Card */}
         <SummaryCard />
 
-        {/* Filter Section */}
-        <FilterSection onFilterChange={(newFilters: FilterValues) => {
-          setFilters(newFilters)
-          setCurrentPage(1)
-          // Reset sort when switching to date filter (date sorting conflicts with column sort)
-          if (newFilters.filterType === 'date') {
-            setSortBy('build')
-            setSortOrder('asc')
-          }
-        }} onRefresh={handleRefresh} isRefreshing={isRefreshing} />
+        <FilterSection onFilterChange={handleFilterChange} onRefresh={handleRefresh} isRefreshing={isRefreshing} />
 
         {/* Table */}
         {/* ✅ BUG-167: เพิ่ม key prop เพื่อ force re-render เมื่อ route เปลี่ยน */}

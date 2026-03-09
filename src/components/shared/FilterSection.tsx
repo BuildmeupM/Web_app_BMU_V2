@@ -130,6 +130,14 @@ export default function FilterSection({ onFilterChange, onRefresh, isRefreshing 
                 icon: <TbAlertCircle size={16} />,
               });
             }
+
+            // ล้างค่าข้อมูลของอีกฝั่งทิ้งป้องกันการตกค้างเมื่อเปลี่ยนโหมด
+            if (newMode === 'vat') {
+              setWhtStatus([])
+            } else if (newMode === 'wht') {
+              setPp30Status([])
+              setPp30PaymentStatus([])
+            }
           }}>
             <Group mt="xs">
               <Radio value="all" label="ทั้งหมด" />
@@ -222,41 +230,47 @@ export default function FilterSection({ onFilterChange, onRefresh, isRefreshing 
             </Group>
           )}
 
-          <MultiSelect
-            label="สถานะ WHT"
-            placeholder="เลือกสถานะที่ต้องการกรอง"
-            value={whtStatus}
-            onChange={setWhtStatus}
-            data={statusOptions}
-            radius="lg"
-            searchable
-            clearable
-            style={{ minWidth: 225 }}
-          />
+          {filterMode !== 'vat' && (
+            <MultiSelect
+              label="สถานะ WHT"
+              placeholder="เลือกสถานะที่ต้องการกรอง"
+              value={whtStatus}
+              onChange={setWhtStatus}
+              data={statusOptions}
+              radius="lg"
+              searchable
+              clearable
+              style={{ minWidth: 225 }}
+            />
+          )}
 
-          <MultiSelect
-            label="สถานะ ภ.พ.30"
-            placeholder="เลือกสถานะที่ต้องการกรอง"
-            value={pp30Status}
-            onChange={setPp30Status}
-            data={statusOptions}
-            radius="lg"
-            searchable
-            clearable
-            style={{ minWidth: 225 }}
-          />
+          {filterMode !== 'wht' && (
+            <MultiSelect
+              label="สถานะ ภ.พ.30"
+              placeholder="เลือกสถานะที่ต้องการกรอง"
+              value={pp30Status}
+              onChange={setPp30Status}
+              data={statusOptions}
+              radius="lg"
+              searchable
+              clearable
+              style={{ minWidth: 225 }}
+            />
+          )}
 
-          <MultiSelect
-            label="สถานะยอดชำระ ภ.พ.30"
-            placeholder="เลือกสถานะที่ต้องการกรอง"
-            value={pp30PaymentStatus}
-            onChange={setPp30PaymentStatus}
-            data={paymentStatusOptions}
-            radius="lg"
-            searchable
-            clearable
-            style={{ minWidth: 225 }}
-          />
+          {filterMode !== 'wht' && (
+            <MultiSelect
+              label="สถานะยอดชำระ ภ.พ.30"
+              placeholder="เลือกสถานะที่ต้องการกรอง"
+              value={pp30PaymentStatus}
+              onChange={setPp30PaymentStatus}
+              data={paymentStatusOptions}
+              radius="lg"
+              searchable
+              clearable
+              style={{ minWidth: 225 }}
+            />
+          )}
 
           <Button
             leftSection={<TbRefresh size={18} />}
