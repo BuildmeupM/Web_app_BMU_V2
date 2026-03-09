@@ -44,6 +44,7 @@ import documentRequestsRoutes from './routes/content/document-requests.js'
 import companyFeedRoutes from './routes/content/company-feed.js'
 import errorReportsRoutes from './routes/system/error-reports.js'
 import activityLogsRoutes from './routes/system/activity-logs.js'
+import internalChatsRoutes from './routes/internal-chats.js'
 
 import { apiRateLimiter } from './middleware/rateLimiter.js'
 import cacheMiddleware from './middleware/cache.js'
@@ -187,6 +188,24 @@ io.on('connection', (socket) => {
     // Disconnect logging disabled to reduce console clutter
   })
 
+  // 💬 INTERNAL CHAT: Join a specific chat room (by build)
+  socket.on('join:chat', (data) => {
+    if (data && data.build) {
+      const room = `chat:build:${data.build}`
+      socket.join(room)
+      console.log(`💬 [WebSocket] Client joined chat room: ${room} (socket: ${socket.id})`)
+    }
+  })
+
+  // 💬 INTERNAL CHAT: Leave a specific chat room
+  socket.on('leave:chat', (data) => {
+    if (data && data.build) {
+      const room = `chat:build:${data.build}`
+      socket.leave(room)
+      console.log(`💬 [WebSocket] Client left chat room: ${room} (socket: ${socket.id})`)
+    }
+  })
+
   // Handle connection errors
   socket.on('error', (error) => {
     console.error('❌ [WebSocket] Socket error:', {
@@ -300,6 +319,7 @@ app.use('/api/document-requests', documentRequestsRoutes)
 app.use('/api/company-feed', companyFeedRoutes)
 app.use('/api/error-reports', errorReportsRoutes)
 app.use('/api/activity-logs', activityLogsRoutes)
+app.use('/api/internal-chats', internalChatsRoutes)
 
 
 // ✅ SPA Fallback: Serve React frontend in production

@@ -50,8 +50,6 @@ export default function TaxInspectionForm({
   buildId,
   readOnlyGeneralInfo = false,
   sourcePage = 'taxInspection',
-  wht_filer_employee_id: _wht_filer_employee_id, // Deprecated - ไม่ได้ใช้แล้ว
-  vat_filer_employee_id: _vat_filer_employee_id, // Deprecated - ไม่ได้ใช้แล้ว
 }: TaxInspectionFormProps) {
   // ✅ BUG-158: เพิ่ม logging เพื่อตรวจสอบว่า Modal props ถูกส่งถูกต้องหรือไม่
   useEffect(() => {
@@ -520,12 +518,12 @@ export default function TaxInspectionForm({
   }, [clientData?.tax_registration_status])
 
   // Options for Confirm Income Status (สำหรับหน้าสถานะยื่นภาษี)
-  const confirmIncomeOptions = [
+  const confirmIncomeOptions = useMemo(() => [
     { value: 'customer_confirmed', label: 'ลูกค้าคอนเฟิร์ม', color: '#4caf50' }, // Green
     { value: 'no_confirmation_needed', label: 'ไม่ต้องคอนเฟิร์มลูกค้า', color: '#ff6b35' }, // Orange
     { value: 'waiting_customer', label: 'รอลูกค้าคอนเฟิร์ม', color: '#ffc107' }, // Yellow
     { value: 'customer_request_change', label: 'ลูกค้าให้แก้รายได้', color: '#f44336' }, // Red
-  ]
+  ], [])
 
   // Options for Confirm Expenses (คอนเฟิร์มค่าใช้จ่าย) - แนบของยื่นแบบภาษีมูลค่าเพิ่ม
   const confirmExpensesOptions = [
@@ -901,7 +899,7 @@ export default function TaxInspectionForm({
         })
       }
     }
-  }, [taxData, opened, hasInitialized])
+  }, [taxData, opened, hasInitialized, buildId, confirmIncomeOptions, sourcePage])
 
   // ✅ Auto-fill timestamp เมื่อเลือกสถานะ "ส่งลูกค้าแล้ว" สำหรับหน้าสถานะยื่นภาษี
   // ⚠️ สำคัญ: สำหรับหน้าสถานะยื่นภาษี (taxStatus) เมื่อเลือกสถานะ "ส่งลูกค้าแล้ว" ให้กรอก timestamp อัตโนมัติ
@@ -1202,7 +1200,7 @@ export default function TaxInspectionForm({
 
               // ⚠️ สำคัญ: รีเซ็ต/รีเฟรชข้อมูลทั้งหมดจาก backend ใหม่
               const detailQueryKey = buildId ? ['monthly-tax-data', buildId, currentYear, currentMonth] : null
-              const refetchPromises: Promise<any>[] = []
+              const refetchPromises: Promise<unknown>[] = []
 
               // ⚠️ สำคัญ: Invalidate และ refetch list queries ทั้งหมด
               const allListKeys = [
@@ -2283,7 +2281,7 @@ export default function TaxInspectionForm({
         vatFilerEmployee: '-',
       }
     }
-  }, [clientData, taxData, employeesData, buildId, formatEmployeeNameWithId, formatDate]) // Recalculate when employeesData changes
+  }, [clientData, taxData, buildId, formatEmployeeNameWithId, formatDate])
 
   // Helper function to format date from YYYY-MM-DD HH:mm:ss to dd/mm/yyyy hh:mm:ss
   // ⚠️ สำคัญ: แสดงเวลาตามที่เก็บในฐานข้อมูลเลยโดยไม่แปลง timezone (ตัดการบวก offset ทั้งหมด)
@@ -4855,6 +4853,7 @@ export default function TaxInspectionForm({
             </Group>
           </Card>
         </Stack>
+
       </Modal>
     )
   }

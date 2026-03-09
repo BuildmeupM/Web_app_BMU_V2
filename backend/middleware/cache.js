@@ -45,6 +45,7 @@ export function cacheMiddleware(req, res, next) {
     '/api/auth',
     '/health',
     '/api/clients/accounting-fees-export',
+    '/api/internal-chats', // Realtime chat data should not be cached
   ]
 
   const shouldSkipCache = skipCachePaths.some(path => req.path.startsWith(path))

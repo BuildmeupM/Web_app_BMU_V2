@@ -6,6 +6,7 @@ import InternalLayout from './components/Layout/InternalLayout'
 import RegistrationLayout from './components/Layout/RegistrationLayout'
 import MarketingLayout from './components/Layout/MarketingLayout'
 import EquipmentLayout from './components/Layout/EquipmentLayout'
+import InternalChatLayout from './components/Layout/InternalChatLayout'
 import ProtectedRoute from './components/Auth/ProtectedRoute'
 import LoadingFallback from './components/Loading/LoadingFallback'
 import LoadingSpinner from './components/Loading/LoadingSpinner'
@@ -50,6 +51,7 @@ const EquipmentBorrowing = lazy(() => import('./pages/EquipmentBorrowing'))
 const ErrorReport = lazy(() => import('./pages/ErrorReport'))
 const AccountingDashboard = lazy(() => import('./pages/AccountingDashboard'))
 const ActivityLogDashboard = lazy(() => import('./pages/ActivityLogDashboard'))
+const InternalChatPage = lazy(() => import('./pages/InternalChatPage'))
 
 function App() {
   const { isAuthenticated, _hasHydrated, setHasHydrated } = useAuthStore()
@@ -366,6 +368,25 @@ function App() {
                     <AccountingFeeNotifications />
                   </Suspense>
                 </ProtectedRoute>
+              }
+            />
+          </Route>
+
+          {/* Internal Chat Layout — แยก layout แชทลูกค้า */}
+          <Route
+            path="/internal-chats"
+            element={
+              <ProtectedRoute allowedRoles={['admin', 'registration', 'marketing']}>
+                <InternalChatLayout />
+              </ProtectedRoute>
+            }
+          >
+            <Route
+              index
+              element={
+                <Suspense fallback={<LoadingFallback />}>
+                  <InternalChatPage />
+                </Suspense>
               }
             />
           </Route>

@@ -4,6 +4,7 @@
  * พร้อมปุ่มแก้ไขแยกสำหรับ: ค่ารายเดือน, DBD, Credentials
  */
 
+import { useState } from 'react'
 import {
   Card,
   Stack,
@@ -14,10 +15,12 @@ import {
   SimpleGrid,
   Textarea,
   Table,
+  ActionIcon,
+  Tooltip,
 } from '@mantine/core'
 import {
   TbBuilding, TbMapPin, TbFileInvoice, TbEdit, TbCalendar,
-  TbKey, TbShieldCheck, TbBuildingBank, TbPlus,
+  TbKey, TbShieldCheck, TbBuildingBank, TbPlus, TbEye, TbEyeOff,
 } from 'react-icons/tb'
 import { Client } from '../../services/clientsService'
 import { useAuthStore } from '../../store/authStore'
@@ -100,6 +103,7 @@ const InfoItem = ({ label, value }: { label: string; value: string | React.React
 export default function ClientDetail({ client, onEdit, onEditDbdInfo, onEditCredentials }: ClientDetailProps) {
   const { user } = useAuthStore()
   const canEdit = user?.role === 'admin' || user?.role === 'hr' || user?.role === 'data_entry' || user?.role === 'data_entry_and_service' || user?.role === 'audit'
+  const [showPasswords, setShowPasswords] = useState(false)
 
   const dbd = client.dbd_info
   const boi = client.boi_info
@@ -247,13 +251,35 @@ export default function ClientDetail({ client, onEdit, onEditDbdInfo, onEditCred
 
       {/* Card 8: รหัสผู้ใช้หน่วยงานราชการ */}
       <Card withBorder radius="lg" p="lg" style={cardStyle}>
-        <SectionHeader
-          icon={TbKey}
-          title="รหัสผู้ใช้หน่วยงานราชการ"
-          onAction={canEdit ? onEditCredentials : undefined}
-          actionLabel={creds ? 'แก้ไขรหัสผู้ใช้' : 'เพิ่มรหัสผู้ใช้'}
-          actionIcon={creds ? <TbEdit size={14} /> : <TbPlus size={14} />}
-        />
+        <Group justify="space-between" mb="md">
+          <Group gap="xs">
+            <TbKey size={20} color="#ff6b35" />
+            <Text fw={700} size="lg" c="#ff6b35">รหัสผู้ใช้หน่วยงานราชการ</Text>
+          </Group>
+          <Group gap="xs">
+            <Tooltip label={showPasswords ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'}>
+              <ActionIcon
+                variant="light"
+                color={showPasswords ? 'red' : 'gray'}
+                size="sm"
+                onClick={() => setShowPasswords(p => !p)}
+              >
+                {showPasswords ? <TbEyeOff size={14} /> : <TbEye size={14} />}
+              </ActionIcon>
+            </Tooltip>
+            {canEdit && onEditCredentials && (
+              <Button
+                leftSection={creds ? <TbEdit size={14} /> : <TbPlus size={14} />}
+                variant="light"
+                color="orange"
+                size="xs"
+                onClick={onEditCredentials}
+              >
+                {creds ? 'แก้ไขรหัสผู้ใช้' : 'เพิ่มรหัสผู้ใช้'}
+              </Button>
+            )}
+          </Group>
+        </Group>
         {creds ? (
           <Table withTableBorder withColumnBorders striped>
             <Table.Thead>
@@ -274,7 +300,14 @@ export default function ClientDetail({ client, onEdit, onEditDbdInfo, onEditCred
                 <Table.Tr key={label}>
                   <Table.Td fw={500}>{label}</Table.Td>
                   <Table.Td>{u || '-'}</Table.Td>
-                  <Table.Td>{pass || '-'}</Table.Td>
+                  <Table.Td>
+                    {pass
+                      ? showPasswords
+                        ? pass
+                        : <Text size="sm" style={{ letterSpacing: '2px' }}>{'•'.repeat(Math.min(pass.length, 10))}</Text>
+                      : '-'
+                    }
+                  </Table.Td>
                 </Table.Tr>
               ))}
             </Table.Tbody>

@@ -5,9 +5,9 @@
  */
 
 import { Outlet, useLocation, NavLink, useNavigate } from 'react-router-dom'
-import { AppShell, Box, Stack, Text, NavLink as MantineNavLink, Group, Avatar, Menu, Button, ActionIcon, Tooltip, Badge } from '@mantine/core'
+import { AppShell, Box, Stack, Text, NavLink as MantineNavLink, Group, Avatar, Menu, ActionIcon, Tooltip, Badge } from '@mantine/core'
 import { Suspense, useState } from 'react'
-import { TbCoin, TbLogout, TbUser, TbArrowLeft, TbHome, TbChartBar, TbRobot, TbBellRinging, TbClipboardData } from 'react-icons/tb'
+import { TbCoin, TbLogout, TbUser, TbArrowLeft, TbHome, TbChartBar, TbRobot, TbBellRinging } from 'react-icons/tb'
 import { useAuthStore } from '../../store/authStore'
 import { authService } from '../../services/authService'
 import LoadingSpinner from '../Loading/LoadingSpinner'
@@ -140,7 +140,7 @@ export default function InternalLayout() {
 
                         {/* Menu Items */}
                         {internalMenuItems
-                            .filter((item) => !('allowedRoles' in item) || (item as any).allowedRoles?.includes(user?.role || ''))
+                            .filter((item) => !('allowedRoles' in item) || (item as { allowedRoles?: string[] }).allowedRoles?.includes(user?.role || ''))
                             .map((item) => {
                                 const Icon = item.icon
                                 return (

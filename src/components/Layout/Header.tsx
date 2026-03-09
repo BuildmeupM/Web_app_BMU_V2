@@ -6,14 +6,13 @@ import {
   Avatar,
   ActionIcon,
   Popover,
-  Stack,
   SimpleGrid,
   UnstyledButton,
   Box,
   Divider,
   Burger,
 } from '@mantine/core'
-import { TbLogout, TbUser, TbApps, TbCoin, TbClipboardData, TbPalette, TbDeviceLaptop } from 'react-icons/tb'
+import { TbLogout, TbUser, TbApps, TbCoin, TbClipboardData, TbPalette, TbDeviceLaptop, TbMessageCircle } from 'react-icons/tb'
 import { useAuthStore } from '../../store/authStore'
 import { useNavigate } from 'react-router-dom'
 import { authService } from '../../services/authService'
@@ -58,6 +57,15 @@ const internalSystemItems = [
     bgColor: 'linear-gradient(135deg, #00897b 0%, #26a69a 100%)',
     openInNewTab: true,
     allowedRoles: [] as string[], // ทุก role เข้าได้
+  },
+  {
+    icon: TbMessageCircle,
+    label: 'แชทลูกค้า',
+    path: '/internal-chats',
+    color: '#ff9800',
+    bgColor: 'linear-gradient(135deg, #ff9800 0%, #ffc107 100%)',
+    openInNewTab: true,
+    allowedRoles: ['admin', 'registration', 'marketing'] as string[],
   },
 ]
 

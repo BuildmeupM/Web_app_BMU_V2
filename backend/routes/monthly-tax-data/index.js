@@ -150,8 +150,21 @@ router.get('/', authenticateToken, async (req, res) => {
     if (pnd_status) {
       const statuses = pnd_status.split(',').map(s => s.trim()).filter(Boolean)
       if (statuses.length > 0) {
-        whereConditions.push(`mtd.pnd_status IN (${statuses.map(() => '?').join(',')})`)
-        queryParams.push(...statuses)
+        const queryStatuses = statuses.filter(s => s !== 'not_started')
+        const hasNotStarted = statuses.includes('not_started')
+        
+        const conditions = []
+        if (queryStatuses.length > 0) {
+           conditions.push(`mtd.pnd_status IN (${queryStatuses.map(() => '?').join(',')})`)
+           queryParams.push(...queryStatuses)
+        }
+        if (hasNotStarted) {
+           conditions.push(`(mtd.pnd_status IS NULL OR mtd.pnd_status = '')`)
+        }
+        
+        if (conditions.length > 0) {
+           whereConditions.push(`(${conditions.join(' OR ')})`)
+        }
       }
     }
 
@@ -160,8 +173,21 @@ router.get('/', authenticateToken, async (req, res) => {
     if (pp30_status) {
       const statuses = pp30_status.split(',').map(s => s.trim()).filter(Boolean)
       if (statuses.length > 0) {
-        whereConditions.push(`mtd.pp30_form IN (${statuses.map(() => '?').join(',')})`)
-        queryParams.push(...statuses)
+        const queryStatuses = statuses.filter(s => s !== 'not_started')
+        const hasNotStarted = statuses.includes('not_started')
+
+        const conditions = []
+        if (queryStatuses.length > 0) {
+           conditions.push(`mtd.pp30_form IN (${queryStatuses.map(() => '?').join(',')})`)
+           queryParams.push(...queryStatuses)
+        }
+        if (hasNotStarted) {
+           conditions.push(`(mtd.pp30_form IS NULL OR mtd.pp30_form = '')`)
+        }
+
+        if (conditions.length > 0) {
+           whereConditions.push(`(${conditions.join(' OR ')})`)
+        }
       }
     }
 
@@ -169,8 +195,21 @@ router.get('/', authenticateToken, async (req, res) => {
     if (pp30_payment_status) {
       const statuses = pp30_payment_status.split(',').map(s => s.trim()).filter(Boolean)
       if (statuses.length > 0) {
-        whereConditions.push(`mtd.pp30_payment_status IN (${statuses.map(() => '?').join(',')})`)
-        queryParams.push(...statuses)
+        const queryStatuses = statuses.filter(s => s !== 'not_started')
+        const hasNotStarted = statuses.includes('not_started')
+
+        const conditions = []
+        if (queryStatuses.length > 0) {
+           conditions.push(`mtd.pp30_payment_status IN (${queryStatuses.map(() => '?').join(',')})`)
+           queryParams.push(...queryStatuses)
+        }
+        if (hasNotStarted) {
+           conditions.push(`(mtd.pp30_payment_status IS NULL OR mtd.pp30_payment_status = '')`)
+        }
+
+        if (conditions.length > 0) {
+           whereConditions.push(`(${conditions.join(' OR ')})`)
+        }
       }
     }
 
