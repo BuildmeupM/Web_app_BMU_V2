@@ -121,14 +121,11 @@ export default function FilterSection({ onFilterChange, onRefresh, isRefreshing 
           <Radio.Group value={filterMode} onChange={(value) => {
             const newMode = value as 'all' | 'wht' | 'vat';
             setFilterMode(newMode);
-            // ถ้าย้ายกลับมา "ทั้งหมด" ขณะที่เลือก "วันที่" อยู่ ให้ปรับกลับเป็น "Build"
+            // แจ้งเตือนผู้ใช้เล็กน้อยว่าเมื่อใช้โหมด 'ทั้งหมด' ระบบจะอิงตัวกรองวันที่จากฝั่ง WHT (ภาษีหัก ณ ที่จ่าย) เป็นหลัก
             if (newMode === 'all' && filterType === 'date') {
-              setFilterType('build');
-              setDateFrom(null);
-              setDateTo(null);
               notifications.show({
-                title: 'เปลี่ยนประเภทการกรอง',
-                message: 'ระบบเปลี่ยนกลับเป็นการค้นหาด้วยหมายเลข Build เนื่องจากโหมด "ทั้งหมด" ไม่สามารถระบุเจาะจงวันที่ได้',
+                title: 'โหมดแสดงผลทั้งหมด',
+                message: 'เมื่อกรองด้วยวันที่ในหมวดทั้งหมด ระบบจะใช้การอ้างอิงวันที่ส่งตรวจจาก ภ.ง.ด. เป็นหลัก',
                 color: 'blue',
                 icon: <TbAlertCircle size={16} />,
               });
@@ -153,12 +150,11 @@ export default function FilterSection({ onFilterChange, onRefresh, isRefreshing 
               
               if (newFilterType === 'date' && filterMode === 'all') {
                 notifications.show({
-                  title: 'จำเป็นต้องระบุโหมดการแสดงผล',
-                  message: 'กรุณาเลือกโหมดการแสดงผลเป็น "ภาษีหัก ณ ที่จ่าย" หรือ "ภาษีมูลค่าเพิ่ม" ก่อนเลือกกรองด้วยวันที่',
-                  color: 'orange',
-                  icon: <TbAlertCircle size={16} />,
+                  title: 'โหมดแสดงผลทั้งหมด',
+                  message: 'ระบบจะทำการอ้างอิงและกรองข้อมูลด้วยวันที่ส่งตรวจ ภ.ง.ด. เป็นหลัก',
+                  color: 'blue',
+                  icon: <TbCalendar size={16} />,
                 });
-                return; // ไม่อนุญาตให้เปลี่ยนเป็น 'date' จนกว่าจะเลือกโหมด
               }
 
               setFilterType(newFilterType);

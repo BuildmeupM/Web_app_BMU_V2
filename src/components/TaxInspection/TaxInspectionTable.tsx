@@ -279,7 +279,7 @@ const TaxInspectionTable = memo(function TaxInspectionTable({
         month: filters.month || currentTaxMonth.month.toString(),
         tax_inspection_responsible: employeeId || undefined,
         // ✅ Server-side status filtering (fixes pagination + filter bug)
-        pnd_status: filters.pndStatus?.join(',') || undefined,
+        pnd_status: filters.whtStatus?.join(',') || undefined,
         pp30_status: filters.pp30Status?.join(',') || undefined,
         pp30_payment_status: filters.pp30PaymentStatus?.join(',') || undefined,
         // ✅ Text and Date filtering

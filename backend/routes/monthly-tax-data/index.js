@@ -206,10 +206,12 @@ router.get('/', authenticateToken, async (req, res) => {
         else if (dateFrom) queryParams.push(dateFrom)
         else if (dateTo) queryParams.push(dateTo)
       } else {
-        whereConditions.push(`((${pndCond}) OR (${pp30Cond}))`)
-        if (dateFrom && dateTo) queryParams.push(dateFrom, dateTo, dateFrom, dateTo)
-        else if (dateFrom) queryParams.push(dateFrom, dateFrom)
-        else if (dateTo) queryParams.push(dateTo, dateTo)
+        // ✨ FEATURE: User requested that when filterMode is 'all' and Date is picked, 
+        // the system should prioritize filtering strictly by WHT (PND) date first.
+        whereConditions.push(`(${pndCond})`)
+        if (dateFrom && dateTo) queryParams.push(dateFrom, dateTo)
+        else if (dateFrom) queryParams.push(dateFrom)
+        else if (dateTo) queryParams.push(dateTo)
       }
     }
 
