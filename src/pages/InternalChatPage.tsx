@@ -132,16 +132,30 @@ function RecentActivityItem({ item, isSelected, onClick }: RecentActivityItemPro
   )
 }
 
+import { useSearchParams } from 'react-router-dom'
+
 // ---------------------------------------------------------------------------
 // Main Page
 // ---------------------------------------------------------------------------
 export default function InternalChatPage() {
   const queryClient = useQueryClient()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const urlBuild = searchParams.get('build')
+  const urlCompanyName = searchParams.get('companyName')
+  
   const [searchQuery, setSearchQuery] = useState('')
   const [debouncedSearchQuery] = useDebouncedValue(searchQuery, 300)
-  const [selectedBuild, setSelectedBuild] = useState<string | null>(null)
-  const [selectedCompanyName, setSelectedCompanyName] = useState<string | null>(null)
+  const [selectedBuild, setSelectedBuild] = useState<string | null>(urlBuild)
+  const [selectedCompanyName, setSelectedCompanyName] = useState<string | null>(urlCompanyName || null)
   const [activeTab, setActiveTab] = useState<string | null>('recent')
+
+  // Sync state with URL params
+  useEffect(() => {
+    if (urlBuild && urlBuild !== selectedBuild) {
+      setSelectedBuild(urlBuild)
+      setSelectedCompanyName(urlCompanyName || '')
+    }
+  }, [urlBuild, urlCompanyName, selectedBuild])
 
   // Fetch client list for "ลูกค้าทั้งหมด" tab
   const { data: clients = [], isLoading: isLoadingClients } = useQuery(
@@ -168,7 +182,8 @@ export default function InternalChatPage() {
   const handleSelectClient = useCallback((build: string, companyName: string) => {
     setSelectedBuild(build)
     setSelectedCompanyName(companyName)
-  }, [])
+    setSearchParams({ build, companyName })
+  }, [setSearchParams])
 
   // Real-time: when any new message arrives, update sidebar optimistically WITHOUT a network round-trip
   useEffect(() => {
@@ -407,7 +422,11 @@ export default function InternalChatPage() {
                     variant="subtle"
                     color="gray"
                     size="md"
-                    onClick={() => { setSelectedBuild(null); setSelectedCompanyName(null) }}
+                    onClick={() => { 
+                      setSelectedBuild(null); 
+                      setSelectedCompanyName(null);
+                      setSearchParams({});
+                    }}
                   >
                     <TbArrowLeft size={20} />
                   </ActionIcon>

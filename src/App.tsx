@@ -376,7 +376,7 @@ function App() {
           <Route
             path="/internal-chats"
             element={
-              <ProtectedRoute allowedRoles={['admin', 'registration', 'marketing']}>
+              <ProtectedRoute>
                 <InternalChatLayout />
               </ProtectedRoute>
             }

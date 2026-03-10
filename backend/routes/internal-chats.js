@@ -212,7 +212,7 @@ router.post('/', authenticateToken, async (req, res) => {
               notifMsg.substring(0, 500) + (notifMsg.length > 500 ? '...' : ''),
               'TbAt',
               'orange',
-              `/internal/internal-chats`,
+              `/internal-chats?build=${build}&companyName=${encodeURIComponent(companyName)}`,
               'internal_client_chat',
               result.insertId,
               JSON.stringify({ build, company_name: companyName })

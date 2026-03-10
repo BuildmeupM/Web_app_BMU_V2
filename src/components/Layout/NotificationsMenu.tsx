@@ -229,7 +229,27 @@ export default function NotificationsMenu() {
                             <Button fullWidth size="sm" variant={notif.is_read ? "light" : "filled"} color={notif.color || 'blue'} mt="md" onClick={() => {
                               if (!notif.is_read) markAsReadMutation.mutate(notif.id)
                               setOpened(false)
-                              navigate(notif.action_url)
+                              
+                              let targetUrl = notif.action_url
+                              // Backward compatibility for old notifications
+                              if (targetUrl === '/internal/internal-chats') {
+                                try {
+                                  if (notif.metadata) {
+                                    const meta = typeof notif.metadata === 'string' ? JSON.parse(notif.metadata) : notif.metadata;
+                                    if (meta.build) {
+                                      targetUrl = `/internal-chats?build=${meta.build}&companyName=${encodeURIComponent(meta.company_name || '')}`
+                                    } else {
+                                      targetUrl = '/internal-chats'
+                                    }
+                                  } else {
+                                    targetUrl = '/internal-chats'
+                                  }
+                                } catch (e) {
+                                  targetUrl = '/internal-chats'
+                                }
+                              }
+                              
+                              navigate(targetUrl)
                             }}>
                               {notif.action_label || 'ดำเนินการคลิกที่นี่'}
                             </Button>

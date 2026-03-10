@@ -19,8 +19,9 @@ import {
   TextInput,
   Modal,
 } from '@mantine/core'
-import { TbSend, TbMessageCircle, TbBuildingCommunity, TbInfoCircle, TbCornerUpLeft, TbTrash } from 'react-icons/tb'
+import { TbSend, TbMessageCircle, TbBuildingCommunity, TbInfoCircle, TbCornerUpLeft, TbTrash, TbSearch, TbX } from 'react-icons/tb'
 import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from 'react-query'
+import { useDebouncedValue } from '@mantine/hooks'
 import { notifications } from '@mantine/notifications'
 import dayjs from 'dayjs'
 import 'dayjs/locale/th'
@@ -47,10 +48,11 @@ interface MemoizedChatMessageProps {
   onReply: (chat: InternalChatMessage) => void
   onDelete: (id: number) => void
   isDeleting: boolean
+  isHighlighted?: boolean
 }
 
 const MemoizedChatMessage = React.memo(({
-  chat, isMine, isOptimistic, mentionPattern, onReply, onDelete, isDeleting
+  chat, isMine, isOptimistic, mentionPattern, onReply, onDelete, isDeleting, isHighlighted
 }: MemoizedChatMessageProps) => {
   const [hovered, setHovered] = useState(false)
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
@@ -77,10 +79,15 @@ const MemoizedChatMessage = React.memo(({
 
   return (
     <Box
+      id={`chat-message-${chat.id}`}
       style={{
         display: 'flex',
         flexDirection: 'column',
         alignItems: isMine ? 'flex-end' : 'flex-start',
+        backgroundColor: isHighlighted ? 'rgba(255, 107, 53, 0.15)' : 'transparent',
+        transition: 'background-color 0.5s ease',
+        padding: isHighlighted ? '8px' : '0',
+        borderRadius: isHighlighted ? '8px' : '0',
       }}
     >
       <Group gap="xs" mb={4} align="flex-end" dir={isMine ? 'rtl' : 'ltr'}>
@@ -427,6 +434,10 @@ export default function ChatRoom({ build, companyName }: ChatRoomProps) {
   )
   const employees = React.useMemo(() => employeesData?.employees || [], [employeesData?.employees])
 
+  const [searchQuery, setSearchQuery] = useState('')
+  const [debouncedSearchQuery] = useDebouncedValue(searchQuery, 300)
+  const [isSearchOpen, setIsSearchOpen] = useState(false)
+
   // Build dynamic regex for matching mentions
   const mentionPattern = React.useMemo(() => {
     if (!employees || employees.length === 0) return null
@@ -468,6 +479,41 @@ export default function ChatRoom({ build, companyName }: ChatRoomProps) {
     }
     return allChats
   }, [fetchResult])
+
+  const searchResults = React.useMemo(() => {
+    if (!debouncedSearchQuery.trim()) return []
+    const lowerQuery = debouncedSearchQuery.toLowerCase()
+    return chats.filter(chat => 
+      chat.message.toLowerCase().includes(lowerQuery) || 
+      chat.sender_name?.toLowerCase().includes(lowerQuery)
+    ).slice(0, 15) // limit to recent 15 matches 
+  }, [chats, debouncedSearchQuery])
+
+  const [highlightedMessageId, setHighlightedMessageId] = useState<number | null>(null)
+
+  const scrollToMessage = useCallback((messageId: number) => {
+    setIsSearchOpen(false)
+    setSearchQuery('')
+    
+    setTimeout(() => {
+      const element = document.getElementById(`chat-message-${messageId}`)
+      if (element && viewportRef.current) {
+        // Find position of element relative to viewport
+        const viewport = viewportRef.current
+        const elementRect = element.getBoundingClientRect()
+        const viewportRect = viewport.getBoundingClientRect()
+        
+        // Scroll to center
+        viewport.scrollTo({
+          top: viewport.scrollTop + (elementRect.top - viewportRect.top) - (viewport.clientHeight / 2) + (elementRect.height / 2),
+          behavior: 'smooth'
+        })
+
+        setHighlightedMessageId(messageId)
+        setTimeout(() => setHighlightedMessageId(null), 2500)
+      }
+    }, 100)
+  }, [])
 
   // Real-time: Join socket room and listen for new chat messages
   useEffect(() => {
@@ -651,6 +697,29 @@ export default function ChatRoom({ build, companyName }: ChatRoomProps) {
     }
   )
 
+  const HighlightText = ({ text = '', highlight = '' }) => {
+    if (!highlight.trim()) {
+      return <span>{text}</span>;
+    }
+    const regex = new RegExp(`(${highlight.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+    const parts = text.split(regex);
+    return (
+      <span>
+        {parts.map((part, i) => 
+          regex.test(part) ? (
+            <Text key={i} span c="orange.7" bg="orange.1" fw={700} style={{ borderRadius: '2px', padding: '0 2px' }}>
+              {part}
+            </Text>
+          ) : (
+            <span key={i}>{part}</span>
+          )
+        )}
+      </span>
+    );
+  };
+
+  // --- Render Functions ---
+
   const handleSend = useCallback((payload: { message: string; reply_to_id?: number | null; mentioned_employee_ids?: string[] }) => {
     if (!build) return
     sendMessageMutation.mutate({ build, ...payload })
@@ -698,14 +767,69 @@ export default function ChatRoom({ build, companyName }: ChatRoomProps) {
               </Badge>
             </Group>
           </Box>
-          <Button
-            leftSection={<TbInfoCircle size={18} />}
-            variant="light"
-            color="orange"
-            onClick={() => setIsClientDetailOpen(true)}
-          >
-            ดูข้อมูลลูกค้า
-          </Button>
+          <Group gap="sm">
+            {isSearchOpen ? (
+              <Popover opened={debouncedSearchQuery.trim().length > 0 && searchResults.length > 0} position="bottom-end" shadow="md" width={420}>
+                <Popover.Target>
+                  <TextInput
+                    placeholder="ค้นหาข้อความ..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.currentTarget.value)}
+                    rightSection={
+                      <ActionIcon size="md" variant="transparent" color="gray" onClick={() => { setIsSearchOpen(false); setSearchQuery(''); }}>
+                        <TbX size={16} />
+                      </ActionIcon>
+                    }
+                    size="md"
+                    radius="md"
+                    w={{ base: 250, sm: 400 }}
+                    styles={{ input: { backgroundColor: '#f8f9fa' } }}
+                    autoFocus
+                  />
+                </Popover.Target>
+                <Popover.Dropdown p={4}>
+                  <ScrollArea h={Math.min(searchResults.length * 75, 450)}>
+                    {searchResults.map(msg => (
+                      <UnstyledButton
+                        key={msg.id}
+                        w="100%"
+                        p="md"
+                        onClick={() => scrollToMessage(msg.id)}
+                        style={{ borderBottom: '1px solid #eee', transition: 'background-color 0.2s', '&:hover': { backgroundColor: '#f8f9fa' } }}
+                      >
+                        <Group gap="md" wrap="nowrap" align="flex-start">
+                          <Avatar radius="xl" size="md" color="orange">
+                            {msg.sender_name?.charAt(0) || 'U'}
+                          </Avatar>
+                          <Box style={{ flex: 1, overflow: 'hidden' }}>
+                            <Group justify="space-between" wrap="nowrap" align="center">
+                              <Text size="sm" fw={600} lineClamp={1}>{msg.sender_name}</Text>
+                              <Text size="xs" c="dimmed" style={{ whiteSpace: 'nowrap' }}>{dayjs(msg.created_at).locale('th').format('DD MMM HH:mm')}</Text>
+                            </Group>
+                            <Text size="sm" c="dark.7" lineClamp={2} mt={4}>
+                              <HighlightText text={msg.message} highlight={debouncedSearchQuery} />
+                            </Text>
+                          </Box>
+                        </Group>
+                      </UnstyledButton>
+                    ))}
+                  </ScrollArea>
+                </Popover.Dropdown>
+              </Popover>
+            ) : (
+              <ActionIcon variant="light" color="orange" size="lg" radius="md" onClick={() => setIsSearchOpen(true)}>
+                <TbSearch size={20} />
+              </ActionIcon>
+            )}
+            <Button
+              leftSection={<TbInfoCircle size={18} />}
+              variant="light"
+              color="orange"
+              onClick={() => setIsClientDetailOpen(true)}
+            >
+              ดูข้อมูลลูกค้า
+            </Button>
+          </Group>
         </Group>
       </Box>
 
@@ -769,6 +893,7 @@ export default function ChatRoom({ build, companyName }: ChatRoomProps) {
                     onReply={setReplyTo}
                     onDelete={deleteMessageMutation.mutate}
                     isDeleting={deleteMessageMutation.isLoading && deleteMessageMutation.variables === chat.id}
+                    isHighlighted={highlightedMessageId === chat.id}
                   />
                 </React.Fragment>
               )

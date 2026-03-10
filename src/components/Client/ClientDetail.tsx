@@ -291,7 +291,7 @@ export default function ClientDetail({ client, onEdit, onEditDbdInfo, onEditCred
             </Table.Thead>
             <Table.Tbody>
               {[
-                { label: 'e-Filing (สรรพากร)', user: creds.efiling_username, pass: creds.efiling_password },
+                { label: 'E-Filing (สรรพากร)', user: creds.efiling_username, pass: creds.efiling_password },
                 { label: 'ประกันสังคม (SSO)', user: creds.sso_username, pass: creds.sso_password },
                 { label: 'กรมพัฒนาธุรกิจ (DBD)', user: creds.dbd_username, pass: creds.dbd_password },
                 { label: 'กยศ. (Student Loan)', user: creds.student_loan_username, pass: creds.student_loan_password },

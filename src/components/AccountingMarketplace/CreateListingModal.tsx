@@ -142,7 +142,7 @@ const CreateListingModal = ({ opened, onClose }: CreateListingModalProps) => {
       form.reset()
       onClose()
     },
-    onError: (error: any) => {
+    onError: (error: Error & { response?: { data?: { message?: string } } }) => {
       notifications.show({
         title: 'เกิดข้อผิดพลาด',
         message: error.response?.data?.message || 'ไม่สามารถสร้างรายการขายงานได้',

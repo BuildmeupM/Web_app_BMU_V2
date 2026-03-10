@@ -66,7 +66,7 @@ export default function AgencyCredentialsForm({
                 form.reset()
             }
         }
-    }, [opened, data])
+    }, [opened, data, form])
 
     const handleSubmit = async (values: typeof form.values) => {
         const submitData: AgencyCredentials = {
@@ -96,7 +96,7 @@ export default function AgencyCredentialsForm({
             <form onSubmit={form.onSubmit(handleSubmit)}>
                 <Stack gap="md">
                     {[
-                        { label: 'e-Filing (สรรพากร)', prefix: 'efiling' },
+                        { label: 'E-Filing (สรรพากร)', prefix: 'efiling' },
                         { label: 'ประกันสังคม (SSO)', prefix: 'sso' },
                         { label: 'กรมพัฒนาธุรกิจ (DBD)', prefix: 'dbd' },
                         { label: 'กยศ. (Student Loan)', prefix: 'student_loan' },

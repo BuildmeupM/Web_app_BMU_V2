@@ -65,7 +65,7 @@ const internalSystemItems = [
     color: '#ff9800',
     bgColor: 'linear-gradient(135deg, #ff9800 0%, #ffc107 100%)',
     openInNewTab: true,
-    allowedRoles: ['admin', 'registration', 'marketing'] as string[],
+    allowedRoles: [] as string[],
   },
 ]
 
