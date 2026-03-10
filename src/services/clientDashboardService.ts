@@ -35,6 +35,16 @@ export interface ProvinceClient {
     province: string | null
 }
 
+export interface CategoryClient {
+    build: string
+    company_name: string
+    company_status: string
+    business_type: string | null
+    business_subcategory: string | null
+    province: string | null
+    tax_registration_status: string | null
+}
+
 export interface DistrictCount {
     district: string
     count: number
@@ -116,6 +126,17 @@ const clientDashboardService = {
         } catch {
             return null
         }
+    },
+
+    /**
+     * Get clients in a specific business category (for drill-down)
+     */
+    async getCategoryClients(category: string, subcategory?: string): Promise<CategoryClient[]> {
+        const response = await api.get<{ success: boolean; data: CategoryClient[] }>(
+            '/clients/category-clients',
+            { params: { category, ...(subcategory ? { subcategory } : {}) } }
+        )
+        return response.data.data
     },
 }
 

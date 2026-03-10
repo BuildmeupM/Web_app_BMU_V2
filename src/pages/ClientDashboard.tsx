@@ -58,14 +58,20 @@ import {
     getRegion,
     getCompanyStatusBadgeColor,
 } from '../components/ClientDashboard/constants'
-import { DonutChart, HorizontalBarChart, StatCard, ProvinceDrawer } from '../components/ClientDashboard'
+import { DonutChart, HorizontalBarChart, StatCard, ProvinceDrawer, BusinessCategoryDrawer, CompanySizeDrawer, TaxStatusDrawer } from '../components/ClientDashboard'
 
 // ─── Main Component ────────────────────────────────────────
 
 export default function ClientDashboard() {
     const [selectedProvince, setSelectedProvince] = useState<string | null>(null)
     const [drawerOpened, setDrawerOpened] = useState(false)
+    const [categoryDrawerOpened, setCategoryDrawerOpened] = useState(false)
     const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
+    const [selectedCategoryColor, setSelectedCategoryColor] = useState('#26c6da')
+    const [sizeDrawerOpened, setSizeDrawerOpened] = useState(false)
+    const [selectedSize, setSelectedSize] = useState<string | null>(null)
+    const [taxStatusDrawerOpened, setTaxStatusDrawerOpened] = useState(false)
+    const [selectedTaxStatus, setSelectedTaxStatus] = useState<string | null>(null)
     const [selectedStatuses, setSelectedStatuses] = useState<string[]>([])
 
     const { data: dashboard, isLoading, error, refetch, isFetching } = useQuery(
@@ -162,8 +168,8 @@ export default function ClientDashboard() {
             }))
     }, [dashboard])
 
-    // Business subcategory data (filtered by selected category)
-    const businessSubcategoryData = useMemo(() => {
+    // Subcategory breakdown for the currently selected category
+    const subcategoryDataForSelected = useMemo(() => {
         if (!dashboard || !selectedCategory) return []
         const SUBCAT_COLORS = [
             '#42a5f5', '#ff8a65', '#81c784', '#ba68c8', '#4dd0e1',
@@ -171,13 +177,14 @@ export default function ClientDashboard() {
         ]
         return dashboard.byBusinessSubcategory
             .filter(d => d.business_category === selectedCategory)
-            .slice(0, 10)
+            .slice(0, 20)
             .map((d, i) => ({
                 label: d.business_subcategory,
                 value: d.count,
                 color: SUBCAT_COLORS[i % SUBCAT_COLORS.length],
             }))
     }, [dashboard, selectedCategory])
+
 
     // ─── Handlers ────────────────────────────────────
 
@@ -355,7 +362,10 @@ export default function ClientDashboard() {
                             <ThemeIcon size={32} radius="xl" variant="light" color="green">
                                 <TbFileInvoice size={18} />
                             </ThemeIcon>
-                            <Text fw={700} size="sm">สถานะจดภาษี</Text>
+                            <Box>
+                                <Text fw={700} size="sm">สถานะจดภาษี</Text>
+                                <Text size="xs" c="dimmed">คลิกเพื่อดูรายชื่อบริษัท</Text>
+                            </Box>
                         </Group>
                         {isLoading ? (
                             <Stack gap="xs">
@@ -372,6 +382,7 @@ export default function ClientDashboard() {
                                         withBorder
                                         style={{
                                             borderLeft: `3px solid ${t.color}`,
+                                            cursor: 'pointer',
                                             transition: 'all 0.2s ease',
                                         }}
                                         onMouseEnter={(e) => {
@@ -382,10 +393,17 @@ export default function ClientDashboard() {
                                             e.currentTarget.style.transform = 'translateX(0)'
                                             e.currentTarget.style.boxShadow = ''
                                         }}
+                                        onClick={() => {
+                                            setSelectedTaxStatus(t.label)
+                                            setTaxStatusDrawerOpened(true)
+                                        }}
                                     >
                                         <Group justify="space-between">
                                             <Text size="xs" c="dimmed" lineClamp={1} style={{ maxWidth: '70%' }}>{t.label}</Text>
-                                            <Text fw={700} size="md">{t.value}</Text>
+                                            <Group gap={4}>
+                                                <Text fw={700} size="md">{t.value}</Text>
+                                                <TbArrowRight size={13} color={t.color} />
+                                            </Group>
                                         </Group>
                                     </Paper>
                                 ))}
@@ -399,7 +417,10 @@ export default function ClientDashboard() {
                             <ThemeIcon size={32} radius="xl" variant="light" color="blue">
                                 <TbBriefcase size={18} />
                             </ThemeIcon>
-                            <Text fw={700} size="sm">ขนาดบริษัท</Text>
+                            <Box>
+                                <Text fw={700} size="sm">ขนาดบริษัท</Text>
+                                <Text size="xs" c="dimmed">คลิกเพื่อดูรายชื่อบริษัท</Text>
+                            </Box>
                         </Group>
                         {isLoading ? (
                             <Stack gap="xs">
@@ -408,10 +429,54 @@ export default function ClientDashboard() {
                                 ))}
                             </Stack>
                         ) : (
-                            <HorizontalBarChart
-                                data={companySizeData}
-                                maxValue={Math.max(...companySizeData.map(d => d.value), 1)}
-                            />
+                            <Stack gap={4}>
+                                {companySizeData.map((s, i) => {
+                                    const maxVal = Math.max(...companySizeData.map(d => d.value), 1)
+                                    const pct = Math.round((s.value / maxVal) * 100)
+                                    return (
+                                        <Box
+                                            key={i}
+                                            style={{
+                                                cursor: 'pointer',
+                                                padding: '6px 8px',
+                                                borderRadius: 8,
+                                                transition: 'background 0.15s ease',
+                                            }}
+                                            onMouseEnter={e => { e.currentTarget.style.background = `${s.color}12` }}
+                                            onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+                                            onClick={() => {
+                                                setSelectedSize(s.label)
+                                                setSizeDrawerOpened(true)
+                                            }}
+                                        >
+                                            <Group justify="space-between" mb={4}>
+                                                <Text size="xs" fw={500}>{s.label}</Text>
+                                                <Group gap={4}>
+                                                    <Text size="xs" fw={700} c={s.color}>{s.value}</Text>
+                                                    <TbArrowRight size={11} color={s.color} />
+                                                </Group>
+                                            </Group>
+                                            <Box
+                                                style={{
+                                                    height: 6, borderRadius: 3,
+                                                    background: '#f1f3f5',
+                                                    overflow: 'hidden',
+                                                }}
+                                            >
+                                                <Box
+                                                    style={{
+                                                        height: '100%',
+                                                        width: `${pct}%`,
+                                                        background: s.color,
+                                                        borderRadius: 3,
+                                                        transition: 'width 0.4s ease',
+                                                    }}
+                                                />
+                                            </Box>
+                                        </Box>
+                                    )
+                                })}
+                            </Stack>
                         )}
                     </Card>
 
@@ -494,7 +559,7 @@ export default function ClientDashboard() {
                         )}
                     </Card>
 
-                    {/* Business Category + Subcategory */}
+                    {/* Business Category — คลิกดูรายชื่อบริษัท */}
                     <Card
                         withBorder
                         radius="xl"
@@ -503,46 +568,17 @@ export default function ClientDashboard() {
                             background: 'linear-gradient(135deg, #ffffff 0%, #fafbfc 100%)',
                         }}
                     >
-                        <Group gap="sm" mb="lg" justify="space-between">
-                            <Group gap="sm">
-                                <ThemeIcon size={36} radius="xl" variant="light" color="teal">
-                                    <TbCategory size={20} />
-                                </ThemeIcon>
-                                <Box>
-                                    <Text fw={700} size="md">
-                                        {selectedCategory ? `ประเภทย่อย` : 'ประเภทธุรกิจ'}
-                                    </Text>
-                                    <Text size="xs" c="dimmed">
-                                        {selectedCategory
-                                            ? `ประเภทย่อยของ "${selectedCategory}"`
-                                            : 'คลิกเพื่อดูประเภทย่อย'
-                                        }
-                                    </Text>
-                                </Box>
-                            </Group>
-                            {selectedCategory && (
-                                <Badge
-                                    size="sm" variant="light" color="gray"
-                                    style={{ cursor: 'pointer' }}
-                                    onClick={() => setSelectedCategory(null)}
-                                >
-                                    ← กลับ
-                                </Badge>
-                            )}
+                        <Group gap="sm" mb="lg">
+                            <ThemeIcon size={36} radius="xl" variant="light" color="teal">
+                                <TbCategory size={20} />
+                            </ThemeIcon>
+                            <Box>
+                                <Text fw={700} size="md">ประเภทธุรกิจ</Text>
+                                <Text size="xs" c="dimmed">คลิกเพื่อดูรายชื่อบริษัท</Text>
+                            </Box>
                         </Group>
                         {isLoading ? (
                             <Center py="xl"><Loader color="teal" /></Center>
-                        ) : selectedCategory ? (
-                            businessSubcategoryData.length > 0 ? (
-                                <HorizontalBarChart
-                                    data={businessSubcategoryData}
-                                    maxValue={Math.max(...businessSubcategoryData.map(d => d.value), 1)}
-                                />
-                            ) : (
-                                <Center py="lg">
-                                    <Text size="sm" c="dimmed">ไม่มีข้อมูลประเภทย่อย</Text>
-                                </Center>
-                            )
                         ) : (
                             <Stack gap="xs">
                                 {businessCategoryData.map((cat, i) => (
@@ -564,14 +600,16 @@ export default function ClientDashboard() {
                                             e.currentTarget.style.transform = 'translateX(0)'
                                             e.currentTarget.style.boxShadow = ''
                                         }}
-                                        onClick={() => setSelectedCategory(cat.label)}
+                                        onClick={() => {
+                                            setSelectedCategory(cat.label)
+                                            setSelectedCategoryColor(cat.color)
+                                            setCategoryDrawerOpened(true)
+                                        }}
                                     >
                                         <Group justify="space-between">
-                                            <Group gap="xs">
-                                                <Text size="xs" lineClamp={1} style={{ maxWidth: '250px' }}>
-                                                    {cat.label}
-                                                </Text>
-                                            </Group>
+                                            <Text size="xs" lineClamp={1} style={{ maxWidth: '250px' }}>
+                                                {cat.label}
+                                            </Text>
                                             <Group gap={4}>
                                                 <Text fw={700} size="sm" c={cat.color}>{cat.value}</Text>
                                                 <TbArrowRight size={12} color={cat.color} />
@@ -731,6 +769,40 @@ export default function ClientDashboard() {
                 onClose={() => {
                     setDrawerOpened(false)
                     setSelectedProvince(null)
+                }}
+            />
+
+            {/* Business Category Company List Drawer */}
+            <BusinessCategoryDrawer
+                category={selectedCategory}
+                color={selectedCategoryColor}
+                subcategories={subcategoryDataForSelected}
+                opened={categoryDrawerOpened}
+                onClose={() => {
+                    setCategoryDrawerOpened(false)
+                    setSelectedCategory(null)
+                }}
+            />
+
+            {/* Company Size Drawer */}
+            <CompanySizeDrawer
+                size={selectedSize}
+                color="#4facfe"
+                opened={sizeDrawerOpened}
+                onClose={() => {
+                    setSizeDrawerOpened(false)
+                    setSelectedSize(null)
+                }}
+            />
+
+            {/* Tax Status Drawer */}
+            <TaxStatusDrawer
+                taxStatus={selectedTaxStatus}
+                color={selectedTaxStatus === 'จดภาษีมูลค่าเพิ่ม' ? '#4caf50' : selectedTaxStatus === 'ยังไม่จดภาษีมูลค่าเพิ่ม' ? '#f44336' : '#999'}
+                opened={taxStatusDrawerOpened}
+                onClose={() => {
+                    setTaxStatusDrawerOpened(false)
+                    setSelectedTaxStatus(null)
                 }}
             />
         </Container>

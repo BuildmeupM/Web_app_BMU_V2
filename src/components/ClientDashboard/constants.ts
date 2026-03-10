@@ -16,7 +16,7 @@ import {
 export const STATUS_COLORS: Record<string, string> = {
   รายเดือน: "#4caf50",
   "รายเดือน / วางมือ": "#ff9800",
-  "รายเดือน / จ่ายรายปี": "#4facfe",
+  "รายเดือน / จ่ายรายปี": "#f59f00",
   "รายเดือน / เดือนสุดท้าย": "#ff6b35",
   ยกเลิกทำ: "#f44336",
 };
@@ -161,7 +161,7 @@ export function getCompanyStatusBadgeColor(status: string): string {
     case "รายเดือน / วางมือ":
       return "yellow";
     case "รายเดือน / จ่ายรายปี":
-      return "blue";
+      return "yellow";
     case "รายเดือน / เดือนสุดท้าย":
       return "orange";
     case "ยกเลิกทำ":

@@ -218,6 +218,130 @@ router.get('/province-districts', authenticateToken, async (req, res) => {
 })
 
 /**
+ * GET /api/clients/category-clients
+ * ดึงรายชื่อลูกค้าตามประเภทธุรกิจ (สำหรับ drill-down)
+ * Access: All authenticated users
+ */
+router.get('/category-clients', authenticateToken, async (req, res) => {
+  try {
+    const { category, subcategory } = req.query
+
+    if (!category) {
+      return res.status(400).json({ success: false, message: 'Category parameter is required' })
+    }
+
+    let whereClauses = ['deleted_at IS NULL']
+    const params = []
+
+    // Filter by category
+    if (category === 'ไม่ระบุ') {
+      whereClauses.push('(business_category IS NULL OR business_category = \'\')')
+    } else {
+      whereClauses.push('business_category = ?')
+      params.push(category)
+    }
+
+    // Filter by subcategory (optional)
+    if (subcategory) {
+      if (subcategory === 'ไม่ระบุ') {
+        whereClauses.push('(business_subcategory IS NULL OR business_subcategory = \'\')')
+      } else {
+        whereClauses.push('business_subcategory = ?')
+        params.push(subcategory)
+      }
+    }
+
+    const query = `
+      SELECT build, company_name, company_status, business_type, business_subcategory,
+             province, tax_registration_status
+      FROM clients
+      WHERE ${whereClauses.join(' AND ')}
+      ORDER BY build ASC`
+
+    const [clients] = await pool.execute(query, params)
+
+    res.json({ success: true, data: clients })
+  } catch (error) {
+    console.error('Get category clients error:', error)
+    res.status(500).json({ success: false, message: 'Internal server error' })
+  }
+})
+
+/**
+ * GET /api/clients/size-clients
+ * ดึงรายชื่อลูกค้าตามขนาดบริษัท (สำหรับ drill-down)
+ * Access: All authenticated users
+ */
+router.get('/size-clients', authenticateToken, async (req, res) => {
+  try {
+    const { size } = req.query
+
+    if (!size) {
+      return res.status(400).json({ success: false, message: 'Size parameter is required' })
+    }
+
+    let query, params
+    if (size === 'ไม่ระบุ') {
+      query = `SELECT build, company_name, company_status, business_type, business_category, province
+               FROM clients
+               WHERE deleted_at IS NULL AND (company_size IS NULL OR company_size = '')
+               ORDER BY build ASC`
+      params = []
+    } else {
+      query = `SELECT build, company_name, company_status, business_type, business_category, province
+               FROM clients
+               WHERE deleted_at IS NULL AND company_size = ?
+               ORDER BY build ASC`
+      params = [size]
+    }
+
+    const [clients] = await pool.execute(query, params)
+    res.json({ success: true, data: clients })
+  } catch (error) {
+    console.error('Get size clients error:', error)
+    res.status(500).json({ success: false, message: 'Internal server error' })
+  }
+})
+
+/**
+ * GET /api/clients/tax-status-clients
+ * ดึงรายชื่อลูกค้าตามสถานะจดภาษี (สำหรับ drill-down)
+ * Access: All authenticated users
+ */
+router.get('/tax-status-clients', authenticateToken, async (req, res) => {
+  try {
+    const { status } = req.query
+
+    if (!status) {
+      return res.status(400).json({ success: false, message: 'Status parameter is required' })
+    }
+
+    let query, params
+    if (status === 'ไม่ระบุ') {
+      query = `SELECT build, company_name, company_status, business_category, province
+               FROM clients
+               WHERE deleted_at IS NULL AND (tax_registration_status IS NULL OR tax_registration_status = '')
+               ORDER BY build ASC`
+      params = []
+    } else {
+      query = `SELECT build, company_name, company_status, business_category, province
+               FROM clients
+               WHERE deleted_at IS NULL AND tax_registration_status = ?
+               ORDER BY build ASC`
+      params = [status]
+    }
+
+    const [clients] = await pool.execute(query, params)
+    res.json({ success: true, data: clients })
+  } catch (error) {
+    console.error('Get tax status clients error:', error)
+    res.status(500).json({ success: false, message: 'Internal server error' })
+  }
+})
+
+
+
+/**
  * GET /api/clients/statistics
  * ดึงสถิติสรุปข้อมูลลูกค้า
  * Access: All authenticated users

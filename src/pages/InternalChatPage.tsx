@@ -142,20 +142,35 @@ export default function InternalChatPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const urlBuild = searchParams.get('build')
   const urlCompanyName = searchParams.get('companyName')
+  const urlTab = searchParams.get('tab')
   
   const [searchQuery, setSearchQuery] = useState('')
   const [debouncedSearchQuery] = useDebouncedValue(searchQuery, 300)
   const [selectedBuild, setSelectedBuild] = useState<string | null>(urlBuild)
   const [selectedCompanyName, setSelectedCompanyName] = useState<string | null>(urlCompanyName || null)
-  const [activeTab, setActiveTab] = useState<string | null>('recent')
+  const [activeTab, setActiveTab] = useState<string | null>(urlTab || 'recent')
 
-  // Sync state with URL params
+  // Sync state with URL params (e.g. from notification deep links)
   useEffect(() => {
     if (urlBuild && urlBuild !== selectedBuild) {
       setSelectedBuild(urlBuild)
       setSelectedCompanyName(urlCompanyName || '')
     }
-  }, [urlBuild, urlCompanyName, selectedBuild])
+    if (urlTab && urlTab !== activeTab) {
+      setActiveTab(urlTab)
+    }
+  }, [urlBuild, urlCompanyName, urlTab, selectedBuild, activeTab])
+
+  // Persist active tab to URL without clearing other params
+  const handleTabChange = useCallback((tab: string | null) => {
+    setActiveTab(tab)
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      if (tab) next.set('tab', tab)
+      else next.delete('tab')
+      return next
+    })
+  }, [setSearchParams])
 
   // Fetch client list for "ลูกค้าทั้งหมด" tab
   const { data: clients = [], isLoading: isLoadingClients } = useQuery(
@@ -172,8 +187,7 @@ export default function InternalChatPage() {
     ['chat-recent-activity'],
     () => internalChatService.getRecentActivity(),
     {
-      staleTime: 30000,  // 30s before considered stale
-      // Refetch when window regains focus
+      staleTime: 30000,
       refetchOnWindowFocus: true,
     }
   )
@@ -182,8 +196,15 @@ export default function InternalChatPage() {
   const handleSelectClient = useCallback((build: string, companyName: string) => {
     setSelectedBuild(build)
     setSelectedCompanyName(companyName)
-    setSearchParams({ build, companyName })
-  }, [setSearchParams])
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('build', build)
+      next.set('companyName', companyName)
+      // Preserve the current tab so clicking in 'all' stays in 'all'
+      if (activeTab) next.set('tab', activeTab)
+      return next
+    })
+  }, [setSearchParams, activeTab])
 
   // Real-time: when any new message arrives, update sidebar optimistically WITHOUT a network round-trip
   useEffect(() => {
@@ -292,7 +313,7 @@ export default function InternalChatPage() {
             {/* Tabs */}
             <Tabs
               value={activeTab}
-              onChange={setActiveTab}
+              onChange={handleTabChange}
               style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}
               styles={{
                 root: { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 },

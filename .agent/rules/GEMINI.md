@@ -143,6 +143,20 @@ When user's prompt is NOT in English:
 2. What PRINCIPLES must I apply?
 3. How does this DIFFER from generic output?
 
+### 💻 Windows Terminal Rules (MANDATORY)
+
+> 🔴 **CRITICAL:** These rules apply to ALL terminal commands on this Windows project. No exceptions.
+
+1. **ALWAYS use `cmd /c <command>`** for every `run_command` call. This sends an EOF signal so the process terminates automatically — preventing the "Running background command" hang in VS Code.
+   - ✅ `cmd /c echo Hello`
+   - ✅ `cmd /c node --version`
+   - ✅ `cmd /c npm run build`
+   - ❌ `echo Hello` ← shell stays open forever
+
+2. **Auto-terminate after output:** If for any reason `cmd /c` was not used and the process is still running, call `send_command_input` with `Terminate: true` immediately after reading the output.
+
+3. **Long-running servers** (e.g., `npm run dev`, `node server.js`) are the **only exception** — keep these alive and inform the user.
+
 ---
 
 ## TIER 1: CODE RULES (When Writing Code)
