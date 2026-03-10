@@ -30,7 +30,7 @@ import { type WorkType, type TeamStatus, getTeamStatuses } from '../../services/
 import { notifications } from '@mantine/notifications'
 import usersService from '../../services/usersService'
 import { STEPS, STATUS_CONFIG } from './utils/taskConstants'
-import type { StepsState } from './utils/taskConstants'
+
 import { formatThaiDate, formatTime } from './utils/taskFormatters'
 
 
@@ -47,6 +47,7 @@ interface TaskDetailDrawerProps {
 }
 
 export default function TaskDetailDrawer({
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
     opened, onClose, task, client, allTasks, workTypes = [], onUpdated, onSelectTask,
 }: TaskDetailDrawerProps) {
     const queryClient = useQueryClient()
@@ -215,13 +216,13 @@ export default function TaskDetailDrawer({
     // Resolve job type UUID → readable name
     const resolveJobType = (id: string) => {
         // Use backend-resolved name first
-        if ((task as any)?.job_type_name) return (task as any).job_type_name
+        if (task?.job_type_name) return task.job_type_name
         const wt = workTypes.find(w => w.id === id)
         return wt?.name || id
     }
     const resolveSubType = (subId: string) => {
         // Use backend-resolved name first
-        if ((task as any)?.job_type_sub_name) return (task as any).job_type_sub_name
+        if (task?.job_type_sub_name) return task.job_type_sub_name
         for (const wt of workTypes) {
             const sub = wt.sub_types?.find(s => s.id === subId)
             if (sub) return sub.name
@@ -490,8 +491,8 @@ export default function TaskDetailDrawer({
 
                                         const renderTaskItem = (ct: RegistrationTask) => {
                                             const sc = STATUS_CONFIG[ct.status] || STATUS_CONFIG.pending
-                                            const jobLabel = (ct as any).job_type_name || ct.job_type || '-'
-                                            const subLabel = (ct as any).job_type_sub_name
+                                            const jobLabel = ct.job_type_name || ct.job_type || '-'
+                                            const subLabel = ct.job_type_sub_name
                                             return (
                                                 <Paper
                                                     key={ct.id}
@@ -521,8 +522,8 @@ export default function TaskDetailDrawer({
                                                             </Group>
                                                         </div>
                                                         <Stack gap={2} align="flex-end">
-                                                            <Badge size="xs" variant="filled" color={DEPT_CONFIG[(ct as any).department]?.color || 'gray'} radius="sm">
-                                                                {DEPT_CONFIG[(ct as any).department]?.label || (ct as any).department || '-'}
+                                                            <Badge size="xs" variant="filled" color={DEPT_CONFIG[ct.department]?.color || 'gray'} radius="sm">
+                                                                {DEPT_CONFIG[ct.department]?.label || ct.department || '-'}
                                                             </Badge>
                                                             <Badge size="xs" variant="light" color={sc.color}>
                                                                 {sc.label}
@@ -745,7 +746,7 @@ export default function TaskDetailDrawer({
                                     {comments.length > 0 ? (
                                         <ScrollArea h={comments.length > 4 ? 220 : undefined} offsetScrollbars mb="sm">
                                             <Stack gap={6}>
-                                                {[...comments].reverse().map((c: TaskComment, idx: number) => (
+                                                {[...comments].reverse().map((c: TaskComment) => (
                                                     <Group key={c.id} gap="xs" wrap="nowrap" align="flex-start">
                                                         <Box style={{
                                                             width: 8, height: 8, borderRadius: '50%',

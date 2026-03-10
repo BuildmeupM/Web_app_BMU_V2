@@ -7,7 +7,7 @@
 import { Outlet, useLocation, NavLink, useNavigate } from 'react-router-dom'
 import { AppShell, Box, Stack, Text, NavLink as MantineNavLink, Group, Avatar, Menu, ActionIcon, Tooltip, Badge } from '@mantine/core'
 import { Suspense, useState } from 'react'
-import { TbDeviceLaptop, TbLogout, TbUser, TbArrowLeft, TbHome, TbPackage, TbPackageOff, TbHistory, TbChartBar } from 'react-icons/tb'
+import { TbDeviceLaptop, TbLogout, TbUser, TbArrowLeft, TbHome, TbPackage, TbHistory, TbChartBar, TbCpu } from 'react-icons/tb'
 import { useAuthStore } from '../../store/authStore'
 import { authService } from '../../services/authService'
 import LoadingSpinner from '../Loading/LoadingSpinner'
@@ -32,6 +32,11 @@ const equipmentMenuItems = [
         label: 'ประวัติการยืม-คืน',
         icon: TbHistory,
         comingSoon: true,
+    },
+    {
+        path: '/equipment/my-specs',
+        label: 'เช็คสเปคเครื่อง',
+        icon: TbCpu,
     },
 ]
 

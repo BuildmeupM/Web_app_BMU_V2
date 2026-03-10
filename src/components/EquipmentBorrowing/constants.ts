@@ -19,6 +19,7 @@ export const categoryConfig: Record<
   string,
   { label: string; icon: React.ComponentType<any>; color: string }
 > = {
+  computer: { label: "คอมพิวเตอร์", icon: TbDeviceDesktop, color: "indigo" },
   laptop: { label: "แล็ปท็อป", icon: TbDeviceLaptop, color: "blue" },
   monitor: { label: "จอมอนิเตอร์", icon: TbDeviceDesktop, color: "violet" },
   mouse: { label: "เมาส์", icon: TbMouse, color: "green" },

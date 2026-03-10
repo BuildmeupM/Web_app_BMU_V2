@@ -19,7 +19,15 @@ function SortIcon({ col, activeSort, activeOrder }: { col: string; activeSort: s
 }
 
 interface InventoryTabProps {
-    equipmentData: any
+    equipmentData: {
+        equipment: Equipment[]
+        pagination: {
+            total: number
+            totalPages: number
+            page: number
+            limit: number
+        }
+    } | null
     loading: boolean
     isAdmin: boolean
     // Filter state
@@ -126,7 +134,7 @@ export default function InventoryTab({
                                                 </Group>
                                             </Table.Td>
                                             <Table.Td>
-                                                <Badge variant="light" color={cc.color} size="sm" radius="xl">{cc.label}</Badge>
+                                                <Badge variant="transparent" color={cc.color} size="sm" radius="xl" c="dark.8">{cc.label}</Badge>
                                             </Table.Td>
                                             <Table.Td>
                                                 <Text size="sm">{eq.brand || '–'} {eq.model ? `/ ${eq.model}` : ''}</Text>

@@ -39,6 +39,7 @@ import positionGroupsRoutes from './routes/employees/position-groups.js'
 import registrationClientsRoutes from './routes/registration/clients.js'
 import registrationTasksRoutes from './routes/registration/tasks.js'
 import equipmentRoutes from './routes/content/equipment.js'
+import systemSpecsRoutes from './routes/content/systemSpecs.js'
 import salaryAdvanceRoutes from './routes/leave/salary-advance.js'
 import documentRequestsRoutes from './routes/content/document-requests.js'
 import companyFeedRoutes from './routes/content/company-feed.js'
@@ -314,6 +315,7 @@ app.use('/api/position-groups', positionGroupsRoutes)
 app.use('/api/registration-clients', registrationClientsRoutes)
 app.use('/api/registration-tasks', registrationTasksRoutes)
 app.use('/api/equipment', equipmentRoutes)
+app.use('/api/system-specs', systemSpecsRoutes)
 app.use('/api/salary-advance', salaryAdvanceRoutes)
 app.use('/api/document-requests', documentRequestsRoutes)
 app.use('/api/company-feed', companyFeedRoutes)

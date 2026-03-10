@@ -30,18 +30,12 @@ import { useQuery, useQueryClient } from 'react-query'
 import {
     equipmentService,
     type Equipment,
-    type EquipmentBorrowing as EquipmentBorrowingType,
     type EquipmentStats,
-    type EquipmentAssignment,
     type EmployeeOption,
 } from '../services/equipmentService'
 import { useAuthStore } from '../store/authStore'
 import { notifications } from '@mantine/notifications'
 import {
-    categoryConfig,
-    statusConfig,
-    borrowStatusConfig,
-    formatDate,
     BorrowingsTab,
     InventoryTab,
     AssignmentsTab,
@@ -88,15 +82,19 @@ export default function EquipmentBorrowing() {
     const [formBrand, setFormBrand] = useState('')
     const [formModel, setFormModel] = useState('')
     const [formSerial, setFormSerial] = useState('')
+    const [formAssetTag, setFormAssetTag] = useState('')
     const [formDesc, setFormDesc] = useState('')
     const [formStatus, setFormStatus] = useState<string | null>('available')
-    // spec fields
+    // spec fields (laptop)
     const [formCpu, setFormCpu] = useState('')
     const [formRam, setFormRam] = useState('')
     const [formStorage, setFormStorage] = useState('')
     const [formDisplay, setFormDisplay] = useState('')
     const [formGpu, setFormGpu] = useState('')
     const [formOs, setFormOs] = useState('')
+    // spec fields (monitor)
+    const [formScreenSize, setFormScreenSize] = useState('')
+    // purchase info
     const [formPurchaseDate, setFormPurchaseDate] = useState('')
     const [formWarrantyDate, setFormWarrantyDate] = useState('')
     const [formPrice, setFormPrice] = useState<number | string>('')
@@ -114,7 +112,7 @@ export default function EquipmentBorrowing() {
 
     // assignment table state
     const [aPage, setAPage] = useState(1)
-    const [aLimit, setALimit] = useState(50)
+    const [aLimit] = useState(50)
     const [aSearch, setASearch] = useState('')
 
     const [saving, setSaving] = useState(false)
@@ -201,9 +199,10 @@ export default function EquipmentBorrowing() {
     const openAddEquipment = () => {
         setEditingEquipment(null)
         setFormName(''); setFormCategory(null); setFormBrand(''); setFormModel('')
-        setFormSerial(''); setFormDesc(''); setFormStatus('available')
+        setFormSerial(''); setFormAssetTag(''); setFormDesc(''); setFormStatus('available')
         setFormCpu(''); setFormRam(''); setFormStorage('')
         setFormDisplay(''); setFormGpu(''); setFormOs('')
+        setFormScreenSize('')
         setFormPurchaseDate(''); setFormWarrantyDate(''); setFormPrice('')
         setEquipmentModalOpen(true)
     }
@@ -211,11 +210,13 @@ export default function EquipmentBorrowing() {
         setEditingEquipment(eq)
         setFormName(eq.name); setFormCategory(eq.category); setFormBrand(eq.brand || '')
         setFormModel(eq.model || ''); setFormSerial(eq.serial_number || '')
+        setFormAssetTag(eq.asset_tag || '')
         setFormDesc(eq.description || ''); setFormStatus(eq.status)
-        setFormCpu(eq.specs?.cpu || ''); setFormRam(eq.specs?.ram || '')
-        setFormStorage(eq.specs?.storage || ''); setFormDisplay(eq.specs?.display || '')
-        setFormGpu(eq.specs?.gpu || ''); setFormOs(eq.specs?.os || '')
-        setFormPurchaseDate(eq.purchase_date || ''); setFormWarrantyDate(eq.warranty_expiry || '')
+        setFormCpu(eq.cpu || ''); setFormRam(eq.ram || '')
+        setFormStorage(eq.storage || ''); setFormDisplay(eq.display || '')
+        setFormGpu(eq.gpu || ''); setFormOs(eq.os || '')
+        setFormScreenSize(eq.screen_size || '')
+        setFormPurchaseDate(eq.purchase_date || ''); setFormWarrantyDate(eq.warranty_expire_date || '')
         setFormPrice(eq.purchase_price || '')
         setEquipmentModalOpen(true)
     }
@@ -229,14 +230,14 @@ export default function EquipmentBorrowing() {
             const payload = {
                 name: formName, category: formCategory!, brand: formBrand || undefined,
                 model: formModel || undefined, serial_number: formSerial || undefined,
+                asset_tag: formAssetTag || undefined,
                 description: formDesc || undefined, status: formStatus || 'available',
-                specs: {
-                    cpu: formCpu || undefined, ram: formRam || undefined,
-                    storage: formStorage || undefined, display: formDisplay || undefined,
-                    gpu: formGpu || undefined, os: formOs || undefined,
-                },
+                cpu: formCpu || undefined, ram: formRam || undefined,
+                storage: formStorage || undefined, display: formDisplay || undefined,
+                gpu: formGpu || undefined, os: formOs || undefined,
+                screen_size: formScreenSize || undefined,
                 purchase_date: formPurchaseDate || undefined,
-                warranty_expiry: formWarrantyDate || undefined,
+                warranty_expire_date: formWarrantyDate || undefined,
                 purchase_price: formPrice ? Number(formPrice) : undefined,
             }
             if (editingEquipment) {
@@ -248,8 +249,11 @@ export default function EquipmentBorrowing() {
             }
             setEquipmentModalOpen(false)
             handleRefresh()
-        } catch (err: any) {
-            notifications.show({ title: 'ข้อผิดพลาด', message: err?.response?.data?.message || 'เกิดข้อผิดพลาด', color: 'red' })
+        } catch (err) {
+            const errorMessage = err && typeof err === 'object' && 'response' in err && err.response && typeof err.response === 'object' && 'data' in err.response && err.response.data && typeof err.response.data === 'object' && 'message' in err.response.data
+                ? String(err.response.data.message)
+                : 'เกิดข้อผิดพลาด'
+            notifications.show({ title: 'ข้อผิดพลาด', message: errorMessage, color: 'red' })
         } finally {
             setSaving(false)
         }
@@ -278,8 +282,11 @@ export default function EquipmentBorrowing() {
             notifications.show({ title: 'สำเร็จ', message: 'ส่งคำขอยืมสำเร็จ', color: 'green' })
             setBorrowModalOpen(false)
             handleRefresh()
-        } catch (err: any) {
-            notifications.show({ title: 'ข้อผิดพลาด', message: err?.response?.data?.message || 'เกิดข้อผิดพลาด', color: 'red' })
+        } catch (err) {
+            const errorMessage = err && typeof err === 'object' && 'response' in err && err.response && typeof err.response === 'object' && 'data' in err.response && err.response.data && typeof err.response.data === 'object' && 'message' in err.response.data
+                ? String(err.response.data.message)
+                : 'เกิดข้อผิดพลาด'
+            notifications.show({ title: 'ข้อผิดพลาด', message: errorMessage, color: 'red' })
         } finally {
             setSaving(false)
         }
@@ -291,8 +298,11 @@ export default function EquipmentBorrowing() {
             await equipmentService.approveBorrowing(id)
             notifications.show({ title: 'สำเร็จ', message: 'อนุมัติการยืมสำเร็จ', color: 'green' })
             handleRefresh()
-        } catch (err: any) {
-            notifications.show({ title: 'ข้อผิดพลาด', message: err?.response?.data?.message || 'เกิดข้อผิดพลาด', color: 'red' })
+        } catch (err) {
+            const errorMessage = err && typeof err === 'object' && 'response' in err && err.response && typeof err.response === 'object' && 'data' in err.response && err.response.data && typeof err.response.data === 'object' && 'message' in err.response.data
+                ? String(err.response.data.message)
+                : 'เกิดข้อผิดพลาด'
+            notifications.show({ title: 'ข้อผิดพลาด', message: errorMessage, color: 'red' })
         }
     }
     const handleReject = async (id: string) => {
@@ -300,8 +310,11 @@ export default function EquipmentBorrowing() {
             await equipmentService.rejectBorrowing(id)
             notifications.show({ title: 'สำเร็จ', message: 'ปฏิเสธการยืมสำเร็จ', color: 'green' })
             handleRefresh()
-        } catch (err: any) {
-            notifications.show({ title: 'ข้อผิดพลาด', message: err?.response?.data?.message || 'เกิดข้อผิดพลาด', color: 'red' })
+        } catch (err) {
+            const errorMessage = err && typeof err === 'object' && 'response' in err && err.response && typeof err.response === 'object' && 'data' in err.response && err.response.data && typeof err.response.data === 'object' && 'message' in err.response.data
+                ? String(err.response.data.message)
+                : 'เกิดข้อผิดพลาด'
+            notifications.show({ title: 'ข้อผิดพลาด', message: errorMessage, color: 'red' })
         }
     }
     const handleReturn = async (id: string) => {
@@ -309,8 +322,11 @@ export default function EquipmentBorrowing() {
             await equipmentService.returnBorrowing(id)
             notifications.show({ title: 'สำเร็จ', message: 'คืนอุปกรณ์สำเร็จ', color: 'green' })
             handleRefresh()
-        } catch (err: any) {
-            notifications.show({ title: 'ข้อผิดพลาด', message: err?.response?.data?.message || 'เกิดข้อผิดพลาด', color: 'red' })
+        } catch (err) {
+            const errorMessage = err && typeof err === 'object' && 'response' in err && err.response && typeof err.response === 'object' && 'data' in err.response && err.response.data && typeof err.response.data === 'object' && 'message' in err.response.data
+                ? String(err.response.data.message)
+                : 'เกิดข้อผิดพลาด'
+            notifications.show({ title: 'ข้อผิดพลาด', message: errorMessage, color: 'red' })
         }
     }
     const handleDelete = async () => {
@@ -328,8 +344,11 @@ export default function EquipmentBorrowing() {
             setDeleteModalOpen(false)
             setDeleteTarget(null)
             handleRefresh()
-        } catch (err: any) {
-            notifications.show({ title: 'ข้อผิดพลาด', message: err?.response?.data?.message || 'เกิดข้อผิดพลาด', color: 'red' })
+        } catch (err) {
+            const errorMessage = err && typeof err === 'object' && 'response' in err && err.response && typeof err.response === 'object' && 'data' in err.response && err.response.data && typeof err.response.data === 'object' && 'message' in err.response.data
+                ? String(err.response.data.message)
+                : 'เกิดข้อผิดพลาด'
+            notifications.show({ title: 'ข้อผิดพลาด', message: errorMessage, color: 'red' })
         } finally {
             setSaving(false)
         }
@@ -360,8 +379,11 @@ export default function EquipmentBorrowing() {
             notifications.show({ title: 'สำเร็จ', message: 'มอบหมายอุปกรณ์สำเร็จ', color: 'green' })
             setAssignModalOpen(false)
             handleRefresh()
-        } catch (err: any) {
-            notifications.show({ title: 'ข้อผิดพลาด', message: err?.response?.data?.message || 'เกิดข้อผิดพลาด', color: 'red' })
+        } catch (err) {
+            const errorMessage = err && typeof err === 'object' && 'response' in err && err.response && typeof err.response === 'object' && 'data' in err.response && err.response.data && typeof err.response.data === 'object' && 'message' in err.response.data
+                ? String(err.response.data.message)
+                : 'เกิดข้อผิดพลาด'
+            notifications.show({ title: 'ข้อผิดพลาด', message: errorMessage, color: 'red' })
         } finally {
             setSaving(false)
         }
@@ -371,8 +393,11 @@ export default function EquipmentBorrowing() {
             await equipmentService.returnAssignment(id)
             notifications.show({ title: 'สำเร็จ', message: 'คืนอุปกรณ์สำเร็จ', color: 'green' })
             handleRefresh()
-        } catch (err: any) {
-            notifications.show({ title: 'ข้อผิดพลาด', message: err?.response?.data?.message || 'เกิดข้อผิดพลาด', color: 'red' })
+        } catch (err) {
+            const errorMessage = err && typeof err === 'object' && 'response' in err && err.response && typeof err.response === 'object' && 'data' in err.response && err.response.data && typeof err.response.data === 'object' && 'message' in err.response.data
+                ? String(err.response.data.message)
+                : 'เกิดข้อผิดพลาด'
+            notifications.show({ title: 'ข้อผิดพลาด', message: errorMessage, color: 'red' })
         }
     }
 
@@ -521,6 +546,7 @@ export default function EquipmentBorrowing() {
                 formBrand={formBrand} setFormBrand={setFormBrand}
                 formModel={formModel} setFormModel={setFormModel}
                 formSerial={formSerial} setFormSerial={setFormSerial}
+                formAssetTag={formAssetTag} setFormAssetTag={setFormAssetTag}
                 formStatus={formStatus} setFormStatus={setFormStatus}
                 formCpu={formCpu} setFormCpu={setFormCpu}
                 formRam={formRam} setFormRam={setFormRam}
@@ -528,6 +554,7 @@ export default function EquipmentBorrowing() {
                 formDisplay={formDisplay} setFormDisplay={setFormDisplay}
                 formGpu={formGpu} setFormGpu={setFormGpu}
                 formOs={formOs} setFormOs={setFormOs}
+                formScreenSize={formScreenSize} setFormScreenSize={setFormScreenSize}
                 formPurchaseDate={formPurchaseDate} setFormPurchaseDate={setFormPurchaseDate}
                 formWarrantyDate={formWarrantyDate} setFormWarrantyDate={setFormWarrantyDate}
                 formPrice={formPrice} setFormPrice={setFormPrice}

@@ -1,5 +1,6 @@
 /**
  * EquipmentFormModal — Modal เพิ่ม/แก้ไขอุปกรณ์
+ * แสดง spec fields ตามหมวดหมู่ที่เลือก
  */
 import {
     Stack, Group, Text, Modal, TextInput, Select, Divider,
@@ -21,13 +22,18 @@ interface EquipmentFormModalProps {
     formBrand: string; setFormBrand: (v: string) => void
     formModel: string; setFormModel: (v: string) => void
     formSerial: string; setFormSerial: (v: string) => void
+    formAssetTag: string; setFormAssetTag: (v: string) => void
     formStatus: string | null; setFormStatus: (v: string | null) => void
+    // Laptop specs
     formCpu: string; setFormCpu: (v: string) => void
     formRam: string; setFormRam: (v: string) => void
     formStorage: string; setFormStorage: (v: string) => void
     formDisplay: string; setFormDisplay: (v: string) => void
     formGpu: string; setFormGpu: (v: string) => void
     formOs: string; setFormOs: (v: string) => void
+    // Monitor specs
+    formScreenSize: string; setFormScreenSize: (v: string) => void
+    // Purchase info
     formPurchaseDate: string; setFormPurchaseDate: (v: string) => void
     formWarrantyDate: string; setFormWarrantyDate: (v: string) => void
     formPrice: number | string; setFormPrice: (v: number | string) => void
@@ -38,13 +44,17 @@ export default function EquipmentFormModal({
     opened, onClose, editingEquipment, saving, onSave,
     formName, setFormName, formCategory, setFormCategory,
     formBrand, setFormBrand, formModel, setFormModel,
-    formSerial, setFormSerial, formStatus, setFormStatus,
+    formSerial, setFormSerial, formAssetTag, setFormAssetTag, formStatus, setFormStatus,
     formCpu, setFormCpu, formRam, setFormRam,
     formStorage, setFormStorage, formDisplay, setFormDisplay,
     formGpu, setFormGpu, formOs, setFormOs,
+    formScreenSize, setFormScreenSize,
     formPurchaseDate, setFormPurchaseDate, formWarrantyDate, setFormWarrantyDate,
     formPrice, setFormPrice, formDesc, setFormDesc,
 }: EquipmentFormModalProps) {
+    const isComputerOrLaptop = formCategory === 'laptop' || formCategory === 'computer'
+    const isMonitor = formCategory === 'monitor'
+
     return (
         <Modal
             opened={opened}
@@ -70,35 +80,51 @@ export default function EquipmentFormModal({
                     <TextInput label="รุ่น" placeholder="Latitude 5540"
                         value={formModel} onChange={e => setFormModel(e.target.value)} />
                 </Group>
-                <TextInput label="S/N" placeholder="หมายเลข Serial Number"
-                    value={formSerial} onChange={e => setFormSerial(e.target.value)} />
+                <Group grow>
+                    <TextInput label="S/N" placeholder="หมายเลข Serial Number"
+                        value={formSerial} onChange={e => setFormSerial(e.target.value)} />
+                    <TextInput label="รหัสทรัพย์สิน" placeholder="เช่น BMU-LT-001"
+                        value={formAssetTag} onChange={e => setFormAssetTag(e.target.value)} />
+                </Group>
                 {editingEquipment && (
                     <Select label="สถานะ" value={formStatus} onChange={setFormStatus}
                         data={Object.entries(statusConfig).map(([v, c]) => ({ value: v, label: c.label }))} />
                 )}
 
-                {/* ── สเปคคอมพิวเตอร์ ── */}
-                <Divider label="สเปคคอมพิวเตอร์" labelPosition="center" />
-                <Group grow>
-                    <TextInput label="CPU" placeholder="Intel i7-13700H, AMD Ryzen 5..."
-                        value={formCpu} onChange={e => setFormCpu(e.target.value)} />
-                    <TextInput label="RAM" placeholder="16GB DDR5"
-                        value={formRam} onChange={e => setFormRam(e.target.value)} />
-                </Group>
-                <Group grow>
-                    <TextInput label="Storage" placeholder="512GB NVMe SSD"
-                        value={formStorage} onChange={e => setFormStorage(e.target.value)} />
-                    <TextInput label="GPU" placeholder="NVIDIA RTX 4060, Intel UHD..."
-                        value={formGpu} onChange={e => setFormGpu(e.target.value)} />
-                </Group>
-                <Group grow>
-                    <TextInput label="หน้าจอ" placeholder='15.6" FHD IPS, 24" 4K...'
-                        value={formDisplay} onChange={e => setFormDisplay(e.target.value)} />
-                    <TextInput label="ระบบปฏิบัติการ" placeholder="Windows 11 Pro, macOS..."
-                        value={formOs} onChange={e => setFormOs(e.target.value)} />
-                </Group>
+                {/* ── สเปคตามหมวดหมู่ ── */}
+                {isComputerOrLaptop && (
+                    <>
+                        <Divider label="สเปคคอมพิวเตอร์" labelPosition="center" />
+                        <Group grow>
+                            <TextInput label="CPU" placeholder="Intel i7-13700H, AMD Ryzen 5..."
+                                value={formCpu} onChange={e => setFormCpu(e.target.value)} />
+                            <TextInput label="RAM" placeholder="16GB DDR5"
+                                value={formRam} onChange={e => setFormRam(e.target.value)} />
+                        </Group>
+                        <Group grow>
+                            <TextInput label="Storage" placeholder="512GB NVMe SSD"
+                                value={formStorage} onChange={e => setFormStorage(e.target.value)} />
+                            <TextInput label="GPU" placeholder="NVIDIA RTX 4060, Intel UHD..."
+                                value={formGpu} onChange={e => setFormGpu(e.target.value)} />
+                        </Group>
+                        <Group grow>
+                            <TextInput label="หน้าจอ" placeholder='15.6" FHD IPS, 24" 4K...'
+                                value={formDisplay} onChange={e => setFormDisplay(e.target.value)} />
+                            <TextInput label="ระบบปฏิบัติการ" placeholder="Windows 11 Pro, macOS..."
+                                value={formOs} onChange={e => setFormOs(e.target.value)} />
+                        </Group>
+                    </>
+                )}
 
-                {/* ── ข้อมูลการซื้อ ── */}
+                {isMonitor && (
+                    <>
+                        <Divider label="สเปคจอมอนิเตอร์" labelPosition="center" />
+                        <TextInput label="ขนาดจอ" placeholder='เช่น 27", 24", 32"'
+                            value={formScreenSize} onChange={e => setFormScreenSize(e.target.value)} />
+                    </>
+                )}
+
+                {/* ── ข้อมูลการซื้อ (ทุกหมวด) ── */}
                 <Divider label="ข้อมูลการซื้อ / ประกัน" labelPosition="center" />
                 <Group grow>
                     <TextInput label="วันที่ซื้อ" type="date"

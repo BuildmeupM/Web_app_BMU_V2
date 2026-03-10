@@ -48,6 +48,7 @@ const MessengerRoutes = lazy(() => import('./pages/MessengerRoutes'))
 const MarketingWork = lazy(() => import('./pages/MarketingWork'))
 const LoginActivity = lazy(() => import('./pages/LoginActivity'))
 const EquipmentBorrowing = lazy(() => import('./pages/EquipmentBorrowing'))
+const SystemSpecChecker = lazy(() => import('./pages/SystemSpecChecker'))
 const ErrorReport = lazy(() => import('./pages/ErrorReport'))
 const AccountingDashboard = lazy(() => import('./pages/AccountingDashboard'))
 const ActivityLogDashboard = lazy(() => import('./pages/ActivityLogDashboard'))
@@ -499,6 +500,14 @@ function App() {
               element={
                 <Suspense fallback={<LoadingFallback />}>
                   <EquipmentBorrowing />
+                </Suspense>
+              }
+            />
+            <Route
+              path="my-specs"
+              element={
+                <Suspense fallback={<LoadingFallback />}>
+                  <SystemSpecChecker />
                 </Suspense>
               }
             />
