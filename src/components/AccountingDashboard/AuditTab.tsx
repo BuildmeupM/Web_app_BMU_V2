@@ -4,12 +4,15 @@
  */
 
 import { useMemo, useState, useEffect } from 'react'
-import { Stack, SimpleGrid, Paper, Text, Group, ThemeIcon, Progress, Modal, Table, Badge, Button } from '@mantine/core'
-import { TbUsers, TbFileCheck, TbChartBar, TbTrophy, TbClock, TbUser, TbEye, TbEdit } from 'react-icons/tb'
+import { Stack, SimpleGrid, Paper, Text, Group, ThemeIcon, Progress, Modal, Table, Badge, Button, Select } from '@mantine/core'
+import { TbUsers, TbFileCheck, TbChartBar, TbTrophy, TbClock, TbUser, TbEye, TbEdit, TbDownload } from 'react-icons/tb'
 import type { MonthlyTaxData } from '../../services/monthlyTaxDataService'
 import { STATUS_CONFIG, WHT_COMPLETED_STATUSES, VAT_COMPLETED_STATUSES } from './constants'
 import { activityLogsService } from '../../services/activityLogsService'
 import type { AuditCorrectionAuditor, AuditCorrectionCompany } from '../../services/activityLogsService'
+import { exportToExcel } from '../../utils/exportExcel'
+import { DatePickerInput, type DateValue } from '@mantine/dates'
+import 'dayjs/locale/th'
 
 // ── Types ──
 interface AuditorStats {
@@ -202,6 +205,15 @@ export default function AuditTab({
         auditorName: string
         companies: AuditCorrectionCompany[]
     }>({ open: false, type: 'WHT', auditorName: '', companies: [] })
+
+
+    // ── Export State ──
+    const [exportModalOpen, setExportModalOpen] = useState(false)
+    const [exportAuditType, setExportAuditType] = useState('correction_all')
+    const [exportStartDate, setExportStartDate] = useState<DateValue>(null)
+    const [exportEndDate, setExportEndDate] = useState<DateValue>(null)
+    const [exportSelectedAuditor, setExportSelectedAuditor] = useState<string | null>(null)
+    const [isExporting, setIsExporting] = useState(false)
 
     const whtPendingTotal = whtPending.reduce((s, p) => s + p.count, 0)
     const vatPendingTotal = vatPending.reduce((s, p) => s + p.count, 0)
@@ -530,11 +542,23 @@ export default function AuditTab({
 
             {/* ═══ Section 5: Correction Summary ═══ */}
             <Paper p="lg" radius="lg" className="acct-glass-card">
-                <Group gap={8} mb="lg">
-                    <ThemeIcon size={28} radius="md" color="orange" variant="light">
-                        <TbEdit size={16} />
-                    </ThemeIcon>
-                    <Text size="sm" fw={700} c="dark">สรุปจำนวนการแก้ไขที่ผู้ตรวจเจอ</Text>
+                <Group gap={8} mb="lg" justify="space-between">
+                    <Group gap={8}>
+                        <ThemeIcon size={28} radius="md" color="orange" variant="light">
+                            <TbEdit size={16} />
+                        </ThemeIcon>
+                        <Text size="sm" fw={700} c="dark">สรุปจำนวนการแก้ไขที่ผู้ตรวจเจอ</Text>
+                    </Group>
+                    <Button
+                        variant="light"
+                        color="green"
+                        leftSection={<TbDownload size={16} />}
+                        onClick={() => setExportModalOpen(true)}
+                        radius="md"
+                        size="sm"
+                    >
+                        ส่งออก Excel
+                    </Button>
                 </Group>
 
                 {/* Totals */}
@@ -705,6 +729,162 @@ export default function AuditTab({
                         ))}
                     </Table.Tbody>
                 </Table>
+            </Modal>
+
+            {/* ═══ Export Modal (Audit) ═══ */}
+            <Modal
+                opened={exportModalOpen}
+                onClose={() => setExportModalOpen(false)}
+                title={
+                    <Group gap={8}>
+                        <ThemeIcon size={28} radius="md" color="green" variant="light">
+                            <TbDownload size={16} />
+                        </ThemeIcon>
+                        <Text size="sm" fw={700}>ส่งออกข้อมูลงานตรวจ (Excel)</Text>
+                    </Group>
+                }
+                size="lg"
+                radius="lg"
+                centered
+            >
+                <Stack gap="md">
+                    <Group grow>
+                        <DatePickerInput
+                            label="วันที่เริ่มต้น"
+                            placeholder="วว/ดด/ปปปป"
+                            value={exportStartDate}
+                            onChange={setExportStartDate}
+                            valueFormat="DD/MM/YYYY"
+                            locale="th"
+                            clearable
+                        />
+                        <DatePickerInput
+                            label="ถึงวันที่"
+                            placeholder="วว/ดด/ปปปป"
+                            value={exportEndDate}
+                            onChange={setExportEndDate}
+                            valueFormat="DD/MM/YYYY"
+                            locale="th"
+                            clearable
+                        />
+                    </Group>
+
+                    <Select
+                        label="ประเภทการดึงข้อมูล"
+                        data={[
+                            { value: 'correction_all', label: 'รายละเอียดการแก้ไขทั้งหมด' },
+                            { value: 'correction_individual', label: 'รายละเอียดการแก้ไขรายบุคคล' },
+                        ]}
+                        value={exportAuditType}
+                        onChange={(val) => {
+                            setExportAuditType(val || 'correction_all')
+                            if (val === 'correction_all') setExportSelectedAuditor(null)
+                        }}
+                    />
+
+                    {exportAuditType === 'correction_individual' && (
+                        <Select
+                            label="เลือกชื่อผู้ตรวจ"
+                            placeholder="เลือกผู้ตรวจ"
+                            data={correctionData.auditors.map(a => ({
+                                value: a.employee_id,
+                                label: a.user_name
+                            }))}
+                            value={exportSelectedAuditor}
+                            onChange={setExportSelectedAuditor}
+                            searchable
+                            clearable
+                        />
+                    )}
+
+                    <Button
+                        variant="light"
+                        color="green"
+                        fullWidth
+                        loading={isExporting}
+                        disabled={exportAuditType === 'correction_individual' && !exportSelectedAuditor}
+                        onClick={() => {
+                            setIsExporting(true)
+                            try {
+                                const dateLabel = `${year}-${String(month).padStart(2, '0')}`
+
+                                // Helper: filter companies by date range
+                                const filterByDate = (companies: AuditCorrectionCompany[]) => {
+                                    if (!exportStartDate && !exportEndDate) return companies
+                                    return companies.filter(c => {
+                                        if (!c.created_at) return false
+                                        const cDate = new Date(c.created_at).getTime()
+                                        if (exportStartDate) {
+                                            const s = new Date(exportStartDate)
+                                            s.setHours(0, 0, 0, 0)
+                                            if (cDate < s.getTime()) return false
+                                        }
+                                        if (exportEndDate) {
+                                            const e = new Date(exportEndDate)
+                                            e.setHours(23, 59, 59, 999)
+                                            if (cDate > e.getTime()) return false
+                                        }
+                                        return true
+                                    })
+                                }
+
+                                if (exportAuditType === 'correction_all') {
+                                    // รายละเอียดการแก้ไขทั้งหมด
+                                    const allCompanies: Record<string, string | number>[] = []
+                                    let idx = 1
+                                    correctionData.auditors.forEach(a => {
+                                        const allCo = [
+                                            ...filterByDate(a.wht_companies).map(c => ({ ...c, type: 'WHT' })),
+                                            ...filterByDate(a.vat_companies).map(c => ({ ...c, type: 'VAT' }))
+                                        ]
+                                        allCo.forEach(c => {
+                                            allCompanies.push({
+                                                'ลำดับ': idx++,
+                                                'ผู้ตรวจ': a.user_name,
+                                                'ประเภท': c.type,
+                                                'Build': c.build,
+                                                'ชื่อบริษัท': c.company_name,
+                                                'ผู้ทำบัญชี': c.accounting_responsible,
+                                                'สถานะ': STATUS_CONFIG[c.status]?.label || c.status,
+                                                'วันที่อัพเดต': c.created_at ? new Date(c.created_at).toLocaleString('th-TH') : '-',
+                                            })
+                                        })
+                                    })
+                                    exportToExcel(allCompanies, `รายละเอียดการแก้ไขทั้งหมด_${dateLabel}`)
+
+                                } else if (exportAuditType === 'correction_individual' && exportSelectedAuditor) {
+                                    // รายละเอียดการแก้ไขรายบุคคล
+                                    const auditor = correctionData.auditors.find(a => a.employee_id === exportSelectedAuditor)
+                                    if (auditor) {
+                                        const allCo = [
+                                            ...filterByDate(auditor.wht_companies).map(c => ({ ...c, type: 'WHT' })),
+                                            ...filterByDate(auditor.vat_companies).map(c => ({ ...c, type: 'VAT' }))
+                                        ]
+                                        const rows = allCo.map((c, idx) => ({
+                                            'ลำดับ': idx + 1,
+                                            'ผู้ตรวจ': auditor.user_name,
+                                            'ประเภท': c.type,
+                                            'Build': c.build,
+                                            'ชื่อบริษัท': c.company_name,
+                                            'ผู้ทำบัญชี': c.accounting_responsible,
+                                            'สถานะ': STATUS_CONFIG[c.status]?.label || c.status,
+                                            'วันที่อัพเดต': c.created_at ? new Date(c.created_at).toLocaleString('th-TH') : '-',
+                                        }))
+                                        exportToExcel(rows, `รายละเอียดการแก้ไข_${auditor.user_name}_${dateLabel}`)
+                                    }
+                                }
+                            } catch (error) {
+                                console.error('Export error:', error);
+                            } finally {
+                                setIsExporting(false)
+                                setExportModalOpen(false)
+                            }
+                        }}
+                        mt="md"
+                    >
+                        ดาวน์โหลด Excel
+                    </Button>
+                </Stack>
             </Modal>
         </Stack>
     )

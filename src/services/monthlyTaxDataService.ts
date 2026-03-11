@@ -95,6 +95,9 @@ export interface MonthlyTaxData {
   document_entry_responsible_first_name?: string | null
   document_entry_responsible_nick_name?: string | null
   tax_registration_status?: string | null
+  company_status?: string | null
+  wht_correction_count?: number
+  vat_correction_count?: number
   created_at: string
   updated_at: string
 }

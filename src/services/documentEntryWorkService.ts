@@ -197,6 +197,18 @@ export async function getById(id: string): Promise<DocumentEntryWorkDetailRespon
 }
 
 /**
+ * Get document entry work history by build, year, month
+ */
+export async function getHistoryByBuildYearMonth(
+  build: string,
+  year: number,
+  month: number
+): Promise<{ success: boolean; data: DocumentEntryWork[] }> {
+  const response = await api.get<{ success: boolean; data: DocumentEntryWork[] }>(`/document-entry-work/history/${build}/${year}/${month}`)
+  return response.data
+}
+
+/**
  * Create new document entry work
  */
 export async function create(data: CreateDocumentEntryWorkRequest): Promise<DocumentEntryWorkDetailResponse> {
@@ -255,6 +267,7 @@ const documentEntryWorkService = {
   getList,
   getByBuildYearMonth,
   getById,
+  getHistoryByBuildYearMonth,
   create,
   update,
   updateStatus,

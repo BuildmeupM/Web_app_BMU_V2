@@ -51,6 +51,7 @@ const EquipmentBorrowing = lazy(() => import('./pages/EquipmentBorrowing'))
 const ErrorReport = lazy(() => import('./pages/ErrorReport'))
 const AccountingDashboard = lazy(() => import('./pages/AccountingDashboard'))
 const ActivityLogDashboard = lazy(() => import('./pages/ActivityLogDashboard'))
+const NasDashboard = lazy(() => import('./pages/NasDashboard'))
 const InternalChatPage = lazy(() => import('./pages/InternalChatPage'))
 
 function App() {
@@ -315,6 +316,16 @@ function App() {
                 <ProtectedRoute allowedRoles={['admin', 'audit']}>
                   <Suspense fallback={<LoadingFallback />}>
                     <ActivityLogDashboard />
+                  </Suspense>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="nas-dashboard"
+              element={
+                <ProtectedRoute allowedRoles={['admin', 'audit']}>
+                  <Suspense fallback={<LoadingFallback />}>
+                    <NasDashboard />
                   </Suspense>
                 </ProtectedRoute>
               }

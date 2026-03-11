@@ -139,6 +139,12 @@ export const routePermissions: RoutePermission[] = [
     label: "Dashboard - Log",
     roles: ["admin", "audit"],
   },
+  // 20. NAS Syslog - admin, audit
+  {
+    path: "/nas-dashboard",
+    label: "Dashboard - Nas",
+    roles: ["admin", "audit"],
+  },
 ];
 
 export const hasPermission = (userRole: UserRole, path: string): boolean => {

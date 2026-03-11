@@ -4,15 +4,16 @@
  */
 
 import { useMemo, useState, useCallback } from 'react'
-import { Table, Badge, Paper, Text, Group, ThemeIcon, Stack, SimpleGrid, Progress, TextInput, Modal, Divider, Loader, Box, Select, ActionIcon } from '@mantine/core'
+import { Table, Badge, Paper, Text, Group, ThemeIcon, Stack, SimpleGrid, Progress, TextInput, Modal, Divider, Loader, Box, Select, ActionIcon, Pagination, Button } from '@mantine/core'
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid,
     Tooltip as RechartsTooltip, ResponsiveContainer, Cell, LabelList,
 } from 'recharts'
-import { TbFileCheck, TbUsers, TbChecklist, TbChartBar, TbSearch, TbEye, TbChevronLeft, TbChevronRight } from 'react-icons/tb'
+import { TbFileCheck, TbUsers, TbChecklist, TbChartBar, TbSearch, TbEye, TbChevronLeft, TbChevronRight, TbDownload } from 'react-icons/tb'
 import type { DocumentEntryWork } from '../../services/documentEntryWorkService'
-import { getByBuildYearMonth } from '../../services/documentEntryWorkService'
+import documentEntryWorkService, { getByBuildYearMonth } from '../../services/documentEntryWorkService'
 import type { DocumentEntryWorkBot } from '../../services/documentEntryWorkService'
+import { exportToExcel } from '../../utils/exportExcel'
 
 // ═══════════════════════════════════════════════════
 //  Types
@@ -53,11 +54,18 @@ function getStatusBadge(status: string | null | undefined) {
         <Badge
             size="sm"
             variant="light"
-            color={s === 'ดำเนินการเสร็จแล้ว' ? 'green' : s === 'กำลังดำเนินการ' ? 'orange' : 'gray'}
+            color={s === 'ดำเนินการเสร็จแล้ว' ? 'green' : s === 'กำลังดำเนินการ' ? 'yellow' : 'red'}
         >
             {cfg.icon} {cfg.label}
         </Badge>
     )
+}
+
+function getStatusColorStr(status: string | null | undefined) {
+    const s = status || 'ยังไม่ดำเนินการ'
+    if (s === 'ดำเนินการเสร็จแล้ว') return 'green'
+    if (s === 'กำลังดำเนินการ') return 'orange' // using orange from mantine for better visibility than yellow on white
+    return 'red'
 }
 
 // ═══════════════════════════════════════════════════
@@ -122,13 +130,18 @@ export default function DocumentEntrySection({ data, employeeNameMap = new Map()
         return Array.from(map.values()).sort((a, b) => b.clientCount - a.clientCount)
     }, [data, employeeNameMap])
 
-    // ── Companies with data only (submission_count > 0) ──
+    // ── Companies with data only (submission_count > 0 and total docs > 0) ──
     const allCompanies = useMemo(() => {
         return data
-            .filter(d => (d.submission_count || 0) > 0)
+            .filter(d => {
+                if ((d.submission_count || 0) === 0) return false;
+                const totalDocs = (d.wht_document_count || 0) + (d.vat_document_count || 0) + (d.non_vat_document_count || 0);
+                return totalDocs > 0;
+            })
             .map(d => ({
                 build: d.build,
                 companyName: d.company_name || d.build,
+                employeeName: employeeNameMap.get(d.responsible_employee_id || '') || d.responsible_employee_id || 'ไม่ระบุ',
                 whtStatus: d.wht_entry_status || 'ยังไม่ดำเนินการ',
                 vatStatus: d.vat_entry_status || 'ยังไม่ดำเนินการ',
                 nonVatStatus: d.non_vat_entry_status || 'ยังไม่ดำเนินการ',
@@ -140,7 +153,7 @@ export default function DocumentEntrySection({ data, employeeNameMap = new Map()
                 workYear: d.work_year,
                 workMonth: d.work_month,
             }))
-    }, [data])
+    }, [data, employeeNameMap])
 
     // ── Chart data for document counts ──
     const docChartData = [
@@ -161,15 +174,41 @@ export default function DocumentEntrySection({ data, employeeNameMap = new Map()
         data: DocumentEntryWork | null
         bots: DocumentEntryWorkBot[]
         submissionCount: number
+        history?: DocumentEntryWork[]
     } | null>(null)
 
+    const [employeeModalOpen, setEmployeeModalOpen] = useState(false)
+    const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null)
+    const [empModalPage, setEmpModalPage] = useState(1)
+    const [empModalPageSize, setEmpModalPageSize] = useState(20)
+
+    // filter states
+    const [filterWht, setFilterWht] = useState<string | null>(null)
+    const [filterVat, setFilterVat] = useState<string | null>(null)
+    const [filterNonVat, setFilterNonVat] = useState<string | null>(null)
+    const [filterEmployee, setFilterEmployee] = useState<string | null>(null)
+
+    const uniqueEmployees = useMemo(() => {
+        const emps = new Set(allCompanies.map(c => c.employeeName))
+        return Array.from(emps).sort()
+    }, [allCompanies])
+
     const filteredCompanies = useMemo(() => {
-        if (!companySearch.trim()) return allCompanies
-        const term = companySearch.trim().toLowerCase()
-        return allCompanies.filter(c =>
-            c.companyName.toLowerCase().includes(term) || c.build.toLowerCase().includes(term)
-        )
-    }, [allCompanies, companySearch])
+        let result = allCompanies
+
+        if (filterWht) result = result.filter(c => c.whtStatus === filterWht || (filterWht === 'ไม่มีข้อมูล' && !c.whtStatus))
+        if (filterVat) result = result.filter(c => c.vatStatus === filterVat || (filterVat === 'ไม่มีข้อมูล' && !c.vatStatus))
+        if (filterNonVat) result = result.filter(c => c.nonVatStatus === filterNonVat || (filterNonVat === 'ไม่มีข้อมูล' && !c.nonVatStatus))
+        if (filterEmployee) result = result.filter(c => c.employeeName === filterEmployee)
+
+        if (companySearch.trim()) {
+            const term = companySearch.trim().toLowerCase()
+            result = result.filter(c =>
+                c.companyName.toLowerCase().includes(term) || c.build.toLowerCase().includes(term)
+            )
+        }
+        return result
+    }, [allCompanies, companySearch, filterWht, filterVat, filterNonVat, filterEmployee])
 
     // Reset page when search or pageSize changes
     const handleSearchChange = useCallback((val: string) => {
@@ -183,7 +222,7 @@ export default function DocumentEntrySection({ data, employeeNameMap = new Map()
         return filteredCompanies.slice(start, start + pageSize)
     }, [filteredCompanies, currentPage, pageSize])
 
-    const handleCompanyClick = useCallback(async (company: typeof allCompanies[0]) => {
+    const handleCompanyClick = useCallback(async (company: { build: string; companyName: string; workYear: number; workMonth: number; submissionCount: number }) => {
         setDetailModalOpen(true)
         setDetailLoading(true)
         setSelectedCompany({
@@ -194,15 +233,19 @@ export default function DocumentEntrySection({ data, employeeNameMap = new Map()
             submissionCount: company.submissionCount,
         })
         try {
+            console.log('company click data:', company)
             const detail = await getByBuildYearMonth(company.build, company.workYear, company.workMonth)
+            const historyDetail = await documentEntryWorkService.getHistoryByBuildYearMonth(company.build, company.workYear, company.workMonth)
             setSelectedCompany({
                 build: company.build,
                 companyName: company.companyName,
                 data: detail.data,
                 bots: detail.bots || [],
                 submissionCount: detail.submission_count || company.submissionCount,
+                history: historyDetail?.data || [],
             })
-        } catch {
+        } catch (error) {
+            console.error('Error fetching detail:', error)
             // Keep modal open with basic info
         } finally {
             setDetailLoading(false)
@@ -360,6 +403,7 @@ export default function DocumentEntrySection({ data, employeeNameMap = new Map()
                                 <Table.Th ta="center" style={{ background: 'linear-gradient(135deg, #7c3aed, #a78bfa)', color: 'white' }}>เอกสาร Non-VAT</Table.Th>
                                 <Table.Th ta="center" style={{ background: 'linear-gradient(135deg, #7c3aed, #a78bfa)', color: 'white' }}>รวมทั้งหมด</Table.Th>
                                 <Table.Th ta="center" style={{ background: 'linear-gradient(135deg, #7c3aed, #a78bfa)', color: 'white' }}>%</Table.Th>
+                                <Table.Th ta="center" style={{ background: 'linear-gradient(135deg, #7c3aed, #a78bfa)', color: 'white', width: 140 }}>จัดการ</Table.Th>
                             </Table.Tr>
                         </Table.Thead>
                         <Table.Tbody>
@@ -401,6 +445,21 @@ export default function DocumentEntrySection({ data, employeeNameMap = new Map()
                                                 {pct}%
                                             </Badge>
                                         </Table.Td>
+                                        <Table.Td ta="center">
+                                            <Badge
+                                                leftSection={<TbEye size={12} />}
+                                                color="violet"
+                                                variant="filled"
+                                                size="md"
+                                                style={{ cursor: 'pointer' }}
+                                                onClick={() => {
+                                                    setSelectedEmployeeId(emp.id)
+                                                    setEmployeeModalOpen(true)
+                                                }}
+                                            >
+                                                ดูรายละเอียด
+                                            </Badge>
+                                        </Table.Td>
                                     </Table.Tr>
                                 )
                             })}
@@ -421,21 +480,88 @@ export default function DocumentEntrySection({ data, employeeNameMap = new Map()
                             <Text size="xs" c="gray.6">ทั้งหมด {allCompanies.length} บริษัท · คลิกที่บริษัทเพื่อดูรายละเอียด</Text>
                         </div>
                     </Group>
-                    <TextInput
-                        placeholder="ค้นหาบริษัท หรือ Build Code..."
-                        leftSection={<TbSearch size={14} />}
-                        value={companySearch}
-                        onChange={e => handleSearchChange(e.currentTarget.value)}
-                        size="sm"
-                        style={{ width: 280 }}
-                        radius="md"
-                    />
+                    <Group gap="sm" align="flex-end" wrap="wrap">
+                        <Select
+                            placeholder="ผู้รับผิดชอบ"
+                            value={filterEmployee}
+                            onChange={setFilterEmployee}
+                            data={uniqueEmployees.map(e => ({ value: e, label: e }))}
+                            size="sm"
+                            clearable
+                            searchable
+                            style={{ width: 180 }}
+                            radius="md"
+                        />
+                        <Select
+                            placeholder="สถานะ WHT"
+                            value={filterWht}
+                            onChange={setFilterWht}
+                            data={[{ value: 'ดำเนินการเสร็จแล้ว', label: '✅ เสร็จแล้ว' }, { value: 'กำลังดำเนินการ', label: '🔄 กำลังทำ' }, { value: 'ยังไม่ดำเนินการ', label: '⏳ ยังไม่เริ่ม' }]}
+                            size="sm"
+                            clearable
+                            style={{ width: 150 }}
+                            radius="md"
+                        />
+                        <Select
+                            placeholder="สถานะ VAT"
+                            value={filterVat}
+                            onChange={setFilterVat}
+                            data={[{ value: 'ดำเนินการเสร็จแล้ว', label: '✅ เสร็จแล้ว' }, { value: 'กำลังดำเนินการ', label: '🔄 กำลังทำ' }, { value: 'ยังไม่ดำเนินการ', label: '⏳ ยังไม่เริ่ม' }]}
+                            size="sm"
+                            clearable
+                            style={{ width: 150 }}
+                            radius="md"
+                        />
+                        <Select
+                            placeholder="สถานะ Non-VAT"
+                            value={filterNonVat}
+                            onChange={setFilterNonVat}
+                            data={[{ value: 'ดำเนินการเสร็จแล้ว', label: '✅ เสร็จแล้ว' }, { value: 'กำลังดำเนินการ', label: '🔄 กำลังทำ' }, { value: 'ยังไม่ดำเนินการ', label: '⏳ ยังไม่เริ่ม' }]}
+                            size="sm"
+                            clearable
+                            style={{ width: 150 }}
+                            radius="md"
+                        />
+                        <TextInput
+                            placeholder="ค้นหาบริษัท หรือ Build Code..."
+                            leftSection={<TbSearch size={14} />}
+                            value={companySearch}
+                            onChange={e => handleSearchChange(e.currentTarget.value)}
+                            size="sm"
+                            style={{ width: 280 }}
+                            radius="md"
+                        />
+                        <Button
+                            variant="light"
+                            color="green"
+                            leftSection={<TbDownload size={16} />}
+                            onClick={() => {
+                                const exportData = filteredCompanies.map(c => ({
+                                    'Build Code': c.build,
+                                    'ชื่อบริษัท': c.companyName,
+                                    'ผู้รับผิดชอบ': c.employeeName || '-',
+                                    'สถานะ WHT': c.whtStatus || 'ยังไม่ดำเนินการ',
+                                    'จำนวนเอกสาร WHT': c.whtDocs,
+                                    'สถานะ VAT': c.vatStatus || 'ยังไม่ดำเนินการ',
+                                    'จำนวนเอกสาร VAT': c.vatDocs,
+                                    'สถานะ Non-VAT': c.nonVatStatus || 'ยังไม่ดำเนินการ',
+                                    'จำนวนเอกสาร Non-VAT': c.nonVatDocs,
+                                    'รวมส่งเข้าระบบ': c.submissionCount,
+                                }))
+                                exportToExcel(exportData, `สรุปคีย์เอกสาร_${new Date().toISOString().split('T')[0]}`)
+                            }}
+                            radius="md"
+                        >
+                            ส่งออก Excel
+                        </Button>
+                    </Group>
                 </Group>
                 <Table striped highlightOnHover withTableBorder withColumnBorders>
                     <Table.Thead>
                         <Table.Tr>
                             <Table.Th style={{ background: 'linear-gradient(135deg, #2e7d32, #66bb6a)', color: 'white' }}>Build</Table.Th>
                             <Table.Th style={{ background: 'linear-gradient(135deg, #2e7d32, #66bb6a)', color: 'white' }}>ชื่อบริษัท</Table.Th>
+                            <Table.Th style={{ background: 'linear-gradient(135deg, #2e7d32, #66bb6a)', color: 'white' }}>ผู้รับผิดชอบ</Table.Th>
                             <Table.Th ta="center" style={{ background: 'linear-gradient(135deg, #2e7d32, #66bb6a)', color: 'white' }}>WHT</Table.Th>
                             <Table.Th ta="center" style={{ background: 'linear-gradient(135deg, #2e7d32, #66bb6a)', color: 'white' }}>VAT</Table.Th>
                             <Table.Th ta="center" style={{ background: 'linear-gradient(135deg, #2e7d32, #66bb6a)', color: 'white' }}>Non-VAT</Table.Th>
@@ -460,22 +586,43 @@ export default function DocumentEntrySection({ data, employeeNameMap = new Map()
                                 <Table.Td>
                                     <Text size="sm" fw={500}>{c.companyName}</Text>
                                 </Table.Td>
+                                <Table.Td>
+                                    <Text size="sm" c="dimmed">{c.employeeName}</Text>
+                                </Table.Td>
                                 <Table.Td ta="center">
                                     <Stack gap={2} align="center">
-                                        {getStatusBadge(c.whtStatus)}
-                                        {c.whtDocs > 0 && <Text size="xs" c="gray.6">({c.whtDocs} ใบ)</Text>}
+                                        {c.whtDocs > 0 ? (
+                                            <>
+                                                {getStatusBadge(c.whtStatus)}
+                                                <Text size="xs" fw={600} c={getStatusColorStr(c.whtStatus)}>({c.whtDocs} ใบ)</Text>
+                                            </>
+                                        ) : (
+                                            <Text size="xs" c="gray.4">-</Text>
+                                        )}
                                     </Stack>
                                 </Table.Td>
                                 <Table.Td ta="center">
                                     <Stack gap={2} align="center">
-                                        {getStatusBadge(c.vatStatus)}
-                                        {c.vatDocs > 0 && <Text size="xs" c="gray.6">({c.vatDocs} ใบ)</Text>}
+                                        {c.vatDocs > 0 ? (
+                                            <>
+                                                {getStatusBadge(c.vatStatus)}
+                                                <Text size="xs" fw={600} c={getStatusColorStr(c.vatStatus)}>({c.vatDocs} ใบ)</Text>
+                                            </>
+                                        ) : (
+                                            <Text size="xs" c="gray.4">-</Text>
+                                        )}
                                     </Stack>
                                 </Table.Td>
                                 <Table.Td ta="center">
                                     <Stack gap={2} align="center">
-                                        {getStatusBadge(c.nonVatStatus)}
-                                        {c.nonVatDocs > 0 && <Text size="xs" c="gray.6">({c.nonVatDocs} ใบ)</Text>}
+                                        {c.nonVatDocs > 0 ? (
+                                            <>
+                                                {getStatusBadge(c.nonVatStatus)}
+                                                <Text size="xs" fw={600} c={getStatusColorStr(c.nonVatStatus)}>({c.nonVatDocs} ใบ)</Text>
+                                            </>
+                                        ) : (
+                                            <Text size="xs" c="gray.4">-</Text>
+                                        )}
                                     </Stack>
                                 </Table.Td>
                                 <Table.Td ta="center">
@@ -559,8 +706,9 @@ export default function DocumentEntrySection({ data, employeeNameMap = new Map()
                         </div>
                     </Group>
                 }
-                size="lg"
+                size="xl"
                 radius="lg"
+                zIndex={300}
             >
                 {detailLoading ? (
                     <Stack align="center" py="xl">
@@ -611,6 +759,56 @@ export default function DocumentEntrySection({ data, employeeNameMap = new Map()
                                 </Group>
                             </SimpleGrid>
                         </div>
+
+                        {/* Submission History */}
+                        {selectedCompany.history && selectedCompany.history.length > 0 && (
+                            <Box mt="md" mb="md">
+                                <Text size="sm" fw={600} mb="xs">ประวัติการส่งงานแต่ละรอบ</Text>
+                                <Table withTableBorder withColumnBorders striped>
+                                    <Table.Thead>
+                                        <Table.Tr>
+                                            <Table.Th ta="center" style={{ background: '#f8f9fa' }}>ครั้งที่</Table.Th>
+                                            <Table.Th ta="center" style={{ background: '#f8f9fa' }}>วัน-เวลาที่ส่ง</Table.Th>
+                                            <Table.Th ta="center" style={{ background: '#fff0e6', color: '#ff6b35' }}>WHT</Table.Th>
+                                            <Table.Th ta="center" style={{ background: '#e6f4ff', color: '#4facfe' }}>VAT</Table.Th>
+                                            <Table.Th ta="center" style={{ background: '#ebfbee', color: '#66bb6a' }}>Non-VAT</Table.Th>
+                                        </Table.Tr>
+                                    </Table.Thead>
+                                    <Table.Tbody>
+                                        {selectedCompany.history.map((hist) => {
+                                            return (
+                                                <Table.Tr key={hist.id}>
+                                                    <Table.Td ta="center">
+                                                        <Badge color="orange" variant="light" size="sm">{hist.submission_count}</Badge>
+                                                    </Table.Td>
+                                                    <Table.Td ta="center">
+                                                        <Text size="xs">{hist.entry_timestamp ? new Date(hist.entry_timestamp).toLocaleString('th-TH') : '-'}</Text>
+                                                    </Table.Td>
+                                                    <Table.Td ta="center">
+                                                        <Stack gap={4} align="center" justify="center" mt={4}>
+                                                            <Text size="sm" fw={600} c={hist.wht_document_count > 0 ? getStatusColorStr(hist.wht_entry_status) : "gray.4"}>{hist.wht_document_count > 0 ? hist.wht_document_count : '-'}</Text>
+                                                            {getStatusBadge(hist.wht_entry_status)}
+                                                        </Stack>
+                                                    </Table.Td>
+                                                    <Table.Td ta="center">
+                                                        <Stack gap={4} align="center" justify="center" mt={4}>
+                                                            <Text size="sm" fw={600} c={hist.vat_document_count > 0 ? getStatusColorStr(hist.vat_entry_status) : "gray.4"}>{hist.vat_document_count > 0 ? hist.vat_document_count : '-'}</Text>
+                                                            {getStatusBadge(hist.vat_entry_status)}
+                                                        </Stack>
+                                                    </Table.Td>
+                                                    <Table.Td ta="center">
+                                                        <Stack gap={4} align="center" justify="center" mt={4}>
+                                                            <Text size="sm" fw={600} c={hist.non_vat_document_count > 0 ? getStatusColorStr(hist.non_vat_entry_status) : "gray.4"}>{hist.non_vat_document_count > 0 ? hist.non_vat_document_count : '-'}</Text>
+                                                            {getStatusBadge(hist.non_vat_entry_status)}
+                                                        </Stack>
+                                                    </Table.Td>
+                                                </Table.Tr>
+                                            )
+                                        })}
+                                    </Table.Tbody>
+                                </Table>
+                            </Box>
+                        )}
 
                         {/* Status timeline */}
                         <div>
@@ -700,7 +898,7 @@ export default function DocumentEntrySection({ data, employeeNameMap = new Map()
                                                         )}
                                                     </Table.Td>
                                                     <Table.Td ta="center">
-                                                        <Badge color="blue" variant="light" size="md">{bot.document_count}</Badge>
+                                                        <Badge color="orange" variant="light" size="md">{bot.document_count}</Badge>
                                                     </Table.Td>
                                                 </Table.Tr>
                                             ))}
@@ -713,6 +911,410 @@ export default function DocumentEntrySection({ data, employeeNameMap = new Map()
                 ) : !detailLoading && (
                     <Text size="sm" c="gray.5" ta="center" py="xl">ไม่พบข้อมูลรายละเอียด</Text>
                 )}
+            </Modal>
+
+            {/* ── Employee Detail Modal ── */}
+            <Modal
+                opened={employeeModalOpen}
+                onClose={() => { setEmployeeModalOpen(false); setSelectedEmployeeId(null); setEmpModalPage(1) }}
+                title={
+                    <Group gap={8}>
+                        <ThemeIcon size={28} radius="md" color="violet" variant="light">
+                            <TbUsers size={16} />
+                        </ThemeIcon>
+                        <Text size="md" fw={700}>รายละเอียดงานของ: {employeeNameMap.get(selectedEmployeeId || '') || selectedEmployeeId || ''}</Text>
+                    </Group>
+                }
+                size="80%"
+                radius="lg"
+                zIndex={201}
+            >
+                {(() => {
+                    if (!selectedEmployeeId) return null
+                    
+                    // 1. Filter all data where this employee is/was responsible, AND total documents > 0
+                    const empData = data.filter(d => {
+                        const isAssigned = d.responsible_employee_id === selectedEmployeeId || 
+                                           d.current_responsible_employee_id === selectedEmployeeId
+                        const totalDocs = (d.wht_document_count || 0) + (d.vat_document_count || 0) + (d.non_vat_document_count || 0)
+                        return isAssigned && totalDocs > 0
+                    })
+                    
+                    // Basic status counting functions per company
+                    const getCompanyStatus = (d: DocumentEntryWork) => {
+                        const statuses = [d.wht_entry_status, d.vat_entry_status, d.non_vat_entry_status].filter(Boolean)
+                        if (statuses.length === 0) return 'ยังไม่เริ่ม'
+                        
+                        const isAllDone = (d.wht_entry_status === 'ดำเนินการเสร็จแล้ว' || !d.wht_document_count) &&
+                                          (d.vat_entry_status === 'ดำเนินการเสร็จแล้ว' || !d.vat_document_count) &&
+                                          (d.non_vat_entry_status === 'ดำเนินการเสร็จแล้ว' || !d.non_vat_document_count)
+                        
+                        if (isAllDone) return 'เสร็จแล้ว'
+                        
+                        const hasStarted = statuses.some(s => s === 'กำลังดำเนินการ' || s === 'ดำเนินการเสร็จแล้ว')
+                        if (hasStarted) return 'กำลังทำ'
+                        
+                        return 'ยังไม่เริ่ม'
+                    }
+
+                    // 2. Compute Summary Cards
+                    let totalCompanies = 0
+                    let doneCompanies = 0
+                    let inProgressCompanies = 0
+                    let notStartedCompanies = 0
+                    
+                    // Document tracking
+                    let whtTotalDocs = 0, vatTotalDocs = 0, nonVatTotalDocs = 0
+                    let whtDoneDocs = 0, vatDoneDocs = 0, nonVatDoneDocs = 0
+                    
+                    // Task types (companies containing this doc type)
+                    let whtTotalTasks = 0, vatTotalTasks = 0, nonVatTotalTasks = 0
+                    let whtDoneTasks = 0, vatDoneTasks = 0, nonVatDoneTasks = 0
+                    
+                    interface CompInfo {
+                        build: string
+                        companyName: string
+                        status: string
+                        submissionCount: number
+                        totalDocs: number
+                        whtDocs: number
+                        vatDocs: number
+                        nonVatDocs: number
+                        whtStatus: string
+                        vatStatus: string
+                        nonVatStatus: string
+                        responsibleOriginal: string | undefined | null
+                        responsibleCurrent: string | undefined | null
+                        entry_timestamp: string
+                        workYear: number
+                        workMonth: number
+                        originalEmp?: string | null
+                        newEmp?: string | null
+                    }
+                    
+                    const remainingCompanies: CompInfo[] = []
+                    const transferredCompanies: CompInfo[] = []
+                    const allEmpCompanies: CompInfo[] = []
+
+                    empData.forEach(d => {
+                        totalCompanies++
+                        const status = getCompanyStatus(d)
+                        if (status === 'เสร็จแล้ว') doneCompanies++
+                        else if (status === 'กำลังทำ') inProgressCompanies++
+                        else notStartedCompanies++
+
+                        // Document tracking
+                        if (d.wht_document_count) {
+                            whtTotalDocs += d.wht_document_count
+                            whtTotalTasks++
+                            if (d.wht_entry_status === 'ดำเนินการเสร็จแล้ว') {
+                                whtDoneDocs += d.wht_document_count
+                                whtDoneTasks++
+                            }
+                        }
+                        if (d.vat_document_count) {
+                            vatTotalDocs += d.vat_document_count
+                            vatTotalTasks++
+                            if (d.vat_entry_status === 'ดำเนินการเสร็จแล้ว') {
+                                vatDoneDocs += d.vat_document_count
+                                vatDoneTasks++
+                            }
+                        }
+                        if (d.non_vat_document_count) {
+                            nonVatTotalDocs += d.non_vat_document_count
+                            nonVatTotalTasks++
+                            if (d.non_vat_entry_status === 'ดำเนินการเสร็จแล้ว') {
+                                nonVatDoneDocs += d.non_vat_document_count
+                                nonVatDoneTasks++
+                            }
+                        }
+
+                        // Lists
+                        const compInfo = {
+                            build: d.build,
+                            companyName: d.company_name || d.build,
+                            status: status,
+                            submissionCount: d.submission_count || 0,
+                            totalDocs: (d.wht_document_count||0) + (d.vat_document_count||0) + (d.non_vat_document_count||0),
+                            whtDocs: d.wht_document_count || 0,
+                            vatDocs: d.vat_document_count || 0,
+                            nonVatDocs: d.non_vat_document_count || 0,
+                            whtStatus: d.wht_entry_status || 'ยังไม่ดำเนินการ',
+                            vatStatus: d.vat_entry_status || 'ยังไม่ดำเนินการ',
+                            nonVatStatus: d.non_vat_entry_status || 'ยังไม่ดำเนินการ',
+                            responsibleOriginal: d.responsible_employee_id,
+                            responsibleCurrent: d.current_responsible_employee_id,
+                            entry_timestamp: d.entry_timestamp,
+                            workYear: d.work_year,
+                            workMonth: d.work_month,
+                        }
+                        
+                        allEmpCompanies.push(compInfo)
+                        
+                        if (status !== 'เสร็จแล้ว') {
+                            remainingCompanies.push(compInfo)
+                        }
+                        
+                        if (d.current_responsible_employee_id && d.current_responsible_employee_id !== d.responsible_employee_id) {
+                            transferredCompanies.push({...compInfo, originalEmp: d.responsible_employee_id, newEmp: d.current_responsible_employee_id})
+                        }
+                    })
+
+                    return (
+                        <Stack gap="xl">
+                            {/* Summary Cards */}
+                            <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }}>
+                                <Paper p="md" radius="md" style={{ background: '#f0f5ff', border: '1px solid #d0e2ff' }}>
+                                    <Text size="sm" c="gray.7">รวมทั้งหมด</Text>
+                                    <Text size="xl" fw={900} c="blue.7">{totalCompanies}</Text>
+                                </Paper>
+                                <Paper p="md" radius="md" style={{ background: '#f0faf0', border: '1px solid #c8e6c9' }}>
+                                    <Text size="sm" c="gray.7">เสร็จแล้ว</Text>
+                                    <Text size="xl" fw={900} c="green.7">{doneCompanies}</Text>
+                                </Paper>
+                                <Paper p="md" radius="md" style={{ background: '#fff9ed', border: '1px solid #ffecb3' }}>
+                                    <Text size="sm" c="gray.7">กำลังดำเนินการ</Text>
+                                    <Text size="xl" fw={900} c="yellow.8">{inProgressCompanies}</Text>
+                                </Paper>
+                                <Paper p="md" radius="md" style={{ background: '#fff0f0', border: '1px solid #ffcdd2' }}>
+                                    <Text size="sm" c="gray.7">ยังไม่เริ่ม</Text>
+                                    <Text size="xl" fw={900} c="red.7">{notStartedCompanies}</Text>
+                                </Paper>
+                            </SimpleGrid>
+
+                            {/* Task Breakdown */}
+                            <div>
+                                <Text size="sm" fw={700} mb="xs">สรุปตามประเภทเอกสาร (จำนวนงาน)</Text>
+                                <SimpleGrid cols={{ base: 1, sm: 3 }}>
+                                    <Paper p="md" radius="md" style={{ background: '#f8f0ff', border: '1px solid #e5caff' }}>
+                                        <Text size="xs" fw={700} c="violet.7" mb="sm">WHT (ภาษีหัก ณ ที่จ่าย)</Text>
+                                        <Group justify="space-between" mb={4}><Text size="xs">ทั้งหมด:</Text><Text size="xs" fw={700}>{whtTotalTasks}</Text></Group>
+                                        <Group justify="space-between" mb={4}><Text size="xs">เสร็จแล้ว:</Text><Text size="xs" fw={700} c="green">{whtDoneTasks}</Text></Group>
+                                        <Group justify="space-between"><Text size="xs">คงเหลือ:</Text><Text size="xs" fw={700} c="red">{whtTotalTasks - whtDoneTasks}</Text></Group>
+                                    </Paper>
+                                    <Paper p="md" radius="md" style={{ background: '#f0f5ff', border: '1px solid #cce5ff' }}>
+                                        <Text size="xs" fw={700} c="blue.7" mb="sm">VAT (ภาษีมูลค่าเพิ่ม)</Text>
+                                        <Group justify="space-between" mb={4}><Text size="xs">ทั้งหมด:</Text><Text size="xs" fw={700}>{vatTotalTasks}</Text></Group>
+                                        <Group justify="space-between" mb={4}><Text size="xs">เสร็จแล้ว:</Text><Text size="xs" fw={700} c="green">{vatDoneTasks}</Text></Group>
+                                        <Group justify="space-between"><Text size="xs">คงเหลือ:</Text><Text size="xs" fw={700} c="red">{vatTotalTasks - vatDoneTasks}</Text></Group>
+                                    </Paper>
+                                    <Paper p="md" radius="md" style={{ background: '#f0faf0', border: '1px solid #c8e6c9' }}>
+                                        <Text size="xs" fw={700} c="green.7" mb="sm">NoneVAT (ไม่มีภาษีมูลค่าเพิ่ม)</Text>
+                                        <Group justify="space-between" mb={4}><Text size="xs">ทั้งหมด:</Text><Text size="xs" fw={700}>{nonVatTotalTasks}</Text></Group>
+                                        <Group justify="space-between" mb={4}><Text size="xs">เสร็จแล้ว:</Text><Text size="xs" fw={700} c="green">{nonVatDoneTasks}</Text></Group>
+                                        <Group justify="space-between"><Text size="xs">คงเหลือ:</Text><Text size="xs" fw={700} c="red">{nonVatTotalTasks - nonVatDoneTasks}</Text></Group>
+                                    </Paper>
+                                </SimpleGrid>
+                            </div>
+
+                            {/* Document Breakdown */}
+                            <div>
+                                <Text size="sm" fw={700} mb="xs">สรุปจำนวนเอกสารทั้งหมด</Text>
+                                <SimpleGrid cols={{ base: 1, sm: 3 }}>
+                                    <Paper p="md" radius="md" style={{ background: '#f8f0ff', border: '1px solid #e5caff' }}>
+                                        <Text size="xs" fw={700} c="violet.7" mb="sm">WHT (ภาษีหัก ณ ที่จ่าย)</Text>
+                                        <Group justify="space-between" mb={4}><Text size="xs">เอกสารทั้งหมด:</Text><Text size="xs" fw={700}>{whtTotalDocs}</Text></Group>
+                                        <Group justify="space-between" mb={4}><Text size="xs">คีย์ไปแล้ว:</Text><Text size="xs" fw={700} c="green">{whtDoneDocs}</Text></Group>
+                                        <Group justify="space-between"><Text size="xs">เหลือรอคีย์:</Text><Text size="xs" fw={700} c="red">{whtTotalDocs - whtDoneDocs}</Text></Group>
+                                    </Paper>
+                                    <Paper p="md" radius="md" style={{ background: '#f0f5ff', border: '1px solid #cce5ff' }}>
+                                        <Text size="xs" fw={700} c="blue.7" mb="sm">VAT (ภาษีมูลค่าเพิ่ม)</Text>
+                                        <Group justify="space-between" mb={4}><Text size="xs">เอกสารทั้งหมด:</Text><Text size="xs" fw={700}>{vatTotalDocs}</Text></Group>
+                                        <Group justify="space-between" mb={4}><Text size="xs">คีย์ไปแล้ว:</Text><Text size="xs" fw={700} c="green">{vatDoneDocs}</Text></Group>
+                                        <Group justify="space-between"><Text size="xs">เหลือรอคีย์:</Text><Text size="xs" fw={700} c="red">{vatTotalDocs - vatDoneDocs}</Text></Group>
+                                    </Paper>
+                                    <Paper p="md" radius="md" style={{ background: '#f0faf0', border: '1px solid #c8e6c9' }}>
+                                        <Text size="xs" fw={700} c="green.7" mb="sm">NoneVAT (ไม่มีภาษีมูลค่าเพิ่ม)</Text>
+                                        <Group justify="space-between" mb={4}><Text size="xs">เอกสารทั้งหมด:</Text><Text size="xs" fw={700}>{nonVatTotalDocs}</Text></Group>
+                                        <Group justify="space-between" mb={4}><Text size="xs">คีย์ไปแล้ว:</Text><Text size="xs" fw={700} c="green">{nonVatDoneDocs}</Text></Group>
+                                        <Group justify="space-between"><Text size="xs">เหลือรอคีย์:</Text><Text size="xs" fw={700} c="red">{nonVatTotalDocs - nonVatDoneDocs}</Text></Group>
+                                    </Paper>
+                                </SimpleGrid>
+                            </div>
+
+                            {/* Remaining Companies */}
+                            {remainingCompanies.length > 0 && (
+                                <div>
+                                    <Text size="sm" fw={700} mb="sm">รายชื่อบริษัทที่คงเหลือ ({remainingCompanies.length} บริษัท)</Text>
+                                    <Table striped highlightOnHover withTableBorder>
+                                        <Table.Thead style={{ background: '#fff9ed' }}>
+                                            <Table.Tr>
+                                                <Table.Th>Build</Table.Th>
+                                                <Table.Th>ชื่อบริษัท</Table.Th>
+                                                <Table.Th ta="center">สถานะ</Table.Th>
+                                                <Table.Th ta="center">จำนวนครั้งที่ส่ง</Table.Th>
+                                                <Table.Th ta="center">เอกสารทั้งหมด</Table.Th>
+                                                <Table.Th ta="center">WHT</Table.Th>
+                                                <Table.Th ta="center">VAT</Table.Th>
+                                                <Table.Th ta="center">NoneVAT</Table.Th>
+                                                <Table.Th ta="center" style={{ width: 80 }}>จัดการ</Table.Th>
+                                            </Table.Tr>
+                                        </Table.Thead>
+                                        <Table.Tbody>
+                                            {remainingCompanies.map(c => (
+                                                <Table.Tr key={c.build}>
+                                                    <Table.Td><Text size="xs" fw={600}>{c.build}</Text></Table.Td>
+                                                    <Table.Td><Text size="xs">{c.companyName}</Text></Table.Td>
+                                                    <Table.Td ta="center">
+                                                        <Badge color={c.status === 'กำลังทำ' ? 'yellow' : 'red'} variant="light" size="sm">{c.status}</Badge>
+                                                    </Table.Td>
+                                                    <Table.Td ta="center"><Text size="xs" c="orange">{c.submissionCount}</Text></Table.Td>
+                                                    <Table.Td ta="center"><Text size="xs" fw={600}>{c.totalDocs}</Text></Table.Td>
+                                                    <Table.Td ta="center"><Text size="xs" c={c.whtDocs > 0 ? "red" : "gray"}>{c.whtDocs > 0 ? c.whtDocs : '-'}</Text></Table.Td>
+                                                    <Table.Td ta="center"><Text size="xs" c={c.vatDocs > 0 ? "red" : "gray"}>{c.vatDocs > 0 ? c.vatDocs : '-'}</Text></Table.Td>
+                                                    <Table.Td ta="center"><Text size="xs" c={c.nonVatDocs > 0 ? "green" : "gray"}>{c.nonVatDocs > 0 ? c.nonVatDocs : '-'}</Text></Table.Td>
+                                                    <Table.Td ta="center">
+                                                        <ActionIcon variant="light" color="violet" onClick={() => handleCompanyClick(c as { build: string; companyName: string; workYear: number; workMonth: number; submissionCount: number })} title="ดูรายละเอียด">
+                                                            <TbEye size={16} />
+                                                        </ActionIcon>
+                                                    </Table.Td>
+                                                </Table.Tr>
+                                            ))}
+                                        </Table.Tbody>
+                                    </Table>
+                                </div>
+                            )}
+
+                            {/* Transferred Companies */}
+                            {transferredCompanies.length > 0 && (
+                                <div>
+                                    <Text size="sm" fw={700} mb="sm">บริษัทที่มีการเปลี่ยนผู้รับผิดชอบ ({transferredCompanies.length} บริษัท)</Text>
+                                    <Table striped highlightOnHover withTableBorder>
+                                        <Table.Thead style={{ background: '#fdfbc8' }}>
+                                            <Table.Tr>
+                                                <Table.Th>Build</Table.Th>
+                                                <Table.Th>ชื่อบริษัท</Table.Th>
+                                                <Table.Th>ผู้รับผิดชอบเดิม</Table.Th>
+                                                <Table.Th>ผู้รับผิดชอบใหม่</Table.Th>
+                                            </Table.Tr>
+                                        </Table.Thead>
+                                        <Table.Tbody>
+                                            {transferredCompanies.map(c => (
+                                                <Table.Tr key={`transfer-${c.build}`}>
+                                                    <Table.Td><Text size="xs" fw={600}>{c.build}</Text></Table.Td>
+                                                    <Table.Td><Text size="xs">{c.companyName}</Text></Table.Td>
+                                                    <Table.Td><Text size="xs" c="gray.6">{employeeNameMap.get(c.originalEmp) || c.originalEmp}</Text></Table.Td>
+                                                    <Table.Td><Text size="xs" c="blue" fw={600}>{employeeNameMap.get(c.newEmp) || c.newEmp}</Text></Table.Td>
+                                                </Table.Tr>
+                                            ))}
+                                        </Table.Tbody>
+                                    </Table>
+                                </div>
+                            )}
+
+                            {/* All Companies */}
+                            <div>
+                                <Text size="sm" fw={700} mb="sm">รายชื่อบริษัททั้งหมด ({allEmpCompanies.length} บริษัท)</Text>
+                                <Table striped highlightOnHover withTableBorder>
+                                    <Table.Thead style={{ background: '#f8f9fa' }}>
+                                        <Table.Tr>
+                                            <Table.Th>Build</Table.Th>
+                                            <Table.Th>ชื่อบริษัท</Table.Th>
+                                            <Table.Th ta="center">สถานะ</Table.Th>
+                                            <Table.Th ta="center">จำนวนครั้งที่ส่ง</Table.Th>
+                                            <Table.Th ta="center">เอกสารทั้งหมด</Table.Th>
+                                            <Table.Th ta="center">WHT</Table.Th>
+                                            <Table.Th ta="center">VAT</Table.Th>
+                                            <Table.Th ta="center">NoneVAT</Table.Th>
+                                            <Table.Th ta="center" style={{ width: 80 }}>จัดการ</Table.Th>
+                                        </Table.Tr>
+                                    </Table.Thead>
+                                    <Table.Tbody>
+                                        {(() => {
+                                            const startIdx = (empModalPage - 1) * empModalPageSize
+                                            const paginatedEmpCompanies = allEmpCompanies.slice(startIdx, startIdx + empModalPageSize)
+                                            return paginatedEmpCompanies.map(c => (
+                                                <Table.Tr key={`all-${c.build}`}>
+                                                    <Table.Td><Text size="xs" fw={600}>{c.build}</Text></Table.Td>
+                                                    <Table.Td><Text size="xs">{c.companyName}</Text></Table.Td>
+                                                    <Table.Td ta="center">
+                                                        <Badge color={c.status === 'เสร็จแล้ว' ? 'green' : c.status === 'กำลังทำ' ? 'yellow' : 'red'} variant="light" size="sm">{c.status === 'ยังไม่เริ่ม' ? 'ยังไม่ได้เริ่ม' : c.status}</Badge>
+                                                    </Table.Td>
+                                                    <Table.Td ta="center"><Text size="xs" c="orange">{c.submissionCount}</Text></Table.Td>
+                                                    <Table.Td ta="center"><Text size="xs" fw={600}>{c.totalDocs}</Text></Table.Td>
+                                                    <Table.Td ta="center">
+                                                        <Stack gap={2} align="center">
+                                                            {c.whtDocs > 0 ? (
+                                                                <>
+                                                                    {getStatusBadge(c.whtStatus)}
+                                                                    <Text size="sm" fw={600} c={getStatusColorStr(c.whtStatus)}>({c.whtDocs} ใบ)</Text>
+                                                                </>
+                                                            ) : (
+                                                                <Text size="sm" fw={600} c="gray.4">-</Text>
+                                                            )}
+                                                        </Stack>
+                                                    </Table.Td>
+                                                    <Table.Td ta="center">
+                                                        <Stack gap={2} align="center">
+                                                            {c.vatDocs > 0 ? (
+                                                                <>
+                                                                    {getStatusBadge(c.vatStatus)}
+                                                                    <Text size="sm" fw={600} c={getStatusColorStr(c.vatStatus)}>({c.vatDocs} ใบ)</Text>
+                                                                </>
+                                                            ) : (
+                                                                <Text size="sm" fw={600} c="gray.4">-</Text>
+                                                            )}
+                                                        </Stack>
+                                                    </Table.Td>
+                                                    <Table.Td ta="center">
+                                                        <Stack gap={2} align="center">
+                                                            {c.nonVatDocs > 0 ? (
+                                                                <>
+                                                                    {getStatusBadge(c.nonVatStatus)}
+                                                                    <Text size="sm" fw={600} c={getStatusColorStr(c.nonVatStatus)}>({c.nonVatDocs} ใบ)</Text>
+                                                                </>
+                                                            ) : (
+                                                                <Text size="sm" fw={600} c="gray.4">-</Text>
+                                                            )}
+                                                        </Stack>
+                                                    </Table.Td>
+                                                    <Table.Td ta="center">
+                                                        <ActionIcon variant="light" color="violet" onClick={() => handleCompanyClick(c as { build: string; companyName: string; workYear: number; workMonth: number; submissionCount: number })} title="ดูรายละเอียด">
+                                                            <TbEye size={16} />
+                                                        </ActionIcon>
+                                                    </Table.Td>
+                                                </Table.Tr>
+                                            ))
+                                        })()}
+                                    </Table.Tbody>
+                                </Table>
+
+                                {/* Pagination Controls */}
+                                {allEmpCompanies.length > 0 && (
+                                    <Group justify="space-between" mt="md" px="xs">
+                                        <Group gap={8}>
+                                            <Text size="xs" c="gray.6">แสดง</Text>
+                                            <Select
+                                                data={[
+                                                    { value: '20', label: '20 รายการ' },
+                                                    { value: '50', label: '50 รายการ' },
+                                                    { value: '100', label: '100 รายการ' },
+                                                ]}
+                                                value={String(empModalPageSize)}
+                                                onChange={val => { setEmpModalPageSize(Number(val)); setEmpModalPage(1) }}
+                                                size="xs"
+                                                style={{ width: 120 }}
+                                                allowDeselect={false}
+                                            />
+                                            <Text size="xs" c="gray.6">
+                                                {(empModalPage - 1) * empModalPageSize + 1}-{Math.min(empModalPage * empModalPageSize, allEmpCompanies.length)} จาก {allEmpCompanies.length} รายการ
+                                            </Text>
+                                        </Group>
+                                        <Pagination
+                                            total={Math.max(1, Math.ceil(allEmpCompanies.length / empModalPageSize))}
+                                            value={empModalPage}
+                                            onChange={setEmpModalPage}
+                                            size="sm"
+                                            radius="md"
+                                            color="violet"
+                                        />
+                                    </Group>
+                                )}
+                            </div>
+
+                        </Stack>
+                    )
+                })()}
             </Modal>
         </Stack>
     )

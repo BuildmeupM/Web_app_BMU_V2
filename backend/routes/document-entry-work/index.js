@@ -93,6 +93,15 @@ router.get('/', authenticateToken, async (req, res) => {
     const [countRows] = await pool.execute(
       `SELECT COUNT(DISTINCT dew.id) as total 
        FROM document_entry_work dew 
+       INNER JOIN (
+         SELECT build, work_year, work_month, MAX(submission_count) as max_sub
+         FROM document_entry_work
+         WHERE deleted_at IS NULL
+         GROUP BY build, work_year, work_month
+       ) latest ON dew.build = latest.build 
+         AND dew.work_year = latest.work_year 
+         AND dew.work_month = latest.work_month 
+         AND dew.submission_count = latest.max_sub
        ${joinClause}
        WHERE ${whereClause}`,
       queryParams
@@ -111,18 +120,36 @@ router.get('/', authenticateToken, async (req, res) => {
         dew.submission_count,
         dew.responsible_employee_id,
         dew.current_responsible_employee_id,
-        dew.wht_document_count,
-        dew.wht_entry_status,
+        latest.total_wht as wht_document_count,
+        CASE 
+            WHEN latest.wht_doing_rounds > 0 THEN 'กำลังดำเนินการ'
+            WHEN latest.wht_undone_rounds > 0 AND latest.wht_done_rounds > 0 THEN 'กำลังดำเนินการ'
+            WHEN latest.wht_undone_rounds > 0 AND latest.wht_done_rounds = 0 THEN 'ยังไม่ดำเนินการ'
+            WHEN latest.wht_done_rounds > 0 AND latest.wht_undone_rounds = 0 THEN 'ดำเนินการเสร็จแล้ว'
+            ELSE dew.wht_entry_status
+        END as wht_entry_status,
         dew.wht_entry_start_datetime,
         dew.wht_entry_completed_datetime,
         dew.wht_status_updated_by,
-        dew.vat_document_count,
-        dew.vat_entry_status,
+        latest.total_vat as vat_document_count,
+        CASE 
+            WHEN latest.vat_doing_rounds > 0 THEN 'กำลังดำเนินการ'
+            WHEN latest.vat_undone_rounds > 0 AND latest.vat_done_rounds > 0 THEN 'กำลังดำเนินการ'
+            WHEN latest.vat_undone_rounds > 0 AND latest.vat_done_rounds = 0 THEN 'ยังไม่ดำเนินการ'
+            WHEN latest.vat_done_rounds > 0 AND latest.vat_undone_rounds = 0 THEN 'ดำเนินการเสร็จแล้ว'
+            ELSE dew.vat_entry_status
+        END as vat_entry_status,
         dew.vat_entry_start_datetime,
         dew.vat_entry_completed_datetime,
         dew.vat_status_updated_by,
-        dew.non_vat_document_count,
-        dew.non_vat_entry_status,
+        latest.total_non_vat as non_vat_document_count,
+        CASE 
+            WHEN latest.non_vat_doing_rounds > 0 THEN 'กำลังดำเนินการ'
+            WHEN latest.non_vat_undone_rounds > 0 AND latest.non_vat_done_rounds > 0 THEN 'กำลังดำเนินการ'
+            WHEN latest.non_vat_undone_rounds > 0 AND latest.non_vat_done_rounds = 0 THEN 'ยังไม่ดำเนินการ'
+            WHEN latest.non_vat_done_rounds > 0 AND latest.non_vat_undone_rounds = 0 THEN 'ดำเนินการเสร็จแล้ว'
+            ELSE dew.non_vat_entry_status
+        END as non_vat_entry_status,
         dew.non_vat_entry_start_datetime,
         dew.non_vat_entry_completed_datetime,
         dew.non_vat_status_updated_by,
@@ -132,6 +159,27 @@ router.get('/', authenticateToken, async (req, res) => {
         dew.updated_at,
         COALESCE(bot_counts.bot_count, 0) as bot_count
        FROM document_entry_work dew
+       INNER JOIN (
+         SELECT build, work_year, work_month, MAX(submission_count) as max_sub,
+                SUM(wht_document_count) as total_wht, 
+                SUM(vat_document_count) as total_vat, 
+                SUM(non_vat_document_count) as total_non_vat,
+                SUM(CASE WHEN wht_document_count > 0 AND wht_entry_status = 'ดำเนินการเสร็จแล้ว' THEN 1 ELSE 0 END) as wht_done_rounds,
+                SUM(CASE WHEN wht_document_count > 0 AND wht_entry_status = 'กำลังดำเนินการ' THEN 1 ELSE 0 END) as wht_doing_rounds,
+                SUM(CASE WHEN wht_document_count > 0 AND (wht_entry_status IS NULL OR wht_entry_status = 'ยังไม่ดำเนินการ') THEN 1 ELSE 0 END) as wht_undone_rounds,
+                SUM(CASE WHEN vat_document_count > 0 AND vat_entry_status = 'ดำเนินการเสร็จแล้ว' THEN 1 ELSE 0 END) as vat_done_rounds,
+                SUM(CASE WHEN vat_document_count > 0 AND vat_entry_status = 'กำลังดำเนินการ' THEN 1 ELSE 0 END) as vat_doing_rounds,
+                SUM(CASE WHEN vat_document_count > 0 AND (vat_entry_status IS NULL OR vat_entry_status = 'ยังไม่ดำเนินการ') THEN 1 ELSE 0 END) as vat_undone_rounds,
+                SUM(CASE WHEN non_vat_document_count > 0 AND non_vat_entry_status = 'ดำเนินการเสร็จแล้ว' THEN 1 ELSE 0 END) as non_vat_done_rounds,
+                SUM(CASE WHEN non_vat_document_count > 0 AND non_vat_entry_status = 'กำลังดำเนินการ' THEN 1 ELSE 0 END) as non_vat_doing_rounds,
+                SUM(CASE WHEN non_vat_document_count > 0 AND (non_vat_entry_status IS NULL OR non_vat_entry_status = 'ยังไม่ดำเนินการ') THEN 1 ELSE 0 END) as non_vat_undone_rounds
+         FROM document_entry_work
+         WHERE deleted_at IS NULL
+         GROUP BY build, work_year, work_month
+       ) latest ON dew.build = latest.build 
+         AND dew.work_year = latest.work_year 
+         AND dew.work_month = latest.work_month 
+         AND dew.submission_count = latest.max_sub
        LEFT JOIN clients c ON dew.build = c.build AND c.deleted_at IS NULL
        LEFT JOIN (
          SELECT document_entry_work_id, COUNT(*) as bot_count
@@ -158,6 +206,9 @@ router.get('/', authenticateToken, async (req, res) => {
       non_vat_entry_completed_datetime: row.non_vat_entry_completed_datetime ? formatDateForResponse(row.non_vat_entry_completed_datetime) : null,
       created_at: formatDateForResponse(row.created_at),
       updated_at: formatDateForResponse(row.updated_at),
+      wht_document_count: Number(row.wht_document_count) || 0,
+      vat_document_count: Number(row.vat_document_count) || 0,
+      non_vat_document_count: Number(row.non_vat_document_count) || 0,
       bot_count: parseInt(row.bot_count) || 0,
     }))
 
@@ -217,14 +268,11 @@ router.get('/summary', authenticateToken, async (req, res) => {
     const whereClause = whereConditions.join(' AND ')
 
     // Get detailed data grouped by date/month and build
-    let dateGroupClause = ''
     let orderByClause = ''
 
     if (group_by === 'day') {
-      dateGroupClause = 'DATE(dew.entry_timestamp)'
       orderByClause = 'DATE(dew.entry_timestamp) DESC, c.company_name ASC'
     } else {
-      dateGroupClause = 'dew.work_month'
       orderByClause = 'dew.work_month ASC, c.company_name ASC'
     }
 
@@ -234,25 +282,63 @@ router.get('/summary', authenticateToken, async (req, res) => {
         ${group_by === 'day' ? 'DATE(dew.entry_timestamp) as date,' : 'dew.work_month as month,'}
         dew.build,
         c.company_name,
-        dew.wht_document_count,
-        dew.wht_entry_status,
-        dew.vat_document_count,
-        dew.vat_entry_status,
-        dew.non_vat_document_count,
-        dew.non_vat_entry_status,
-        (dew.wht_document_count + dew.vat_document_count + dew.non_vat_document_count) as total_documents,
-        (
-          CASE WHEN dew.wht_entry_status = 'ดำเนินการเสร็จแล้ว' THEN dew.wht_document_count ELSE 0 END +
-          CASE WHEN dew.vat_entry_status = 'ดำเนินการเสร็จแล้ว' THEN dew.vat_document_count ELSE 0 END +
-          CASE WHEN dew.non_vat_entry_status = 'ดำเนินการเสร็จแล้ว' THEN dew.non_vat_document_count ELSE 0 END
-        ) as completed_documents
+        latest.total_wht as wht_document_count,
+        CASE 
+            WHEN latest.wht_doing_rounds > 0 THEN 'กำลังดำเนินการ'
+            WHEN latest.wht_undone_rounds > 0 AND latest.wht_done_rounds > 0 THEN 'กำลังดำเนินการ'
+            WHEN latest.wht_undone_rounds > 0 AND latest.wht_done_rounds = 0 THEN 'ยังไม่ดำเนินการ'
+            WHEN latest.wht_done_rounds > 0 AND latest.wht_undone_rounds = 0 THEN 'ดำเนินการเสร็จแล้ว'
+            ELSE dew.wht_entry_status
+        END as wht_entry_status,
+        latest.total_vat as vat_document_count,
+        CASE 
+            WHEN latest.vat_doing_rounds > 0 THEN 'กำลังดำเนินการ'
+            WHEN latest.vat_undone_rounds > 0 AND latest.vat_done_rounds > 0 THEN 'กำลังดำเนินการ'
+            WHEN latest.vat_undone_rounds > 0 AND latest.vat_done_rounds = 0 THEN 'ยังไม่ดำเนินการ'
+            WHEN latest.vat_done_rounds > 0 AND latest.vat_undone_rounds = 0 THEN 'ดำเนินการเสร็จแล้ว'
+            ELSE dew.vat_entry_status
+        END as vat_entry_status,
+        latest.total_non_vat as non_vat_document_count,
+        CASE 
+            WHEN latest.non_vat_doing_rounds > 0 THEN 'กำลังดำเนินการ'
+            WHEN latest.non_vat_undone_rounds > 0 AND latest.non_vat_done_rounds > 0 THEN 'กำลังดำเนินการ'
+            WHEN latest.non_vat_undone_rounds > 0 AND latest.non_vat_done_rounds = 0 THEN 'ยังไม่ดำเนินการ'
+            WHEN latest.non_vat_done_rounds > 0 AND latest.non_vat_undone_rounds = 0 THEN 'ดำเนินการเสร็จแล้ว'
+            ELSE dew.non_vat_entry_status
+        END as non_vat_entry_status,
+        (latest.total_wht + latest.total_vat + latest.total_non_vat) as total_documents,
+        (latest.wht_done_docs + latest.vat_done_docs + latest.non_vat_done_docs) as completed_documents
        FROM document_entry_work dew
+       INNER JOIN (
+         SELECT build, work_year, work_month, MAX(submission_count) as max_sub,
+                SUM(wht_document_count) as total_wht, 
+                SUM(vat_document_count) as total_vat, 
+                SUM(non_vat_document_count) as total_non_vat,
+                SUM(CASE WHEN wht_document_count > 0 AND wht_entry_status = 'ดำเนินการเสร็จแล้ว' THEN wht_document_count ELSE 0 END) as wht_done_docs,
+                SUM(CASE WHEN vat_document_count > 0 AND vat_entry_status = 'ดำเนินการเสร็จแล้ว' THEN vat_document_count ELSE 0 END) as vat_done_docs,
+                SUM(CASE WHEN non_vat_document_count > 0 AND non_vat_entry_status = 'ดำเนินการเสร็จแล้ว' THEN non_vat_document_count ELSE 0 END) as non_vat_done_docs,
+                SUM(CASE WHEN wht_document_count > 0 AND wht_entry_status = 'ดำเนินการเสร็จแล้ว' THEN 1 ELSE 0 END) as wht_done_rounds,
+                SUM(CASE WHEN wht_document_count > 0 AND wht_entry_status = 'กำลังดำเนินการ' THEN 1 ELSE 0 END) as wht_doing_rounds,
+                SUM(CASE WHEN wht_document_count > 0 AND (wht_entry_status IS NULL OR wht_entry_status = 'ยังไม่ดำเนินการ') THEN 1 ELSE 0 END) as wht_undone_rounds,
+                SUM(CASE WHEN vat_document_count > 0 AND vat_entry_status = 'ดำเนินการเสร็จแล้ว' THEN 1 ELSE 0 END) as vat_done_rounds,
+                SUM(CASE WHEN vat_document_count > 0 AND vat_entry_status = 'กำลังดำเนินการ' THEN 1 ELSE 0 END) as vat_doing_rounds,
+                SUM(CASE WHEN vat_document_count > 0 AND (vat_entry_status IS NULL OR vat_entry_status = 'ยังไม่ดำเนินการ') THEN 1 ELSE 0 END) as vat_undone_rounds,
+                SUM(CASE WHEN non_vat_document_count > 0 AND non_vat_entry_status = 'ดำเนินการเสร็จแล้ว' THEN 1 ELSE 0 END) as non_vat_done_rounds,
+                SUM(CASE WHEN non_vat_document_count > 0 AND non_vat_entry_status = 'กำลังดำเนินการ' THEN 1 ELSE 0 END) as non_vat_doing_rounds,
+                SUM(CASE WHEN non_vat_document_count > 0 AND (non_vat_entry_status IS NULL OR non_vat_entry_status = 'ยังไม่ดำเนินการ') THEN 1 ELSE 0 END) as non_vat_undone_rounds
+         FROM document_entry_work
+         WHERE deleted_at IS NULL
+         GROUP BY build, work_year, work_month
+       ) latest ON dew.build = latest.build 
+         AND dew.work_year = latest.work_year 
+         AND dew.work_month = latest.work_month 
+         AND dew.submission_count = latest.max_sub
        LEFT JOIN clients c ON dew.build = c.build AND c.deleted_at IS NULL
        WHERE ${whereClause}
          AND (
-           dew.wht_entry_status = 'ดำเนินการเสร็จแล้ว' OR
-           dew.vat_entry_status = 'ดำเนินการเสร็จแล้ว' OR
-           dew.non_vat_entry_status = 'ดำเนินการเสร็จแล้ว'
+           latest.wht_done_rounds > 0 OR
+           latest.vat_done_rounds > 0 OR
+           latest.non_vat_done_rounds > 0
          )
        ORDER BY ${orderByClause}`,
       queryParams
@@ -337,6 +423,60 @@ router.get('/summary', authenticateToken, async (req, res) => {
 })
 
 /**
+ * GET /api/document-entry-work/history/:build/:year/:month
+ * ดึงประวัติงานคีย์เอกสารทั้งหมดตาม Build, Year, Month
+ * Access: All authenticated users
+ */
+router.get('/history/:build/:year/:month', authenticateToken, async (req, res) => {
+  try {
+    const { build, year, month } = req.params
+
+    const [rows] = await pool.execute(
+      `SELECT 
+        dew.id,
+        dew.build,
+        c.company_name,
+        dew.work_year,
+        dew.work_month,
+        dew.entry_timestamp,
+        dew.submission_count,
+        dew.wht_document_count,
+        dew.wht_entry_status,
+        dew.vat_document_count,
+        dew.vat_entry_status,
+        dew.non_vat_document_count,
+        dew.non_vat_entry_status,
+        dew.submission_comment,
+        dew.return_comment,
+        dew.created_at
+       FROM document_entry_work dew
+       LEFT JOIN clients c ON dew.build = c.build AND c.deleted_at IS NULL
+       WHERE dew.build = ? AND dew.work_year = ? AND dew.work_month = ? AND dew.deleted_at IS NULL
+       ORDER BY dew.submission_count DESC`,
+      [build, year, month]
+    )
+
+    const formattedData = rows.map(row => ({
+      ...row,
+      entry_timestamp: formatDateForResponse(row.entry_timestamp),
+      created_at: formatDateForResponse(row.created_at),
+    }))
+
+    res.json({
+      success: true,
+      data: formattedData,
+    })
+  } catch (error) {
+    console.error('Error fetching document entry work history:', error)
+    res.status(500).json({
+      success: false,
+      message: 'ไม่สามารถดึงข้อมูลประวัติงานคีย์เอกสารได้',
+      error: error.message,
+    })
+  }
+})
+
+/**
  * GET /api/document-entry-work/:build/:year/:month
  * ดึงข้อมูลงานคีย์เอกสารตาม Build, Year, Month (รวม bots)
  * Access: All authenticated users
@@ -358,18 +498,36 @@ router.get('/:build/:year/:month', authenticateToken, async (req, res) => {
         dew.submission_count,
         dew.responsible_employee_id,
         dew.current_responsible_employee_id,
-        dew.wht_document_count,
-        dew.wht_entry_status,
+        latest.total_wht as wht_document_count,
+        CASE 
+            WHEN latest.wht_doing_rounds > 0 THEN 'กำลังดำเนินการ'
+            WHEN latest.wht_undone_rounds > 0 AND latest.wht_done_rounds > 0 THEN 'กำลังดำเนินการ'
+            WHEN latest.wht_undone_rounds > 0 AND latest.wht_done_rounds = 0 THEN 'ยังไม่ดำเนินการ'
+            WHEN latest.wht_done_rounds > 0 AND latest.wht_undone_rounds = 0 THEN 'ดำเนินการเสร็จแล้ว'
+            ELSE dew.wht_entry_status
+        END as wht_entry_status,
         dew.wht_entry_start_datetime,
         dew.wht_entry_completed_datetime,
         dew.wht_status_updated_by,
-        dew.vat_document_count,
-        dew.vat_entry_status,
+        latest.total_vat as vat_document_count,
+        CASE 
+            WHEN latest.vat_doing_rounds > 0 THEN 'กำลังดำเนินการ'
+            WHEN latest.vat_undone_rounds > 0 AND latest.vat_done_rounds > 0 THEN 'กำลังดำเนินการ'
+            WHEN latest.vat_undone_rounds > 0 AND latest.vat_done_rounds = 0 THEN 'ยังไม่ดำเนินการ'
+            WHEN latest.vat_done_rounds > 0 AND latest.vat_undone_rounds = 0 THEN 'ดำเนินการเสร็จแล้ว'
+            ELSE dew.vat_entry_status
+        END as vat_entry_status,
         dew.vat_entry_start_datetime,
         dew.vat_entry_completed_datetime,
         dew.vat_status_updated_by,
-        dew.non_vat_document_count,
-        dew.non_vat_entry_status,
+        latest.total_non_vat as non_vat_document_count,
+        CASE 
+            WHEN latest.non_vat_doing_rounds > 0 THEN 'กำลังดำเนินการ'
+            WHEN latest.non_vat_undone_rounds > 0 AND latest.non_vat_done_rounds > 0 THEN 'กำลังดำเนินการ'
+            WHEN latest.non_vat_undone_rounds > 0 AND latest.non_vat_done_rounds = 0 THEN 'ยังไม่ดำเนินการ'
+            WHEN latest.non_vat_done_rounds > 0 AND latest.non_vat_undone_rounds = 0 THEN 'ดำเนินการเสร็จแล้ว'
+            ELSE dew.non_vat_entry_status
+        END as non_vat_entry_status,
         dew.non_vat_entry_start_datetime,
         dew.non_vat_entry_completed_datetime,
         dew.non_vat_status_updated_by,
@@ -378,10 +536,31 @@ router.get('/:build/:year/:month', authenticateToken, async (req, res) => {
         dew.created_at,
         dew.updated_at
        FROM document_entry_work dew
+       INNER JOIN (
+         SELECT build, work_year, work_month, MAX(submission_count) as max_sub,
+                SUM(wht_document_count) as total_wht, 
+                SUM(vat_document_count) as total_vat, 
+                SUM(non_vat_document_count) as total_non_vat,
+                SUM(CASE WHEN wht_document_count > 0 AND wht_entry_status = 'ดำเนินการเสร็จแล้ว' THEN 1 ELSE 0 END) as wht_done_rounds,
+                SUM(CASE WHEN wht_document_count > 0 AND wht_entry_status = 'กำลังดำเนินการ' THEN 1 ELSE 0 END) as wht_doing_rounds,
+                SUM(CASE WHEN wht_document_count > 0 AND (wht_entry_status IS NULL OR wht_entry_status = 'ยังไม่ดำเนินการ') THEN 1 ELSE 0 END) as wht_undone_rounds,
+                SUM(CASE WHEN vat_document_count > 0 AND vat_entry_status = 'ดำเนินการเสร็จแล้ว' THEN 1 ELSE 0 END) as vat_done_rounds,
+                SUM(CASE WHEN vat_document_count > 0 AND vat_entry_status = 'กำลังดำเนินการ' THEN 1 ELSE 0 END) as vat_doing_rounds,
+                SUM(CASE WHEN vat_document_count > 0 AND (vat_entry_status IS NULL OR vat_entry_status = 'ยังไม่ดำเนินการ') THEN 1 ELSE 0 END) as vat_undone_rounds,
+                SUM(CASE WHEN non_vat_document_count > 0 AND non_vat_entry_status = 'ดำเนินการเสร็จแล้ว' THEN 1 ELSE 0 END) as non_vat_done_rounds,
+                SUM(CASE WHEN non_vat_document_count > 0 AND non_vat_entry_status = 'กำลังดำเนินการ' THEN 1 ELSE 0 END) as non_vat_doing_rounds,
+                SUM(CASE WHEN non_vat_document_count > 0 AND (non_vat_entry_status IS NULL OR non_vat_entry_status = 'ยังไม่ดำเนินการ') THEN 1 ELSE 0 END) as non_vat_undone_rounds
+         FROM document_entry_work
+         WHERE build = ? AND work_year = ? AND work_month = ? AND deleted_at IS NULL
+         GROUP BY build, work_year, work_month
+       ) latest ON dew.build = latest.build 
+         AND dew.work_year = latest.work_year 
+         AND dew.work_month = latest.work_month 
+         AND dew.submission_count = latest.max_sub
        LEFT JOIN clients c ON dew.build = c.build AND c.deleted_at IS NULL
        WHERE dew.build = ? AND dew.work_year = ? AND dew.work_month = ? AND dew.deleted_at IS NULL
        LIMIT 1`,
-      [build, year, month]
+      [build, year, month, build, year, month]
     )
 
     // Get submission_count (MAX) from database - ต้องเช็คจาก database เสมอ

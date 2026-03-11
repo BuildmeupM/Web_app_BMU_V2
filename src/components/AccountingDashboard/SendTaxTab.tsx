@@ -4,11 +4,12 @@
  * แสดงเฉพาะ 2 สถานะ: ผ่าน (passed) และ ร่างแบบได้ (draft_ready)
  */
 
-import { useMemo } from 'react'
-import { Stack, SimpleGrid, Paper, Text, Group, Avatar, ThemeIcon, Box, Divider, Table } from '@mantine/core'
-import { TbCheck, TbFileText, TbUser, TbBriefcase } from 'react-icons/tb'
+import { useMemo, useState } from 'react'
+import { Stack, SimpleGrid, Paper, Text, Group, Avatar, ThemeIcon, Box, Divider, Table, Modal, Badge, Button } from '@mantine/core'
+import { TbCheck, TbFileText, TbUser, TbBriefcase, TbDownload } from 'react-icons/tb'
 import type { MonthlyTaxData } from '../../services/monthlyTaxDataService'
 import { fmtName } from './constants'
+import { exportToExcel } from '../../utils/exportExcel'
 
 // ═══════════════════════════════════════════════════
 //  Types
@@ -19,6 +20,7 @@ interface EmployeeGroup {
     name: string
     count: number
     totalAssigned: number
+    items: MonthlyTaxData[]
 }
 
 interface StatusGroup {
@@ -65,17 +67,21 @@ const DISPLAY_STATUSES = [
 //  Sub-components
 // ═══════════════════════════════════════════════════
 
-function EmployeeCard({ employee, color }: { employee: EmployeeGroup; color: string }) {
+function EmployeeCard({ employee, color, onClick }: { employee: EmployeeGroup; color: string; onClick: () => void }) {
     return (
         <Paper
             p="md"
             radius="lg"
+            onClick={onClick}
             style={{
                 border: '1px solid #f0f0f0',
                 background: '#fafafa',
                 transition: 'all 0.2s ease',
+                cursor: 'pointer',
             }}
             className="send-tax-employee-card"
+            onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
+            onMouseLeave={e => e.currentTarget.style.transform = 'none'}
         >
             <Group gap="sm" align="center">
                 <Avatar
@@ -132,6 +138,7 @@ function TaxPanel({
     statusLabel,
     color,
     borderColor,
+    onCardClick,
 }: {
     type: 'WHT' | 'VAT'
     total: number
@@ -139,6 +146,7 @@ function TaxPanel({
     statusLabel: string
     color: string
     borderColor: string
+    onCardClick: (emp: EmployeeGroup) => void
 }) {
     return (
         <Box>
@@ -182,7 +190,7 @@ function TaxPanel({
             {employees.length > 0 ? (
                 <SimpleGrid cols={{ base: 1, sm: employees.length >= 2 ? 2 : 1 }}>
                     {employees.map(emp => (
-                        <EmployeeCard key={emp.id} employee={emp} color={color} />
+                        <EmployeeCard key={emp.id} employee={emp} color={color} onClick={() => onCardClick(emp)} />
                     ))}
                 </SimpleGrid>
             ) : (
@@ -197,6 +205,15 @@ function TaxPanel({
 // ═══════════════════════════════════════════════════
 
 export default function SendTaxTab({ data }: { data: MonthlyTaxData[] }) {
+    // ── Detail Modal State ──
+    const [detailModalOpen, setDetailModalOpen] = useState(false)
+    const [selectedDetail, setSelectedDetail] = useState<{
+        name: string
+        type: 'WHT' | 'VAT'
+        statusLabel: string
+        items: MonthlyTaxData[]
+    } | null>(null)
+
     // ── Compute total assignments per employee ──
     const whtTotalMap = useMemo(() => {
         const map = new Map<string, number>()
@@ -211,7 +228,7 @@ export default function SendTaxTab({ data }: { data: MonthlyTaxData[] }) {
         const map = new Map<string, number>()
         data.forEach(d => {
             const id = d.vat_filer_current_employee_id || d.vat_filer_employee_id || ''
-            if (id) map.set(id, (map.get(id) || 0) + 1)
+            if (id && d.tax_registration_status === 'จดภาษีมูลค่าเพิ่ม') map.set(id, (map.get(id) || 0) + 1)
         })
         return map
     }, [data])
@@ -228,13 +245,14 @@ export default function SendTaxTab({ data }: { data: MonthlyTaxData[] }) {
                     d.wht_filer_current_employee_first_name || d.wht_filer_employee_first_name,
                     d.wht_filer_current_employee_nick_name || d.wht_filer_employee_nick_name,
                 )
-                const emp = whtEmpMap.get(id) || { id, name, count: 0, totalAssigned: whtTotalMap.get(id) || 0 }
+                const emp = whtEmpMap.get(id) || { id, name, count: 0, totalAssigned: whtTotalMap.get(id) || 0, items: [] }
                 emp.count++
+                emp.items.push(d)
                 whtEmpMap.set(id, emp)
             })
 
             // VAT: group by vat_filer
-            const vatFiltered = data.filter(d => (d.pp30_form || 'not_started') === cfg.status)
+            const vatFiltered = data.filter(d => (d.pp30_form || 'not_started') === cfg.status && d.tax_registration_status === 'จดภาษีมูลค่าเพิ่ม')
             const vatEmpMap = new Map<string, EmployeeGroup>()
             vatFiltered.forEach(d => {
                 const id = d.vat_filer_current_employee_id || d.vat_filer_employee_id || 'unknown'
@@ -242,8 +260,9 @@ export default function SendTaxTab({ data }: { data: MonthlyTaxData[] }) {
                     d.vat_filer_current_employee_first_name || d.vat_filer_employee_first_name,
                     d.vat_filer_current_employee_nick_name || d.vat_filer_employee_nick_name,
                 )
-                const emp = vatEmpMap.get(id) || { id, name, count: 0, totalAssigned: vatTotalMap.get(id) || 0 }
+                const emp = vatEmpMap.get(id) || { id, name, count: 0, totalAssigned: vatTotalMap.get(id) || 0, items: [] }
                 emp.count++
+                emp.items.push(d)
                 vatEmpMap.set(id, emp)
             })
 
@@ -280,7 +299,7 @@ export default function SendTaxTab({ data }: { data: MonthlyTaxData[] }) {
 
             // VAT filer
             const vatId = d.vat_filer_current_employee_id || d.vat_filer_employee_id || ''
-            if (vatId) {
+            if (vatId && d.tax_registration_status === 'จดภาษีมูลค่าเพิ่ม') {
                 const vatName = fmtName(
                     d.vat_filer_current_employee_first_name || d.vat_filer_employee_first_name,
                     d.vat_filer_current_employee_nick_name || d.vat_filer_employee_nick_name,
@@ -305,10 +324,7 @@ export default function SendTaxTab({ data }: { data: MonthlyTaxData[] }) {
                     border: '1px solid #ffe0cc',
                 }}
             >
-                <Group gap={8} mb="md">
-                    <ThemeIcon size={32} radius="md" color="orange" variant="light">
-                        <TbBriefcase size={18} />
-                    </ThemeIcon>
+                <Group justify="space-between" align="flex-start" mb="lg">
                     <div>
                         <Text size="sm" fw={700} c="dark">
                             สรุปงานที่ได้รับมอบหมาย (ทั้งหมด {data.length} บริษัท)
@@ -317,6 +333,24 @@ export default function SendTaxTab({ data }: { data: MonthlyTaxData[] }) {
                             จำนวนงานยื่นภาษีที่แต่ละคนรับผิดชอบ
                         </Text>
                     </div>
+                    <Button
+                        variant="light"
+                        color="green"
+                        leftSection={<TbDownload size={16} />}
+                        onClick={() => {
+                            const exportData = allEmployees.map(emp => ({
+                                'พนักงาน': emp.name,
+                                'งานยื่น ภ.ง.ด.': emp.whtCount,
+                                'งานยื่น ภ.พ.30': emp.vatCount,
+                                'รวมจำนวนงาน': emp.whtCount + emp.vatCount
+                            }))
+                            exportToExcel(exportData, `สรุปงานพนักงานยื่นภาษี_${new Date().toISOString().split('T')[0]}`)
+                        }}
+                        radius="md"
+                        size="sm"
+                    >
+                        ส่งออก Excel (สรุปงาน)
+                    </Button>
                 </Group>
                 {allEmployees.length > 0 ? (
                     <Table striped highlightOnHover withTableBorder withColumnBorders>
@@ -397,6 +431,15 @@ export default function SendTaxTab({ data }: { data: MonthlyTaxData[] }) {
                             statusLabel={group.label}
                             color={group.color}
                             borderColor={group.borderColor}
+                            onCardClick={(emp) => {
+                                setSelectedDetail({
+                                    name: emp.name,
+                                    type: 'WHT',
+                                    statusLabel: group.label,
+                                    items: emp.items,
+                                })
+                                setDetailModalOpen(true)
+                            }}
                         />
                     </Paper>
 
@@ -429,10 +472,86 @@ export default function SendTaxTab({ data }: { data: MonthlyTaxData[] }) {
                             statusLabel={group.label}
                             color={group.color}
                             borderColor={group.borderColor}
+                            onCardClick={(emp) => {
+                                setSelectedDetail({
+                                    name: emp.name,
+                                    type: 'VAT',
+                                    statusLabel: group.label,
+                                    items: emp.items,
+                                })
+                                setDetailModalOpen(true)
+                            }}
                         />
                     </Paper>
                 </SimpleGrid>
             ))}
+
+            {/* ── Detail Modal ── */}
+            <Modal
+                opened={detailModalOpen}
+                onClose={() => setDetailModalOpen(false)}
+                title={
+                    <Group gap="sm">
+                        <Avatar color={selectedDetail?.type === 'WHT' ? 'orange' : 'green'} radius="xl">
+                            <TbUser size={18} />
+                        </Avatar>
+                        <div>
+                            <Text fw={700} size="lg">{selectedDetail?.name}</Text>
+                            <Text size="xs" c="dimmed">
+                                {selectedDetail?.type} สถานะ = "{selectedDetail?.statusLabel}"
+                            </Text>
+                        </div>
+                    </Group>
+                }
+                size="xl"
+                padding="xl"
+                radius="md"
+            >
+                <Table striped highlightOnHover withTableBorder>
+                    <Table.Thead bg="gray.0">
+                        <Table.Tr>
+                            <Table.Th>Build Code</Table.Th>
+                            <Table.Th>ชื่อบริษัท</Table.Th>
+                            <Table.Th>ผู้ทำบัญชี</Table.Th>
+                            <Table.Th>ผู้ตรวจ</Table.Th>
+                            <Table.Th ta="center">สถานะ</Table.Th>
+                        </Table.Tr>
+                    </Table.Thead>
+                    <Table.Tbody>
+                        {selectedDetail?.items.map((item, index) => (
+                            <Table.Tr key={`${item.build}-${index}`}>
+                                <Table.Td fw={500}>{item.build}</Table.Td>
+                                <Table.Td>{item.company_name || 'ไม่มีชื่อบริษัท'}</Table.Td>
+                                <Table.Td>
+                                    <Text size="sm">
+                                        {fmtName(item.accounting_responsible_first_name || '', item.accounting_responsible_nick_name || '') || item.accounting_responsible_name || '-'}
+                                    </Text>
+                                </Table.Td>
+                                <Table.Td>
+                                    <Text size="sm">
+                                        {fmtName(item.tax_inspection_responsible_first_name || '', item.tax_inspection_responsible_nick_name || '') || item.tax_inspection_responsible_name || '-'}
+                                    </Text>
+                                </Table.Td>
+                                <Table.Td ta="center">
+                                    <Badge
+                                        color={selectedDetail.statusLabel === 'ผ่าน' ? 'green' : 'orange'}
+                                        variant="light"
+                                    >
+                                        {selectedDetail.statusLabel}
+                                    </Badge>
+                                </Table.Td>
+                            </Table.Tr>
+                        ))}
+                        {!selectedDetail?.items.length && (
+                            <Table.Tr>
+                                <Table.Td colSpan={5} ta="center" py="lg">
+                                    <Text c="dimmed" size="sm">ไม่พบข้อมูลบริษัท</Text>
+                                </Table.Td>
+                            </Table.Tr>
+                        )}
+                    </Table.Tbody>
+                </Table>
+            </Modal>
         </Stack>
     )
 }

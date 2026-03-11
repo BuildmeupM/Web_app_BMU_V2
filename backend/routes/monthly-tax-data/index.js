@@ -379,6 +379,9 @@ router.get('/', authenticateToken, async (req, res) => {
         e7.first_name as document_entry_responsible_first_name,
         e7.nick_name as document_entry_responsible_nick_name,
         c.tax_registration_status,
+        c.company_status,
+        (SELECT COUNT(*) FROM activity_logs al WHERE al.entity_id = mtd.id AND al.field_changed = 'pnd_status' AND al.new_value IN ('needs_correction', 'edit')) as wht_correction_count,
+        (SELECT COUNT(*) FROM activity_logs al WHERE al.entity_id = mtd.id AND al.field_changed IN ('pp30_form', 'pp30_form_status') AND al.new_value IN ('needs_correction', 'edit')) as vat_correction_count,
         mtd.created_at,
         mtd.updated_at
       FROM monthly_tax_data mtd
@@ -781,6 +784,8 @@ router.get('/:build/:year/:month', authenticateToken, async (req, res) => {
         e7.full_name as document_entry_responsible_name,
         e7.first_name as document_entry_responsible_first_name,
         e7.nick_name as document_entry_responsible_nick_name,
+        c.tax_registration_status,
+        c.company_status,
         mtd.created_at,
         mtd.updated_at
       FROM monthly_tax_data mtd

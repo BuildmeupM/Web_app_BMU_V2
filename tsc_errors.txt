@@ -1,0 +1,40 @@
+src/components/ClientManagement/ClientDetailView.tsx(115,11): error TS2322: Type '{ client: Client; onEdit: () => void; onEditMonthlyFees: () => void; onEditDbdInfo: () => void; onEditCredentials: () => void; }' is not assignable to type 'IntrinsicAttributes & ClientDetailProps'.
+  Property 'onEditMonthlyFees' does not exist on type 'IntrinsicAttributes & ClientDetailProps'.
+src/components/DocumentEntry/StartAllButton.tsx(77,19): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(filters?: InvalidateQueryFilters<unknown>, options?: InvalidateOptions): Promise<void>', gave the following error.
+    Object literal may only specify known properties, and 'refetchType' does not exist in type 'InvalidateOptions'.
+  Overload 2 of 2, '(queryKey?: QueryKey, filters?: InvalidateQueryFilters<unknown>, options?: InvalidateOptions): Promise<void>', gave the following error.
+    Object literal may only specify known properties, and 'queryKey' does not exist in type 'readonly unknown[]'.
+src/components/DocumentEntry/StartAllButton.tsx(82,25): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(filters?: RefetchQueryFilters<unknown>, options?: RefetchOptions): Promise<void>', gave the following error.
+    Object literal may only specify known properties, and 'type' does not exist in type 'RefetchQueryFilters<unknown>'.
+  Overload 2 of 2, '(queryKey?: QueryKey, filters?: RefetchQueryFilters<unknown>, options?: RefetchOptions): Promise<void>', gave the following error.
+    Object literal may only specify known properties, and 'queryKey' does not exist in type 'readonly unknown[]'.
+src/components/DocumentEntry/SubmissionCard.tsx(62,21): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(filters?: InvalidateQueryFilters<unknown>, options?: InvalidateOptions): Promise<void>', gave the following error.
+    Object literal may only specify known properties, and 'refetchType' does not exist in type 'InvalidateOptions'.
+  Overload 2 of 2, '(queryKey?: QueryKey, filters?: InvalidateQueryFilters<unknown>, options?: InvalidateOptions): Promise<void>', gave the following error.
+    Object literal may only specify known properties, and 'queryKey' does not exist in type 'readonly unknown[]'.
+src/components/DocumentEntry/SubmissionCard.tsx(67,27): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(filters?: RefetchQueryFilters<unknown>, options?: RefetchOptions): Promise<void>', gave the following error.
+    Object literal may only specify known properties, and 'type' does not exist in type 'RefetchQueryFilters<unknown>'.
+  Overload 2 of 2, '(queryKey?: QueryKey, filters?: RefetchQueryFilters<unknown>, options?: RefetchOptions): Promise<void>', gave the following error.
+    Object literal may only specify known properties, and 'queryKey' does not exist in type 'readonly unknown[]'.
+src/components/DocumentSorting/CompanySelector.tsx(42,9): error TS2322: Type 'number' is not assignable to type 'string'.
+src/components/DocumentSorting/CompanySelector.tsx(43,9): error TS2322: Type 'number' is not assignable to type 'string'.
+src/components/DocumentSorting/CompanyTable.tsx(63,9): error TS2322: Type 'number' is not assignable to type 'string'.
+src/components/DocumentSorting/CompanyTable.tsx(64,9): error TS2322: Type 'number' is not assignable to type 'string'.
+src/components/Employee/EmployeeDashboard.tsx(482,21): error TS2322: Type '{ children: Element[]; highlightOnHover: true; withTableBorder: true; withColumnBorders: true; verticalSpacing: "md"; horizontalSpacing: "lg"; fontSize: string; }' is not assignable to type 'IntrinsicAttributes & TableProps & RefAttributes<HTMLTableElement> & { component?: any; renderRoot?: (props: Record<...>) => ReactNode; }'.
+  Property 'fontSize' does not exist on type 'IntrinsicAttributes & TableProps & RefAttributes<HTMLTableElement> & { component?: any; renderRoot?: (props: Record<...>) => ReactNode; }'.
+src/components/Employee/EmployeeDashboard.tsx(533,21): error TS2322: Type '{ children: Element[]; highlightOnHover: true; withTableBorder: true; withColumnBorders: true; verticalSpacing: "md"; horizontalSpacing: "lg"; fontSize: string; }' is not assignable to type 'IntrinsicAttributes & TableProps & RefAttributes<HTMLTableElement> & { component?: any; renderRoot?: (props: Record<...>) => ReactNode; }'.
+  Property 'fontSize' does not exist on type 'IntrinsicAttributes & TableProps & RefAttributes<HTMLTableElement> & { component?: any; renderRoot?: (props: Record<...>) => ReactNode; }'.
+src/pages/EquipmentBorrowing.tsx(275,23): error TS2339: Property 'specs' does not exist on type 'Equipment'.
+src/pages/EquipmentBorrowing.tsx(275,56): error TS2339: Property 'specs' does not exist on type 'Equipment'.
+src/pages/EquipmentBorrowing.tsx(276,27): error TS2339: Property 'specs' does not exist on type 'Equipment'.
+src/pages/EquipmentBorrowing.tsx(276,68): error TS2339: Property 'specs' does not exist on type 'Equipment'.
+src/pages/EquipmentBorrowing.tsx(277,23): error TS2339: Property 'specs' does not exist on type 'Equipment'.
+src/pages/EquipmentBorrowing.tsx(277,55): error TS2339: Property 'specs' does not exist on type 'Equipment'.
+src/pages/EquipmentBorrowing.tsx(278,77): error TS2339: Property 'warranty_expiry' does not exist on type 'Equipment'.
+src/utils/pp30StatusUtils.ts(35,125): error TS2367: This comparison appears to be unintentional because the types 'string | boolean' and 'number' have no overlap.
+src/utils/pp30StatusUtils.ts(35,149): error TS2367: This comparison appears to be unintentional because the types 'string | boolean' and 'number' have no overlap.
+src/utils/pp30StatusUtils.ts(64,34): error TS2367: This comparison appears to be unintentional because the types 'string | boolean' and 'number' have no overlap.

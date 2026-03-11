@@ -45,6 +45,7 @@ import companyFeedRoutes from './routes/content/company-feed.js'
 import errorReportsRoutes from './routes/system/error-reports.js'
 import activityLogsRoutes from './routes/system/activity-logs.js'
 import internalChatsRoutes from './routes/internal-chats.js'
+import { initSyslogServer } from './utils/syslog-server.js'
 
 import { apiRateLimiter } from './middleware/rateLimiter.js'
 import cacheMiddleware from './middleware/cache.js'
@@ -181,6 +182,18 @@ io.on('connection', (socket) => {
         userId: data.userId,
       })
     }
+  })
+
+  // 📡 SYSLOG: Handle Subscription to NAS logs
+  socket.on('subscribe:syslog', () => {
+    socket.join('syslog:nas')
+    console.log('📡 [WebSocket] Client subscribed to NAS Syslog (socket: %s)', socket.id)
+  })
+
+  // 📡 SYSLOG: Handle Unsubscription from NAS logs
+  socket.on('unsubscribe:syslog', () => {
+    socket.leave('syslog:nas')
+    console.log('📡 [WebSocket] Client unsubscribed from NAS Syslog (socket: %s)', socket.id)
   })
 
   // Handle disconnection (log ถูกปิดเพื่อลดความรก - คง log เฉพาะ error)
@@ -469,6 +482,14 @@ async function startServer() {
           console.error('❌ Error in initial WFH notification job:', error)
         }
       }, 5000)
+      
+      // ✅ Start UDP Syslog Server Receiver
+      try {
+        const SYSLOG_PORT = process.env.SYSLOG_UDP_PORT || 5514
+        initSyslogServer(io, SYSLOG_PORT)
+      } catch(err) {
+        console.error('❌ Failed to start Syslog UDP server:', err)
+      }
     })
 
     // ✅ Handle server errors

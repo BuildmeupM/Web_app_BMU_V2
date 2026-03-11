@@ -37,10 +37,11 @@ import {
   TbLayoutSidebarLeftExpand,
   TbHistory,
   TbDeviceLaptop,
-  TbChartPie,
   TbAlertTriangle,
   TbChartBar,
   TbClipboardCheck,
+  TbServer,
+  TbChartPie
 } from 'react-icons/tb'
 import { useAuthStore, UserRole } from '../../store/authStore'
 import { hasPermission } from '../../utils/rolePermissions'
@@ -67,6 +68,7 @@ const iconMap: Record<string, React.ComponentType<any>> = {
   '/error-reports': TbAlertTriangle,
   '/accounting-dashboard': TbChartBar,
   '/activity-logs': TbClipboardCheck,
+  '/nas-dashboard': TbServer,
 }
 
 interface MenuItem {
@@ -89,6 +91,7 @@ const menuGroups: MenuGroup[] = [
       { path: '/client-dashboard', label: 'Dashboard ลูกค้า' },
       { path: '/accounting-dashboard', label: 'Dashboard งานบัญชี' },
       { path: '/activity-logs', label: 'Dashboard - Log' },
+      { path: '/nas-dashboard', label: 'Dashboard - Nas' },
     ],
   },
   {

@@ -90,7 +90,7 @@ export default function AccountingDashboard() {
     const records = listData?.data || []
 
     // Fetch document entry work data (for Data Entry tab)
-    const { data: entryListData } = useQuery(
+    const { data: entryListData, refetch: refetchEntryData } = useQuery(
         ['document-entry-work-dashboard', selectedYear, selectedMonth],
         () => documentEntryWorkService.getList({
             year: Number(selectedYear),
@@ -132,11 +132,17 @@ export default function AccountingDashboard() {
     // Auto-refresh interval
     useEffect(() => {
         if (!autoRefresh) return
-        const interval = setInterval(() => refetch(), 30_000)
+        const interval = setInterval(() => {
+            refetch()
+            if (activeTab === 'dataEntry') refetchEntryData()
+        }, 30_000)
         return () => clearInterval(interval)
-    }, [autoRefresh, refetch])
+    }, [autoRefresh, refetch, activeTab, refetchEntryData])
 
-    const handleRefresh = useCallback(() => refetch(), [refetch])
+    const handleRefresh = useCallback(() => {
+        refetch()
+        if (activeTab === 'dataEntry') refetchEntryData()
+    }, [refetch, activeTab, refetchEntryData])
 
     // ────────────────────────────────────────────
     //  Render

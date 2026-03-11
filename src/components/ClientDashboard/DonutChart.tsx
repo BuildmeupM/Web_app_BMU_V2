@@ -27,9 +27,9 @@ export default function DonutChart({
                     roundCaps
                     sections={sections}
                     label={
-                        <Text ta="center" fw={700} size="xl">
+                        <Text ta="center" fw={700} size="xl" lh={1.2}>
                             {total}
-                            <Text size="xs" c="dimmed" >รวม</Text>
+                            <Box component="span" display="block" size="xs" c="dimmed" mt={2} style={{ fontSize: '12px', fontWeight: 'normal' }}>รวม</Box>
                         </Text>
                     }
                 />
