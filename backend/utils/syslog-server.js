@@ -42,14 +42,11 @@ function parseSyslogMessage(rawMessage) {
     }
 
     // 2. Extract timestamp (e.g. "Mar 11 17:30:01")
-    // NAS sends time in Thai local time (UTC+7). Adjust to UTC for proper storage.
     const timeMatch = messageContent.match(/^([A-Za-z]{3}\s+\d+\s+\d{2}:\d{2}:\d{2})\s+/);
     if (timeMatch) {
       const year = new Date().getFullYear();
       const parsed = new Date(`${timeMatch[1]} ${year}`);
       if (!isNaN(parsed.getTime())) {
-        // NAS timestamp is UTC+7 (Thailand), convert to UTC
-        parsed.setHours(parsed.getHours() - 7);
         result.timestamp = parsed.toISOString();
       }
       messageContent = messageContent.substring(timeMatch[0].length);

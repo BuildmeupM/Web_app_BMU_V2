@@ -258,8 +258,10 @@ export default function NasDashboard() {
 
   const formatTime = (ts: string) => {
     try {
-      const d = new Date(ts);
-      return d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      // Extract HH:MM:SS directly to avoid timezone re-conversion
+      const timeMatch = ts.match(/(\d{2}):(\d{2}):(\d{2})/);
+      if (timeMatch) return `${timeMatch[1]}:${timeMatch[2]}:${timeMatch[3]}`;
+      return '--:--:--';
     } catch {
       return '--:--:--';
     }
@@ -267,11 +269,16 @@ export default function NasDashboard() {
 
   const formatDateTime = (ts: string) => {
     try {
-      const d = new Date(ts);
-      return d.toLocaleDateString('th-TH', {
-        day: '2-digit', month: 'short', year: 'numeric',
-        hour: '2-digit', minute: '2-digit', second: '2-digit',
-      });
+      // Parse without timezone conversion — timestamp is already in Thai local time
+      const m = ts.match(/(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})/);
+      if (m) {
+        const months = ['', 'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+        const day = parseInt(m[3], 10);
+        const month = months[parseInt(m[2], 10)] || m[2];
+        const year = parseInt(m[1], 10) + 543; // Buddhist year
+        return `${day} ${month} ${year} ${m[4]}:${m[5]}:${m[6]}`;
+      }
+      return '-';
     } catch {
       return '-';
     }
