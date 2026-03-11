@@ -463,12 +463,6 @@ router.put('/borrowings/:id/return', async (req, res) => {
             return res.status(400).json({ success: false, message: 'สถานะไม่ถูกต้อง' })
         }
 
-        // อนุญาตเฉพาะ admin หรือผู้ยืมเอง
-        if (req.user.role !== 'admin' && req.user.id !== borrowing[0].borrower_id) {
-            conn.release()
-            return res.status(403).json({ success: false, message: 'ไม่มีสิทธิ์' })
-        }
-
         const today = new Date().toISOString().split('T')[0]
 
         await conn.beginTransaction()
@@ -748,7 +742,7 @@ router.delete('/assignments/:id', authorize('admin'), async (req, res) => {
  * GET /api/equipment/system-info
  * ดึงข้อมูล Hardware จากเครื่อง Server (Local) ผ่าน Python
  */
-router.get('/system-info', authorize('admin'), (req, res) => {
+router.get('/system-info', (req, res) => {
     const __filename = fileURLToPath(import.meta.url)
     const __dirname = path.dirname(__filename)
     // back out of routes/content to get to scripts
@@ -757,7 +751,7 @@ router.get('/system-info', authorize('admin'), (req, res) => {
     // Execute the python script using execFile to properly handle paths with spaces/unicode
     // Increase timeout to 60s since spawning 11 PowerShell processes sequentially from Python can take easily >15s on Windows.
     // Ensure utf-8 encoding for Thai characters
-    execFile('python', [scriptPath], { timeout: 60000, env: { ...process.env, PYTHONIOENCODING: 'utf-8' } }, (error, stdout, stderr) => {
+    execFile('python', [scriptPath], { timeout: 60000, env: { ...process.env, PYTHONIOENCODING: 'utf-8' } }, (error, stdout) => {
         if (error) {
             console.error('Error executing python script:', error)
             return res.status(500).json({ success: false, message: 'Failed to fetch system info', error: error.message })

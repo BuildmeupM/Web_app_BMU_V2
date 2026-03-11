@@ -9,45 +9,31 @@ const mysql = require('mysql2/promise');
     database: 'bmu_work_management'
   });
 
-  // Look for REAL syslog messages (containing typical syslog patterns)
-  console.log('=== Looking for REAL NAS syslog messages ===\n');
-  
-  const [real] = await pool.query(
-    "SELECT id, raw_message, event, user, ip FROM nas_syslog WHERE raw_message LIKE '%Event:%' OR raw_message LIKE '%WinFile%' OR raw_message LIKE '%FileStation%' OR raw_message LIKE '%Path:%' ORDER BY id DESC LIMIT 5"
+  // Show before
+  console.log('=== Before Fix ===');
+  const [before] = await pool.query(
+    'SELECT id, timestamp, created_at FROM nas_syslog ORDER BY id LIMIT 5'
   );
-  
-  if (real.length > 0) {
-    console.log('Found REAL syslog messages:');
-    for (const r of real) {
-      console.log('---');
-      console.log('ID:', r.id);
-      console.log('RAW:', r.raw_message);
-    }
-  } else {
-    console.log('No real NAS syslog messages found in DB.');
+  for (const r of before) {
+    console.log(`ID ${r.id}: timestamp=${r.timestamp}, created_at=${r.created_at}`);
   }
 
-  // Look for messages containing PRI header <number>
-  console.log('\n=== Messages with PRI header <N> ===\n');
-  const [pri] = await pool.query(
-    "SELECT id, raw_message FROM nas_syslog WHERE raw_message LIKE '<%>%' ORDER BY id DESC LIMIT 5"
+  // Fix: subtract 7 hours from timestamp where it's ahead of created_at by ~7h
+  // This fixes records stored by Railway (UTC) without timezone adjustment
+  const [result] = await pool.query(
+    `UPDATE nas_syslog 
+     SET timestamp = DATE_SUB(timestamp, INTERVAL 7 HOUR) 
+     WHERE TIMESTAMPDIFF(HOUR, created_at, timestamp) >= 5`
   );
-  
-  if (pri.length > 0) {
-    for (const r of pri) {
-      console.log('ID:', r.id, '| RAW:', r.raw_message?.substring(0, 200));
-    }
-  } else {
-    console.log('No messages with PRI header found.');
-  }
+  console.log(`\nFixed ${result.affectedRows} records (subtracted 7 hours)`);
 
-  // Show distinct raw_message patterns (first 50 chars)
-  console.log('\n=== Distinct message patterns (first 80 chars) ===\n');
-  const [patterns] = await pool.query(
-    "SELECT DISTINCT LEFT(raw_message, 80) as pattern, COUNT(*) as cnt FROM nas_syslog GROUP BY LEFT(raw_message, 80) ORDER BY cnt DESC LIMIT 20"
+  // Show after
+  console.log('\n=== After Fix ===');
+  const [after] = await pool.query(
+    'SELECT id, timestamp, created_at FROM nas_syslog ORDER BY id LIMIT 5'
   );
-  for (const p of patterns) {
-    console.log(`[${p.cnt}x]`, p.pattern);
+  for (const r of after) {
+    console.log(`ID ${r.id}: timestamp=${r.timestamp}, created_at=${r.created_at}`);
   }
 
   await pool.end();

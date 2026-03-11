@@ -481,15 +481,13 @@ Driver: ${info.graphics.driver || '-'}
                             <Text c="dimmed" size="sm">จัดการอุปกรณ์ IT ยืม-คืน และตรวจสอบสถานะ</Text>
                         </div>
                         <Group gap="xs">
-                            {isAdmin && (
-                                <Button
-                                    variant="light" color="orange" size="sm" radius="xl"
-                                    leftSection={<TbDeviceLaptop size={16} />}
-                                    onClick={() => setSystemInfoModalOpen(true)}
-                                >
-                                    ข้อมูลเซิร์ฟเวอร์
-                                </Button>
-                            )}
+                            <Button
+                                variant="light" color="orange" size="sm" radius="xl"
+                                leftSection={<TbDeviceLaptop size={16} />}
+                                onClick={() => setSystemInfoModalOpen(true)}
+                            >
+                                ข้อมูลเซิร์ฟเวอร์
+                            </Button>
                             <Button
                                 variant="light" color="teal" size="sm" radius="xl"
                                 leftSection={<TbPlus size={16} />}

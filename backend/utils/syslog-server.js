@@ -42,12 +42,19 @@ function parseSyslogMessage(rawMessage) {
     }
 
     // 2. Extract timestamp (e.g. "Mar 11 17:30:01")
+    // NAS always sends time in Thailand timezone (UTC+7).
+    // Normalize to correct UTC regardless of server timezone.
     const timeMatch = messageContent.match(/^([A-Za-z]{3}\s+\d+\s+\d{2}:\d{2}:\d{2})\s+/);
     if (timeMatch) {
       const year = new Date().getFullYear();
       const parsed = new Date(`${timeMatch[1]} ${year}`);
       if (!isNaN(parsed.getTime())) {
-        result.timestamp = parsed.toISOString();
+        // parsed interprets in server's local TZ. We know it's actually UTC+7 (offset = -420 min).
+        // Adjust so the stored UTC is correct on any server.
+        const NAS_TZ_OFFSET = -420; // UTC+7 in minutes
+        const adjustment = (parsed.getTimezoneOffset() - NAS_TZ_OFFSET) * 60 * 1000;
+        const corrected = new Date(parsed.getTime() - adjustment);
+        result.timestamp = corrected.toISOString();
       }
       messageContent = messageContent.substring(timeMatch[0].length);
     }
