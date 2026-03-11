@@ -4,6 +4,7 @@
  */
 
 import express from 'express'
+import { randomUUID } from 'crypto'
 import { authenticateToken, authorize } from '../../middleware/auth.js'
 import pool from '../../config/database.js'
 import { execFile } from 'child_process'
@@ -154,23 +155,21 @@ router.get('/', async (req, res) => {
  */
 router.post('/', authorize('admin'), async (req, res) => {
     try {
-        const { name, category, brand, model, serial_number, description, cpu, ram, storage, display, gpu, os, purchase_date, warranty_expire_date, purchase_price } = req.body
+        const { name, category, brand, model, serial_number, asset_tag, description, cpu, ram, storage, display, gpu, os, screen_size, purchase_date, warranty_expire_date, purchase_price } = req.body
 
         if (!name || !category) {
             return res.status(400).json({ success: false, message: 'ชื่ออุปกรณ์และหมวดหมู่จำเป็นต้องกรอก' })
         }
 
-        const [result] = await pool.execute(
-            `INSERT INTO equipment (name, category, brand, model, serial_number, description, cpu, ram, storage, display, gpu, os, purchase_date, warranty_expire_date, purchase_price)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [name, category, brand || null, model || null, serial_number || null, description || null, cpu || null, ram || null, storage || null, display || null, gpu || null, os || null, purchase_date || null, warranty_expire_date || null, purchase_price || null]
+        const id = randomUUID()
+
+        await pool.execute(
+            `INSERT INTO equipment (id, name, category, brand, model, serial_number, asset_tag, description, cpu, ram, storage, display, gpu, os, screen_size, purchase_date, warranty_expire_date, purchase_price)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [id, name, category, brand || null, model || null, serial_number || null, asset_tag || null, description || null, cpu || null, ram || null, storage || null, display || null, gpu || null, os || null, screen_size || null, purchase_date || null, warranty_expire_date || null, purchase_price || null]
         )
 
-        // ดึง ID ที่เพิ่งสร้าง
-        const [newRow] = await pool.execute(
-            'SELECT * FROM equipment WHERE id = LAST_INSERT_ID() OR name = ? ORDER BY created_at DESC LIMIT 1',
-            [name]
-        )
+        const [newRow] = await pool.execute('SELECT * FROM equipment WHERE id = ?', [id])
 
         res.status(201).json({
             success: true,
@@ -190,7 +189,7 @@ router.post('/', authorize('admin'), async (req, res) => {
 router.put('/:id', authorize('admin'), async (req, res) => {
     try {
         const { id } = req.params
-        const { name, category, brand, model, serial_number, status, description, cpu, ram, storage, display, gpu, os, purchase_date, warranty_expire_date, purchase_price } = req.body
+        const { name, category, brand, model, serial_number, asset_tag, status, description, cpu, ram, storage, display, gpu, os, screen_size, purchase_date, warranty_expire_date, purchase_price } = req.body
 
         const [existing] = await pool.execute('SELECT id FROM equipment WHERE id = ?', [id])
         if (existing.length === 0) {
@@ -199,11 +198,11 @@ router.put('/:id', authorize('admin'), async (req, res) => {
 
         await pool.execute(
             `UPDATE equipment SET name = ?, category = ?, brand = ?, model = ?, 
-       serial_number = ?, status = ?, description = ?,
-       cpu = ?, ram = ?, storage = ?, display = ?, gpu = ?, os = ?,
+       serial_number = ?, asset_tag = ?, status = ?, description = ?,
+       cpu = ?, ram = ?, storage = ?, display = ?, gpu = ?, os = ?, screen_size = ?,
        purchase_date = ?, warranty_expire_date = ?, purchase_price = ?
        WHERE id = ?`,
-            [name, category, brand || null, model || null, serial_number || null, status || 'available', description || null, cpu || null, ram || null, storage || null, display || null, gpu || null, os || null, purchase_date || null, warranty_expire_date || null, purchase_price || null, id]
+            [name, category, brand || null, model || null, serial_number || null, asset_tag || null, status || 'available', description || null, cpu || null, ram || null, storage || null, display || null, gpu || null, os || null, screen_size || null, purchase_date || null, warranty_expire_date || null, purchase_price || null, id]
         )
 
         const [updated] = await pool.execute('SELECT * FROM equipment WHERE id = ?', [id])
@@ -350,16 +349,14 @@ router.post('/borrowings', async (req, res) => {
             return res.status(400).json({ success: false, message: 'อุปกรณ์ไม่พร้อมให้ยืม' })
         }
 
+        // สร้างคำขอยืม — ยังไม่เปลี่ยนสถานะอุปกรณ์ (จะเปลี่ยนเมื่ออนุมัติ)
         await pool.execute(
             `INSERT INTO equipment_borrowings (equipment_id, borrower_id, borrow_date, expected_return_date, purpose, status)
        VALUES (?, ?, ?, ?, ?, 'pending')`,
             [equipment_id, borrower_id, borrow_date, expected_return_date, purpose || null]
         )
 
-        // อัพเดท equipment status เป็น borrowed
-        await pool.execute("UPDATE equipment SET status = 'borrowed' WHERE id = ?", [equipment_id])
-
-        res.status(201).json({ success: true, message: 'ส่งคำขอยืมสำเร็จ' })
+        res.status(201).json({ success: true, message: 'ส่งคำขอยืมสำเร็จ รอการอนุมัติ' })
     } catch (error) {
         console.error('Error creating borrowing:', error)
         res.status(500).json({ success: false, message: 'Internal server error' })
@@ -371,27 +368,40 @@ router.post('/borrowings', async (req, res) => {
  * อนุมัติคำขอยืม (admin)
  */
 router.put('/borrowings/:id/approve', authorize('admin'), async (req, res) => {
+    const conn = await pool.getConnection()
     try {
         const { id } = req.params
 
-        const [borrowing] = await pool.execute(
+        const [borrowing] = await conn.execute(
             'SELECT * FROM equipment_borrowings WHERE id = ?',
             [id]
         )
         if (borrowing.length === 0) {
+            conn.release()
             return res.status(404).json({ success: false, message: 'ไม่พบรายการ' })
         }
         if (borrowing[0].status !== 'pending') {
+            conn.release()
             return res.status(400).json({ success: false, message: 'รายการนี้ไม่ได้อยู่ในสถานะรออนุมัติ' })
         }
 
-        await pool.execute(
+        await conn.beginTransaction()
+
+        await conn.execute(
             "UPDATE equipment_borrowings SET status = 'approved', approved_by = ? WHERE id = ?",
             [req.user.id, id]
         )
 
+        // เปลี่ยนสถานะอุปกรณ์เป็น borrowed เมื่ออนุมัติแล้ว
+        await conn.execute("UPDATE equipment SET status = 'borrowed' WHERE id = ?", [borrowing[0].equipment_id])
+
+        await conn.commit()
+        conn.release()
+
         res.json({ success: true, message: 'อนุมัติคำขอสำเร็จ' })
     } catch (error) {
+        await conn.rollback()
+        conn.release()
         console.error('Error approving borrowing:', error)
         res.status(500).json({ success: false, message: 'Internal server error' })
     }
@@ -417,13 +427,11 @@ router.put('/borrowings/:id/reject', authorize('admin'), async (req, res) => {
             return res.status(400).json({ success: false, message: 'รายการนี้ไม่ได้อยู่ในสถานะรออนุมัติ' })
         }
 
+        // ปฏิเสธคำขอ — ไม่ต้องเปลี่ยนสถานะอุปกรณ์ เพราะยังไม่ได้ lock ตอน pending
         await pool.execute(
             "UPDATE equipment_borrowings SET status = 'rejected', notes = ?, approved_by = ? WHERE id = ?",
             [notes || null, req.user.id, id]
         )
-
-        // คืนสถานะอุปกรณ์
-        await pool.execute("UPDATE equipment SET status = 'available' WHERE id = ?", [borrowing[0].equipment_id])
 
         res.json({ success: true, message: 'ปฏิเสธคำขอสำเร็จ' })
     } catch (error) {
@@ -437,38 +445,49 @@ router.put('/borrowings/:id/reject', authorize('admin'), async (req, res) => {
  * บันทึกคืนอุปกรณ์
  */
 router.put('/borrowings/:id/return', async (req, res) => {
+    const conn = await pool.getConnection()
     try {
         const { id } = req.params
         const { notes } = req.body
 
-        const [borrowing] = await pool.execute(
+        const [borrowing] = await conn.execute(
             'SELECT * FROM equipment_borrowings WHERE id = ?',
             [id]
         )
         if (borrowing.length === 0) {
+            conn.release()
             return res.status(404).json({ success: false, message: 'ไม่พบรายการ' })
         }
         if (!['approved', 'borrowed', 'overdue'].includes(borrowing[0].status)) {
+            conn.release()
             return res.status(400).json({ success: false, message: 'สถานะไม่ถูกต้อง' })
         }
 
         // อนุญาตเฉพาะ admin หรือผู้ยืมเอง
         if (req.user.role !== 'admin' && req.user.id !== borrowing[0].borrower_id) {
+            conn.release()
             return res.status(403).json({ success: false, message: 'ไม่มีสิทธิ์' })
         }
 
         const today = new Date().toISOString().split('T')[0]
 
-        await pool.execute(
+        await conn.beginTransaction()
+
+        await conn.execute(
             "UPDATE equipment_borrowings SET status = 'returned', actual_return_date = ?, notes = COALESCE(?, notes) WHERE id = ?",
             [today, notes || null, id]
         )
 
         // คืนสถานะอุปกรณ์
-        await pool.execute("UPDATE equipment SET status = 'available' WHERE id = ?", [borrowing[0].equipment_id])
+        await conn.execute("UPDATE equipment SET status = 'available' WHERE id = ?", [borrowing[0].equipment_id])
+
+        await conn.commit()
+        conn.release()
 
         res.json({ success: true, message: 'คืนอุปกรณ์สำเร็จ' })
     } catch (error) {
+        await conn.rollback()
+        conn.release()
         console.error('Error returning equipment:', error)
         res.status(500).json({ success: false, message: 'Internal server error' })
     }
@@ -479,26 +498,35 @@ router.put('/borrowings/:id/return', async (req, res) => {
  * ลบรายการยืม (admin)
  */
 router.delete('/borrowings/:id', authorize('admin'), async (req, res) => {
+    const conn = await pool.getConnection()
     try {
         const { id } = req.params
 
-        const [borrowing] = await pool.execute(
+        const [borrowing] = await conn.execute(
             'SELECT * FROM equipment_borrowings WHERE id = ?',
             [id]
         )
         if (borrowing.length === 0) {
+            conn.release()
             return res.status(404).json({ success: false, message: 'ไม่พบรายการ' })
         }
 
-        // ถ้ายังไม่คืน ให้คืนสถานะอุปกรณ์
-        if (['pending', 'approved', 'borrowed'].includes(borrowing[0].status)) {
-            await pool.execute("UPDATE equipment SET status = 'available' WHERE id = ?", [borrowing[0].equipment_id])
+        await conn.beginTransaction()
+
+        // ถ้ายังไม่คืน ให้คืนสถานะอุปกรณ์ (เฉพาะที่ถูก lock แล้ว: approved/borrowed)
+        if (['approved', 'borrowed'].includes(borrowing[0].status)) {
+            await conn.execute("UPDATE equipment SET status = 'available' WHERE id = ?", [borrowing[0].equipment_id])
         }
 
-        await pool.execute('DELETE FROM equipment_borrowings WHERE id = ?', [id])
+        await conn.execute('DELETE FROM equipment_borrowings WHERE id = ?', [id])
+
+        await conn.commit()
+        conn.release()
 
         res.json({ success: true, message: 'ลบรายการสำเร็จ' })
     } catch (error) {
+        await conn.rollback()
+        conn.release()
         console.error('Error deleting borrowing:', error)
         res.status(500).json({ success: false, message: 'Internal server error' })
     }

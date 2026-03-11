@@ -5,10 +5,11 @@ import api from './api'
 export interface Equipment {
     id: string
     name: string
-    category: 'laptop' | 'monitor' | 'mouse' | 'keyboard' | 'webcam' | 'headset' | 'charger' | 'cable' | 'other'
+    category: 'computer' | 'laptop' | 'monitor' | 'mouse' | 'keyboard' | 'webcam' | 'headset' | 'charger' | 'cable' | 'other'
     brand: string | null
     model: string | null
     serial_number: string | null
+    asset_tag: string | null
     status: 'available' | 'borrowed' | 'maintenance' | 'retired'
     description: string | null
     // สเปคคอมพิวเตอร์
@@ -18,6 +19,7 @@ export interface Equipment {
     display: string | null
     gpu: string | null
     os: string | null
+    screen_size: string | null
     purchase_date: string | null
     warranty_expire_date: string | null
     purchase_price: number | null
@@ -182,6 +184,7 @@ export const equipmentService = {
         brand?: string
         model?: string
         serial_number?: string
+        asset_tag?: string
         description?: string
         cpu?: string
         ram?: string
@@ -189,6 +192,7 @@ export const equipmentService = {
         display?: string
         gpu?: string
         os?: string
+        screen_size?: string
         purchase_date?: string
         warranty_expire_date?: string
         purchase_price?: number
@@ -203,6 +207,7 @@ export const equipmentService = {
         brand?: string
         model?: string
         serial_number?: string
+        asset_tag?: string
         status?: string
         description?: string
         cpu?: string
@@ -211,6 +216,7 @@ export const equipmentService = {
         display?: string
         gpu?: string
         os?: string
+        screen_size?: string
         purchase_date?: string
         warranty_expire_date?: string
         purchase_price?: number
