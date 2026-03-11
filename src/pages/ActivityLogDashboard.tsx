@@ -27,7 +27,7 @@ import {
     Button,
 } from '@mantine/core'
 import { MonthPickerInput, DatePickerInput } from '@mantine/dates'
-import { TbRefresh, TbSearch, TbCalendar, TbDownload } from 'react-icons/tb'
+import { TbRefresh, TbSearch, TbCalendar, TbDownload, TbTrash } from 'react-icons/tb'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Cell } from 'recharts'
 import dayjs from 'dayjs'
 import 'dayjs/locale/th'
@@ -257,6 +257,18 @@ export default function ActivityLogDashboard() {
     useEffect(() => { fetchChartData() }, [fetchChartData])
 
     const refresh = () => { setPage(1); fetchAll(); fetchLogs(); fetchChartData() }
+
+    const handleDeleteLog = async (id: number) => {
+        if (!window.confirm('ต้องการลบรายการนี้หรือไม่?')) return
+        try {
+            await activityLogsService.deleteLog(id)
+            fetchLogs()
+            fetchAll()
+        } catch (err) {
+            console.error('Delete error:', err)
+            alert('ไม่สามารถลบรายการได้')
+        }
+    }
 
     const handleExportExcel = async () => {
         try {
@@ -608,6 +620,9 @@ export default function ActivityLogDashboard() {
                                             />
                                         </Table.Th>
                                     ))}
+                                    <Table.Th style={{ width: 55, textAlign: 'center' }}>
+                                        <TbTrash size={14} color="#adb5bd" />
+                                    </Table.Th>
                                 </Table.Tr>
                             </Table.Thead>
                             <Table.Tbody>
@@ -621,6 +636,7 @@ export default function ActivityLogDashboard() {
                                             <Table.Td><Skeleton height={20} radius="xl" width={60} /></Table.Td>
                                             <Table.Td><Skeleton height={20} radius="xl" /></Table.Td>
                                             <Table.Td><Skeleton height={20} radius="xl" /></Table.Td>
+                                            <Table.Td><Skeleton height={20} radius="xl" width={30} /></Table.Td>
                                         </Table.Tr>
                                     ))
                                 ) : logs.length > 0 ? logs.map((log) => {
@@ -665,11 +681,23 @@ export default function ActivityLogDashboard() {
                                             <Table.Td>
                                                 <Text size="xs" style={{ wordBreak: 'break-word' }}>{log.description || '-'}</Text>
                                             </Table.Td>
+                                            <Table.Td>
+                                                <Tooltip label="ลบรายการ" withArrow>
+                                                <ActionIcon
+                                                    variant="subtle"
+                                                    color="red"
+                                                    size="sm"
+                                                    onClick={() => handleDeleteLog(log.id)}
+                                                >
+                                                    <TbTrash size={14} />
+                                                </ActionIcon>
+                                                </Tooltip>
+                                            </Table.Td>
                                         </Table.Tr>
                                     )
                                 }) : (
                                     <Table.Tr>
-                                        <Table.Td colSpan={7}>
+                                        <Table.Td colSpan={8}>
                                             <Center py={40}>
                                                 <Stack align="center" gap="xs">
                                                     <Text size="2rem">📋</Text>

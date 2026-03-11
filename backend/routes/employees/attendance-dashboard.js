@@ -24,7 +24,6 @@ router.get('/', authenticateToken, async (req, res) => {
         // 1. Get all active employees
         const [employees] = await pool.execute(
             `SELECT 
-        id,
         employee_id,
         first_name,
         nick_name,
@@ -73,7 +72,6 @@ router.get('/', authenticateToken, async (req, res) => {
         // 4. Get birthdays this month
         const [birthdaysThisMonth] = await pool.execute(
             `SELECT 
-        id,
         employee_id,
         first_name,
         nick_name,
@@ -90,7 +88,6 @@ router.get('/', authenticateToken, async (req, res) => {
         // 5. Get new hires (within 30 days from target date)
         const [newHires] = await pool.execute(
             `SELECT 
-        id,
         employee_id,
         first_name,
         nick_name,
@@ -109,7 +106,6 @@ router.get('/', authenticateToken, async (req, res) => {
         // 6. Get probation ending (within 30 days ahead)
         const [probationEnding] = await pool.execute(
             `SELECT 
-        id,
         employee_id,
         first_name,
         nick_name,

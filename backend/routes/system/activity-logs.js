@@ -440,6 +440,26 @@ router.get('/audit-corrections', async (req, res) => {
         res.status(500).json({ success: false, message: 'Internal server error' })
     }
 })
+/**
+ * DELETE /api/activity-logs/:id
+ * ลบ activity log รายการเดียว (admin/audit only)
+ */
+router.delete('/:id', async (req, res) => {
+    try {
+        const { id } = req.params
+        const [result] = await pool.execute(
+            'DELETE FROM activity_logs WHERE id = ?',
+            [id]
+        )
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ success: false, message: 'ไม่พบรายการที่ต้องการลบ' })
+        }
+        res.json({ success: true, message: 'ลบรายการสำเร็จ' })
+    } catch (error) {
+        console.error('Error deleting activity log:', error)
+        res.status(500).json({ success: false, message: 'Internal server error' })
+    }
+})
 export default router
 
 /**

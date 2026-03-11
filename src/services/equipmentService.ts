@@ -97,50 +97,6 @@ export interface EmployeeOption {
     employee_id: string | null
 }
 
-export interface SystemInfo {
-    cpu: {
-        name: string
-        manufacturer: string
-        threads: string
-        socket: string
-        base_clock: string
-        l2_cache: string
-        l3_cache: string
-    }
-    mainboard: {
-        manufacturer: string
-        model: string
-        version: string
-        bios_vendor: string
-        bios_version: string
-        bios_date: string
-    }
-    memory: {
-        size: string
-        speed: string
-        manufacturer: string
-        part_number: string
-        form_factor: string
-    }
-    graphics: {
-        name: string
-        manufacturer: string
-        driver: string
-        vram: string
-        resolution: string
-    }
-    about: {
-        os: string
-        computer_name: string
-    }
-    devices: {
-        monitor: string
-        mouse: string
-        keyboard: string
-        disk: string
-        usb: string
-    }
-}
 
 interface PaginatedResponse<T> {
     pagination: {
@@ -319,9 +275,4 @@ export const equipmentService = {
         return res.data.data
     },
 
-    // ─── System Info (from Python script) ───
-    getSystemInfo: async (): Promise<SystemInfo> => {
-        const res = await api.get<{ success: boolean; data: SystemInfo }>('/equipment/system-info')
-        return res.data.data
-    },
 }

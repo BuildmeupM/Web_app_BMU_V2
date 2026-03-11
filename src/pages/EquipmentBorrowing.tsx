@@ -25,8 +25,6 @@ import {
     TbClock,
     TbAlertTriangle,
     TbUserCheck,
-    TbCopy,
-    TbCheck,
 } from 'react-icons/tb'
 import { useQuery, useQueryClient } from 'react-query'
 import {
@@ -34,7 +32,6 @@ import {
     type Equipment,
     type EquipmentStats,
     type EmployeeOption,
-    type SystemInfo,
 } from '../services/equipmentService'
 import { useAuthStore } from '../store/authStore'
 import { notifications } from '@mantine/notifications'
@@ -74,7 +71,7 @@ export default function EquipmentBorrowing() {
 
     // ── Modals state ──
     const [equipmentModalOpen, setEquipmentModalOpen] = useState(false)
-    const [systemInfoModalOpen, setSystemInfoModalOpen] = useState(false)
+
     const [borrowModalOpen, setBorrowModalOpen] = useState(false)
     const [editingEquipment, setEditingEquipment] = useState<Equipment | null>(null)
     const [deleteModalOpen, setDeleteModalOpen] = useState(false)
@@ -176,61 +173,6 @@ export default function EquipmentBorrowing() {
         { staleTime: 60_000, retry: 1 }
     )
 
-    // ── System Info (Python) ──
-    const { data: systemInfo, isLoading: loadingSystemInfo } = useQuery<SystemInfo>(
-        ['equipment', 'system-info'],
-        () => equipmentService.getSystemInfo(),
-        { enabled: systemInfoModalOpen, staleTime: 60_000, retry: 1 }
-    )
-
-    // Helper to format system info as text for copying
-    const getSystemInfoText = (info: SystemInfo) => {
-        return `[ข้อมูลเครื่องเซิร์ฟเวอร์]
---- CPU ---
-ชื่อ: ${info.cpu.name || '-'}
-ผู้ผลิต: ${info.cpu.manufacturer || '-'}
-Cores/Threads: ${info.cpu.threads || '-'}
-Socket: ${info.cpu.socket || '-'}
-Max Clock: ${info.cpu.base_clock || '-'}
-L2/L3 Cache: ${info.cpu.l2_cache} / ${info.cpu.l3_cache}
-
---- Mainboard ---
-ผู้ผลิต: ${info.mainboard.manufacturer || '-'}
-รุ่น: ${info.mainboard.model} ${info.mainboard.version}
-BIOS Vendor: ${info.mainboard.bios_vendor || '-'}
-BIOS Version: ${info.mainboard.bios_version} (${info.mainboard.bios_date})
-
---- Memory ---
-ขนาดรวม: ${info.memory.size || '-'}
-ความเร็ว: ${info.memory.speed || '-'}
-ผู้ผลิต: ${info.memory.manufacturer} ${info.memory.part_number}
-รูปแบบ: ${info.memory.form_factor || '-'}
-
---- Graphics ---
-ชื่อ GPU: ${info.graphics.name || '-'}
-ผู้ผลิต: ${info.graphics.manufacturer || '-'}
-VRAM: ${info.graphics.vram || '-'}
-Driver: ${info.graphics.driver || '-'}
-
---- OS & Peripherals ---
-ระบบปฏิบัติการ: ${info.about.os || '-'}
-ชื่อเครื่อง: ${info.about.computer_name || '-'}
-หน้าจอ: ${info.devices.monitor || '-'}
-พื้นที่จัดเก็บ: ${info.devices.disk || '-'}
-คีย์บอร์ด: ${info.devices.keyboard || '-'}
-เมาส์: ${info.devices.mouse || '-'}
-พอร์ต USB: ${info.devices.usb || '-'}`
-    }
-
-    const handleCopySysInfo = async () => {
-        if (!systemInfo) return
-        try {
-            await navigator.clipboard.writeText(getSystemInfoText(systemInfo))
-            notifications.show({ title: 'คัดลอกสำเร็จ', message: 'คัดลอกข้อมูลระบบลงคลิปบอร์ดแล้ว', color: 'green', icon: <TbCheck size={18} /> })
-        } catch (err) {
-            notifications.show({ title: 'ข้อผิดพลาด', message: 'ไม่สามารถคัดลอกข้อมูลได้', color: 'red' })
-        }
-    }
 
     // ── Refresh ──
     const handleRefresh = () => {
@@ -482,13 +424,6 @@ Driver: ${info.graphics.driver || '-'}
                         </div>
                         <Group gap="xs">
                             <Button
-                                variant="light" color="orange" size="sm" radius="xl"
-                                leftSection={<TbDeviceLaptop size={16} />}
-                                onClick={() => setSystemInfoModalOpen(true)}
-                            >
-                                ข้อมูลเซิร์ฟเวอร์
-                            </Button>
-                            <Button
                                 variant="light" color="teal" size="sm" radius="xl"
                                 leftSection={<TbPlus size={16} />}
                                 onClick={() => openBorrowModal()}
@@ -673,185 +608,7 @@ Driver: ${info.graphics.driver || '-'}
                 </Stack>
             </Modal>
 
-            {/* ══════════ Modal: System Server Info ══════════ */}
-            <Modal
-                opened={systemInfoModalOpen}
-                onClose={() => setSystemInfoModalOpen(false)}
-                title={
-                    <Group gap="xs">
-                        <TbDeviceLaptop size={20} color="var(--mantine-color-blue-6)" />
-                        <Text fw={600}>ข้อมูลเครื่องเซิร์ฟเวอร์ (Hardware Config)</Text>
-                    </Group>
-                }
-                size="xl"
-                centered
-            >
-                {loadingSystemInfo ? (
-                    <Stack align="center" py="xl">
-                        <Skeleton height={200} width="100%" radius="md" />
-                        <Text c="dimmed">กำลังโหลดข้อมูลระบบ...</Text>
-                    </Stack>
-                ) : systemInfo ? (
-                    <Tabs defaultValue="cpu" variant="outline">
-                        <Tabs.List>
-                            <Tabs.Tab value="cpu">CPU</Tabs.Tab>
-                            <Tabs.Tab value="mainboard">Mainboard</Tabs.Tab>
-                            <Tabs.Tab value="memory">Memory</Tabs.Tab>
-                            <Tabs.Tab value="graphics">Graphics</Tabs.Tab>
-                            <Tabs.Tab value="about">OS & Peripherals</Tabs.Tab>
-                        </Tabs.List>
 
-                        <Tabs.Panel value="cpu" pt="xs">
-                            <SimpleGrid cols={2} spacing="md">
-                                <Card withBorder shadow="sm" radius="md">
-                                    <Text size="sm" c="dimmed" fw={500}>Name</Text>
-                                    <Text fw={500}>{systemInfo.cpu.name || '-'}</Text>
-                                </Card>
-                                <Card withBorder shadow="sm" radius="md">
-                                    <Text size="sm" c="dimmed" fw={500}>Manufacturer</Text>
-                                    <Text fw={500}>{systemInfo.cpu.manufacturer || '-'}</Text>
-                                </Card>
-                                <Card withBorder shadow="sm" radius="md">
-                                    <Text size="sm" c="dimmed" fw={500}>Cores / Threads</Text>
-                                    <Text fw={500}>{systemInfo.cpu.threads || '-'}</Text>
-                                </Card>
-                                <Card withBorder shadow="sm" radius="md">
-                                    <Text size="sm" c="dimmed" fw={500}>Socket</Text>
-                                    <Text fw={500}>{systemInfo.cpu.socket || '-'}</Text>
-                                </Card>
-                                <Card withBorder shadow="sm" radius="md">
-                                    <Text size="sm" c="dimmed" fw={500}>Max Clock</Text>
-                                    <Text fw={500}>{systemInfo.cpu.base_clock || '-'}</Text>
-                                </Card>
-                                <Card withBorder shadow="sm" radius="md">
-                                    <Text size="sm" c="dimmed" fw={500}>L2 / L3 Cache</Text>
-                                    <Text fw={500}>{systemInfo.cpu.l2_cache} / {systemInfo.cpu.l3_cache}</Text>
-                                </Card>
-                            </SimpleGrid>
-                        </Tabs.Panel>
-
-                        <Tabs.Panel value="mainboard" pt="xs">
-                            <SimpleGrid cols={2} spacing="md">
-                                <Card withBorder shadow="sm" radius="md">
-                                    <Text size="sm" c="dimmed" fw={500}>Motherboard Manufacturer</Text>
-                                    <Text fw={500}>{systemInfo.mainboard.manufacturer || '-'}</Text>
-                                </Card>
-                                <Card withBorder shadow="sm" radius="md">
-                                    <Text size="sm" c="dimmed" fw={500}>Model & Version</Text>
-                                    <Text fw={500}>{systemInfo.mainboard.model} {systemInfo.mainboard.version}</Text>
-                                </Card>
-                                <Card withBorder shadow="sm" radius="md">
-                                    <Text size="sm" c="dimmed" fw={500}>BIOS Vendor</Text>
-                                    <Text fw={500}>{systemInfo.mainboard.bios_vendor || '-'}</Text>
-                                </Card>
-                                <Card withBorder shadow="sm" radius="md">
-                                    <Text size="sm" c="dimmed" fw={500}>BIOS Version & Date</Text>
-                                    <Text fw={500}>{systemInfo.mainboard.bios_version} ({systemInfo.mainboard.bios_date})</Text>
-                                </Card>
-                            </SimpleGrid>
-                        </Tabs.Panel>
-
-                        <Tabs.Panel value="memory" pt="xs">
-                            <SimpleGrid cols={2} spacing="md">
-                                <Card withBorder shadow="sm" radius="md">
-                                    <Text size="sm" c="dimmed" fw={500}>Total Size</Text>
-                                    <Text fw={500}>{systemInfo.memory.size || '-'}</Text>
-                                </Card>
-                                <Card withBorder shadow="sm" radius="md">
-                                    <Text size="sm" c="dimmed" fw={500}>Speed</Text>
-                                    <Text fw={500}>{systemInfo.memory.speed || '-'}</Text>
-                                </Card>
-                                <Card withBorder shadow="sm" radius="md">
-                                    <Text size="sm" c="dimmed" fw={500}>Manufacturer & Part</Text>
-                                    <Text fw={500}>{systemInfo.memory.manufacturer} {systemInfo.memory.part_number}</Text>
-                                </Card>
-                                <Card withBorder shadow="sm" radius="md">
-                                    <Text size="sm" c="dimmed" fw={500}>Form Factor</Text>
-                                    <Text fw={500}>{systemInfo.memory.form_factor || '-'}</Text>
-                                </Card>
-                            </SimpleGrid>
-                        </Tabs.Panel>
-
-                        <Tabs.Panel value="graphics" pt="xs">
-                            <SimpleGrid cols={2} spacing="md">
-                                <Card withBorder shadow="sm" radius="md">
-                                    <Text size="sm" c="dimmed" fw={500}>GPU Name</Text>
-                                    <Text fw={500}>{systemInfo.graphics.name || '-'}</Text>
-                                </Card>
-                                <Card withBorder shadow="sm" radius="md">
-                                    <Text size="sm" c="dimmed" fw={500}>Manufacturer</Text>
-                                    <Text fw={500}>{systemInfo.graphics.manufacturer || '-'}</Text>
-                                </Card>
-                                <Card withBorder shadow="sm" radius="md">
-                                    <Text size="sm" c="dimmed" fw={500}>VRAM</Text>
-                                    <Text fw={500}>{systemInfo.graphics.vram || '-'}</Text>
-                                </Card>
-                                <Card withBorder shadow="sm" radius="md">
-                                    <Text size="sm" c="dimmed" fw={500}>Driver Version</Text>
-                                    <Text fw={500}>{systemInfo.graphics.driver || '-'}</Text>
-                                </Card>
-                            </SimpleGrid>
-                        </Tabs.Panel>
-
-                        <Tabs.Panel value="about" pt="xs">
-                            <Stack gap="sm">
-                                <Card withBorder shadow="sm" radius="md">
-                                    <Group grow>
-                                        <div>
-                                            <Text size="sm" c="dimmed" fw={500}>OS Version</Text>
-                                            <Text fw={500}>{systemInfo.about.os || '-'}</Text>
-                                        </div>
-                                        <div>
-                                            <Text size="sm" c="dimmed" fw={500}>Computer Name</Text>
-                                            <Text fw={500}>{systemInfo.about.computer_name || '-'}</Text>
-                                        </div>
-                                    </Group>
-                                </Card>
-                                <Card withBorder shadow="sm" radius="md">
-                                    <Stack gap="xs">
-                                        <Text size="sm" c="dimmed" fw={500} mb={4}>Peripherals</Text>
-                                        <Group align="flex-start" mb="xs">
-                                            <Text w={100} size="sm" fw={600}>Monitor:</Text>
-                                            <Text size="sm" style={{ flex: 1 }}>{systemInfo.devices.monitor || '-'}</Text>
-                                        </Group>
-                                        <Group align="flex-start" mb="xs">
-                                            <Text w={100} size="sm" fw={600}>Storage (Disk):</Text>
-                                            <Text size="sm" style={{ flex: 1 }}>{systemInfo.devices.disk || '-'}</Text>
-                                        </Group>
-                                        <Group align="flex-start" mb="xs">
-                                            <Text w={100} size="sm" fw={600}>Keyboard:</Text>
-                                            <Text size="sm" style={{ flex: 1 }}>{systemInfo.devices.keyboard || '-'}</Text>
-                                        </Group>
-                                        <Group align="flex-start" mb="xs">
-                                            <Text w={100} size="sm" fw={600}>Mouse:</Text>
-                                            <Text size="sm" style={{ flex: 1 }}>{systemInfo.devices.mouse || '-'}</Text>
-                                        </Group>
-                                        <Group align="flex-start">
-                                            <Text w={100} size="sm" fw={600}>USB Devices:</Text>
-                                            <Text size="sm" style={{ flex: 1 }}>{systemInfo.devices.usb || '-'}</Text>
-                                        </Group>
-                                    </Stack>
-                                </Card>
-                            </Stack>
-                        </Tabs.Panel>
-                    </Tabs>
-                ) : (
-                    <Text ta="center" c="red" py="xl">ไม่สามารถโหลดข้อมูลระบบได้</Text>
-                )}
-                <Group justify="flex-end" mt="lg">
-                    {systemInfo && (
-                        <Button
-                            variant="light"
-                            color="orange"
-                            leftSection={<TbCopy size={16} />}
-                            onClick={handleCopySysInfo}
-                        >
-                            คัดลอกเป็นข้อความ
-                        </Button>
-                    )}
-                    <Button onClick={() => setSystemInfoModalOpen(false)}>ปิด</Button>
-                </Group>
-            </Modal>
         </>
     )
 }

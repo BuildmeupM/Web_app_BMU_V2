@@ -155,6 +155,10 @@ export const activityLogsService = {
     }>("/activity-logs/audit-corrections", { params: { year, month } });
     return response.data.data;
   },
+
+  deleteLog: async (id: number): Promise<void> => {
+    await api.delete(`/activity-logs/${id}`);
+  },
 };
 
 export interface AuditCorrectionCompany {

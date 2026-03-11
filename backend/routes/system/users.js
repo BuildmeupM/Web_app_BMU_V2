@@ -86,32 +86,35 @@ router.get('/', authenticateToken, async (req, res) => {
     )
     const total = countResult[0].total
 
-    // Get users (รวม temporary_password สำหรับ Admin)
+    // Role-based field filtering:
+    // Admin sees all fields, non-admin sees only necessary fields
+    const isAdmin = req.user.role === 'admin'
+
+    const selectFields = isAdmin
+      ? `u.id, u.username, u.email, u.employee_id, u.nick_name, u.role, u.name, u.status,
+         u.temporary_password, u.last_login_at, u.created_at, u.updated_at`
+      : `u.employee_id, u.nick_name, u.role, u.name, u.status`
+
+    // Get users
     const userParams = [...queryParams, limitNum, offset]
     const [users] = await pool.execute(
-      `SELECT 
-        u.id,
-        u.username,
-        u.email,
-        u.employee_id,
-        u.nick_name,
-        u.role,
-        u.name,
-        u.status,
-        u.temporary_password,
-        u.last_login_at,
-        u.created_at,
-        u.updated_at
-      FROM users u
-      ${whereClause}
-      ${orderClause}
-      LIMIT ? OFFSET ?`,
+      `SELECT ${selectFields}
+       FROM users u
+       ${whereClause}
+       ${orderClause}
+       LIMIT ? OFFSET ?`,
       userParams
     )
 
+    // Non-admin: generate a safe short ID instead of exposing UUID
+    const safeUsers = isAdmin ? users : users.map((u, i) => ({
+      ...u,
+      id: u.employee_id || `user_${offset + i + 1}`,
+    }))
+
     res.json({
       success: true,
-      data: users,
+      data: safeUsers,
       total: total,
       pagination: {
         page: pageNum,

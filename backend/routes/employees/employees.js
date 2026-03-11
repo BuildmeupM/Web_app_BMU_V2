@@ -62,10 +62,8 @@ router.get('/', authenticateToken, async (req, res) => {
       whereConditions.push('e.deleted_at IS NULL')
     }
 
-    if (!isHRorAdmin) {
-      whereConditions.push('e.employee_id = ?')
-      queryParams.push(req.user.employee_id)
-    }
+    // ✅ Allow all authenticated users to see employee list (needed for @mention in chat)
+    // Non-admin users will receive limited fields in the response (see below)
 
     // Only filter by status if status is provided, not empty, and not 'all'
     // ถ้า status เป็น undefined, null, empty string, หรือ 'all' จะไม่ filter
@@ -213,10 +211,21 @@ router.get('/', authenticateToken, async (req, res) => {
       },
     })
 
+    // Non-admin users: return only basic fields (for security + chat mention)
+    const responseEmployees = isHRorAdmin ? employees : employees.map(emp => ({
+      employee_id: emp.employee_id,
+      first_name: emp.first_name,
+      full_name: emp.full_name,
+      nick_name: emp.nick_name,
+      position: emp.position,
+      status: emp.status,
+      profile_image: emp.profile_image,
+    }))
+
     res.json({
       success: true,
       data: {
-        employees,
+        employees: responseEmployees,
         pagination: {
           page: pageNum,
           limit: limitNum,

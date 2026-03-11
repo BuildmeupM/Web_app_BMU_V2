@@ -7,9 +7,6 @@ import express from 'express'
 import { randomUUID } from 'crypto'
 import { authenticateToken, authorize } from '../../middleware/auth.js'
 import pool from '../../config/database.js'
-import { execFile } from 'child_process'
-import path from 'path'
-import { fileURLToPath } from 'url'
 
 const router = express.Router()
 
@@ -738,42 +735,6 @@ router.delete('/assignments/:id', authorize('admin'), async (req, res) => {
     }
 })
 
-/**
- * GET /api/equipment/system-info
- * ดึงข้อมูล Hardware จากเครื่อง Server (Local) ผ่าน Python
- */
-router.get('/system-info', (req, res) => {
-    const __filename = fileURLToPath(import.meta.url)
-    const __dirname = path.dirname(__filename)
-    // back out of routes/content to get to scripts
-    const scriptPath = path.join(__dirname, '..', '..', 'scripts', 'get_system_info.py')
-    
-    // Execute the python script using execFile to properly handle paths with spaces/unicode
-    // Increase timeout to 60s since spawning 11 PowerShell processes sequentially from Python can take easily >15s on Windows.
-    // Ensure utf-8 encoding for Thai characters
-    execFile('python', [scriptPath], { timeout: 60000, env: { ...process.env, PYTHONIOENCODING: 'utf-8' } }, (error, stdout) => {
-        if (error) {
-            console.error('Error executing python script:', error)
-            return res.status(500).json({ success: false, message: 'Failed to fetch system info', error: error.message })
-        }
-        try {
-            // Find JSON start
-            const jsonStart = stdout.indexOf('{')
-            if (jsonStart === -1) throw new Error('No JSON output from python script')
-            const jsonStr = stdout.substring(jsonStart)
-            const data = JSON.parse(jsonStr)
-            
-            if (data.error) {
-                return res.status(500).json({ success: false, message: 'Python script error', error: data.error })
-            }
-            
-            res.json({ success: true, data })
-        } catch (parseError) {
-            console.error('Error parsing python output:', parseError, 'Raw output:', stdout)
-            res.status(500).json({ success: false, message: 'Invalid response from system info script', error: parseError.message })
-        }
-    })
-})
 
 /**
  * GET /api/equipment/employees

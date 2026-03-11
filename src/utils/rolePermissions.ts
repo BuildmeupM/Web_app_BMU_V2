@@ -61,11 +61,11 @@ export const routePermissions: RoutePermission[] = [
     label: "ข้อมูลลูกค้า",
     roles: ["admin", "audit", "registration"],
   },
-  // 7.1 Dashboard ลูกค้า - admin เท่านั้น
+  // 7.1 Dashboard ลูกค้า - admin, audit
   {
     path: "/client-dashboard",
     label: "Dashboard ลูกค้า",
-    roles: ["admin"],
+    roles: ["admin", "audit"],
   },
   // 8. จัดงานรายเดือน - admin, audit
   {

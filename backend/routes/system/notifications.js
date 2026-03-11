@@ -100,6 +100,10 @@ router.get('/', authenticateToken, async (req, res) => {
     const parsedNotifications = notifications.map((notification) => {
       // ✅ CLEANUP: Remove internal fields from response
       delete notification._unread_count
+      // ✅ SECURITY: Remove sensitive UUID fields from response
+      delete notification.user_id
+      delete notification.related_user_id
+      delete notification.related_entity_id
 
       if (notification.metadata) {
         try {
@@ -113,17 +117,11 @@ router.get('/', authenticateToken, async (req, res) => {
         notification._sortCompanyName = notification.metadata.company_name
       } else {
         // Fallback: Extract from message
-        // Format: "บริษัท {companyName} ({build}) - {taxType} เดือน {month}/{year} สถานะ: {status}"
-        // หรือ "บริษัท {companyName} ({build}) - ภ.ง.ด. เดือน {month}/{year}\nสถานะ: {status}\n..."
         const message = notification.message || ''
         const companyMatch = message.match(/บริษัท\s+([^(]+)\s*\(/)
         notification._sortCompanyName = companyMatch ? companyMatch[1].trim() : ''
       }
       // Extract status from message for sorting
-      // Format: "สถานะ: {status}" (อาจอยู่ในบรรทัดเดียวกับ company name หรือบรรทัดใหม่)
-      // Examples:
-      // - "บริษัท XXX (001) - ภ.ง.ด. เดือน 1/2026 สถานะ: รอตรวจ"
-      // - "บริษัท XXX (001) - ภ.ง.ด. เดือน 1/2026\nสถานะ: รอตรวจ"
       const message = notification.message || ''
       const statusMatch = message.match(/สถานะ:\s*([^\n]+)/)
       notification._sortStatus = statusMatch ? statusMatch[1].trim() : ''
