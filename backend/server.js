@@ -46,7 +46,8 @@ import companyFeedRoutes from './routes/content/company-feed.js'
 import errorReportsRoutes from './routes/system/error-reports.js'
 import activityLogsRoutes from './routes/system/activity-logs.js'
 import internalChatsRoutes from './routes/internal-chats.js'
-import { initSyslogServer } from './utils/syslog-server.js'
+import nasSyslogRoutes from './routes/system/nas-syslog.js'
+import { initSyslogServer, initTcpSyslogServer } from './utils/syslog-server.js'
 
 import { apiRateLimiter } from './middleware/rateLimiter.js'
 import cacheMiddleware from './middleware/cache.js'
@@ -335,6 +336,7 @@ app.use('/api/company-feed', companyFeedRoutes)
 app.use('/api/error-reports', errorReportsRoutes)
 app.use('/api/activity-logs', activityLogsRoutes)
 app.use('/api/internal-chats', internalChatsRoutes)
+app.use('/api/nas-syslog', nasSyslogRoutes)
 
 
 // ✅ SPA Fallback: Serve React frontend in production
@@ -474,7 +476,22 @@ async function startServer() {
         }
       }, 60 * 60 * 1000)
 
-      console.log('⏰ Scheduled jobs started: Cleanup expired & WFH Reminders (every hour)')
+      // 🗑️ Daily cleanup: delete NAS syslog records older than 3 months
+      setInterval(async () => {
+        try {
+          const { default: dbPool } = await import('./config/database.js')
+          const [result] = await dbPool.query(
+            'DELETE FROM nas_syslog WHERE timestamp < DATE_SUB(NOW(), INTERVAL 3 MONTH)'
+          )
+          if (result.affectedRows > 0) {
+            console.log(`🗑️ [Syslog Cleanup] Deleted ${result.affectedRows} records older than 3 months`)
+          }
+        } catch (error) {
+          console.error('❌ [Syslog Cleanup] Error:', error.message)
+        }
+      }, 24 * 60 * 60 * 1000) // every 24 hours
+
+      console.log('⏰ Scheduled jobs started: Cleanup expired & WFH Reminders (hourly), Syslog cleanup (daily)')
       
       // Run the WFH check once on startup (after 5 seconds) to ensure it triggers right away on deployment
       setTimeout(async () => {
@@ -485,12 +502,20 @@ async function startServer() {
         }
       }, 5000)
       
-      // ✅ Start UDP Syslog Server Receiver
+      // ✅ Start UDP Syslog Server Receiver (local/LAN)
       try {
         const SYSLOG_PORT = process.env.SYSLOG_UDP_PORT || 5514
         initSyslogServer(io, SYSLOG_PORT)
       } catch(err) {
         console.error('❌ Failed to start Syslog UDP server:', err)
+      }
+
+      // ✅ Start TCP Syslog Server (Railway / Cloud)
+      try {
+        const TCP_PORT = process.env.SYSLOG_TCP_PORT || 5515
+        initTcpSyslogServer(io, TCP_PORT)
+      } catch(err) {
+        console.error('❌ Failed to start Syslog TCP server:', err)
       }
     })
 
