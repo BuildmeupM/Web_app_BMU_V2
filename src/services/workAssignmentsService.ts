@@ -71,6 +71,11 @@ const workAssignmentsService = {
     sync_status?: string
     sortBy?: string
     sortOrder?: 'asc' | 'desc'
+    accounting_responsible?: string
+    tax_inspection_responsible?: string
+    wht_filer_responsible?: string
+    vat_filer_responsible?: string
+    document_entry_responsible?: string
   }): Promise<WorkAssignmentListResponse> {
     const response = await api.get<WorkAssignmentListResponse>('/work-assignments', { params })
     return response.data
@@ -214,6 +219,19 @@ const workAssignmentsService = {
   },
 
   /**
+   * เปลี่ยนผู้รับผิดชอบแบบ Bulk (หลายรายการ)
+   */
+  async bulkChangeResponsible(
+    data: BulkResponsibilityChangeRequest
+  ): Promise<BulkResponsibilityChangeResponse> {
+    const response = await api.post<{ success: boolean; message: string; data: BulkResponsibilityChangeResponse }>(
+      '/work-assignments/bulk-change-responsible',
+      data
+    )
+    return response.data.data
+  },
+
+  /**
    * ลบการจัดงาน (soft delete)
    */
   async deleteAssignment(id: string): Promise<{ message: string }> {
@@ -268,6 +286,36 @@ export interface ResponsibilityChangeHistory {
   changed_by_name: string
   change_reason: string | null
   changed_at: string
+}
+
+/**
+ * Request สำหรับเปลี่ยนผู้รับผิดชอบแบบ Bulk
+ */
+export interface BulkResponsibilityChangeRequest {
+  assignment_ids: string[]
+  role_type: RoleType
+  new_employee_id: string
+  change_reason?: string
+}
+
+/**
+ * Response สำหรับเปลี่ยนผู้รับผิดชอบแบบ Bulk
+ */
+export interface BulkResponsibilityChangeResponse {
+  role_type: RoleType
+  role_label: string
+  new_employee_id: string
+  new_employee_name: string
+  success_count: number
+  skipped_count: number
+  total: number
+  details: Array<{
+    build: string
+    company_name: string
+    status: 'changed' | 'skipped'
+    previous_employee_id?: string | null
+    reason?: string
+  }>
 }
 
 export default workAssignmentsService

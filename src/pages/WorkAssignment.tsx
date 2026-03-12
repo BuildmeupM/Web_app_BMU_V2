@@ -34,7 +34,7 @@ import {
   Progress,
   SimpleGrid,
 } from '@mantine/core'
-import { TbPlus, TbSearch, TbEdit, TbRefresh, TbAlertCircle, TbCheck, TbColumns, TbEye, TbEyeOff, TbUpload, TbUserEdit, TbTrash } from 'react-icons/tb'
+import { TbPlus, TbSearch, TbEdit, TbRefresh, TbAlertCircle, TbCheck, TbColumns, TbEye, TbEyeOff, TbUpload, TbUserEdit, TbTrash, TbUsersGroup } from 'react-icons/tb'
 import { useQuery, useMutation, useQueryClient } from 'react-query'
 import { useAuthStore } from '../store/authStore'
 import workAssignmentsService, {
@@ -46,6 +46,7 @@ import usersService, { User } from '../services/usersService'
 import { notifications } from '@mantine/notifications'
 import WorkAssignmentImport from '../components/WorkAssignment/WorkAssignmentImport'
 import ResponsibilityChangeModal from '../components/WorkAssignment/ResponsibilityChangeModal'
+import BulkResponsibilityChangeModal from '../components/WorkAssignment/BulkResponsibilityChangeModal'
 import { isApiError, isNetworkError, getErrorMessage } from '../types/errors'
 
 // Thai month names for display
@@ -190,6 +191,10 @@ export default function WorkAssignment() {
   const [filterByVat, setFilterByVat] = useState<string | null>(null)
   const [filterByDocumentEntry, setFilterByDocumentEntry] = useState<string | null>(null)
 
+  // Bulk change responsible states
+  const [selectedAssignmentIds, setSelectedAssignmentIds] = useState<Set<string>>(new Set())
+  const [bulkChangeOpened, setBulkChangeOpened] = useState(false)
+
   // Filter by assignment status (จัดแล้ว/ยังไม่จัด)
   const [filterByAssignmentStatus, setFilterByAssignmentStatus] = useState<'all' | 'assigned' | 'unassigned'>('unassigned') // Default: แสดงเฉพาะงานที่ยังไม่จัด
 
@@ -279,7 +284,7 @@ export default function WorkAssignment() {
     refetch: refetchAssignments,
     isRefetching,
   } = useQuery(
-    ['work-assignments', page, limit, build, year, month, search, syncStatusFilter, viewMode],
+    ['work-assignments', page, limit, build, year, month, search, syncStatusFilter, viewMode, filterByAccounting, filterByTaxInspection, filterByWht, filterByVat, filterByDocumentEntry],
     () => {
       const viewMonth = getViewMonth()
       // ถ้ามีการตั้งค่า year หรือ month ไว้แล้ว ให้ใช้ค่าที่ตั้งไว้
@@ -292,6 +297,11 @@ export default function WorkAssignment() {
         month: month || viewMonth.month.toString(),
         search: search || undefined,
         sync_status: syncStatusFilter !== 'all' ? syncStatusFilter : undefined,
+        accounting_responsible: filterByAccounting || undefined,
+        tax_inspection_responsible: filterByTaxInspection || undefined,
+        wht_filer_responsible: filterByWht || undefined,
+        vat_filer_responsible: filterByVat || undefined,
+        document_entry_responsible: filterByDocumentEntry || undefined,
         sortBy: 'build',
         sortOrder: 'asc',
       })
@@ -438,9 +448,9 @@ export default function WorkAssignment() {
   // Fetch users for accounting (service, data_entry_and_service)
   const { data: accountingUsersData } = useQuery(
     ['users-accounting'],
-    () => usersService.getList({ roles: 'admin,service,data_entry_and_service', status: 'active' }),
+    () => usersService.getList({ roles: 'admin,service,data_entry_and_service,audit', status: 'active' }),
     {
-      enabled: isAdmin && (formOpened || bulkCreateModalOpened || previewData.length > 0),
+      enabled: isAdmin && _hasHydrated,
       staleTime: 5 * 60 * 1000,
     }
   )
@@ -450,7 +460,7 @@ export default function WorkAssignment() {
     ['users-tax-inspection'],
     () => usersService.getList({ role: 'audit', status: 'active' }),
     {
-      enabled: isAdmin && (formOpened || bulkCreateModalOpened || previewData.length > 0),
+      enabled: isAdmin && _hasHydrated,
       staleTime: 5 * 60 * 1000,
     }
   )
@@ -460,7 +470,7 @@ export default function WorkAssignment() {
     ['users-filing'],
     () => usersService.getList({ role: 'data_entry_and_service', status: 'active' }),
     {
-      enabled: isAdmin && (formOpened || bulkCreateModalOpened || previewData.length > 0),
+      enabled: isAdmin && _hasHydrated,
       staleTime: 5 * 60 * 1000,
     }
   )
@@ -470,7 +480,7 @@ export default function WorkAssignment() {
     ['users-document-entry'],
     () => usersService.getList({ roles: 'data_entry_and_service,data_entry', status: 'active' }),
     {
-      enabled: isAdmin && (formOpened || bulkCreateModalOpened || previewData.length > 0),
+      enabled: isAdmin && _hasHydrated,
       staleTime: 5 * 60 * 1000,
     }
   )
@@ -954,7 +964,7 @@ export default function WorkAssignment() {
   // Reset page when filters change
   useEffect(() => {
     setPage(1)
-  }, [search, build, year, month, viewMode])
+  }, [search, build, year, month, viewMode, filterByAccounting, filterByTaxInspection, filterByWht, filterByVat, filterByDocumentEntry])
 
   // Auto-set year and month when viewMode changes (only if not manually set)
   useEffect(() => {
@@ -2439,26 +2449,7 @@ export default function WorkAssignment() {
                   />
                 </Stack>
               </Grid.Col>
-              <Grid.Col span={{ base: 12, sm: 6, md: 2 }}>
-                <Stack gap={4}>
-                  <Text size="xs" c="dimmed" fw={500}>
-                    เลือกลูกค้า
-                  </Text>
-                  <Select
-                    placeholder="พิมพ์ค้นหาลูกค้า..."
-                    data={clientOptions}
-                    value={build}
-                    onChange={(value) => setBuild(value || '')}
-                    onSearchChange={setClientSearchValue}
-                    searchValue={clientSearchValue}
-                    clearable
-                    radius="lg"
-                    searchable
-                    nothingFoundMessage="ไม่พบลูกค้า"
-                  />
-                </Stack>
-              </Grid.Col>
-              <Grid.Col span={{ base: 12, sm: 6, md: 2 }}>
+              <Grid.Col span={{ base: 12, sm: 6, md: 3 }}>
                 <Stack gap={4}>
                   <Text size="xs" c="dimmed" fw={500}>
                     ปี
@@ -2473,7 +2464,7 @@ export default function WorkAssignment() {
                   />
                 </Stack>
               </Grid.Col>
-              <Grid.Col span={{ base: 12, sm: 6, md: 2 }}>
+              <Grid.Col span={{ base: 12, sm: 6, md: 3 }}>
                 <Stack gap={4}>
                   <Text size="xs" c="dimmed" fw={500}>
                     เดือน
@@ -2488,7 +2479,7 @@ export default function WorkAssignment() {
                   />
                 </Stack>
               </Grid.Col>
-              <Grid.Col span={{ base: 12, sm: 6, md: 2 }}>
+              <Grid.Col span={{ base: 12, sm: 6, md: 3 }}>
                 <Stack gap={4}>
                   <Text size="xs" c="dimmed" fw={500}>
                     สถานะซิงค์
@@ -2507,6 +2498,85 @@ export default function WorkAssignment() {
                 </Stack>
               </Grid.Col>
             </Grid>
+
+            {/* Position-based Employee Filters */}
+            <div>
+              <Text size="sm" fw={500} mb="xs" c="black">
+                กรองตามพนักงานแต่ละตำแหน่ง
+              </Text>
+              <Grid>
+                <Grid.Col span={{ base: 12, sm: 6, md: 2.4 }}>
+                  <Select
+                    placeholder="ทั้งหมด"
+                    label="ทำบัญชี"
+                    data={accountingUserOptions}
+                    value={filterByAccounting}
+                    onChange={setFilterByAccounting}
+                    clearable
+                    searchable
+                    radius="lg"
+                    nothingFoundMessage="ไม่พบพนักงาน"
+                    size="xs"
+                  />
+                </Grid.Col>
+                <Grid.Col span={{ base: 12, sm: 6, md: 2.4 }}>
+                  <Select
+                    placeholder="ทั้งหมด"
+                    label="ตรวจภาษี"
+                    data={taxInspectionUserOptions}
+                    value={filterByTaxInspection}
+                    onChange={setFilterByTaxInspection}
+                    clearable
+                    searchable
+                    radius="lg"
+                    nothingFoundMessage="ไม่พบพนักงาน"
+                    size="xs"
+                  />
+                </Grid.Col>
+                <Grid.Col span={{ base: 12, sm: 6, md: 2.4 }}>
+                  <Select
+                    placeholder="ทั้งหมด"
+                    label="ยื่น WHT"
+                    data={filingUserOptions}
+                    value={filterByWht}
+                    onChange={setFilterByWht}
+                    clearable
+                    searchable
+                    radius="lg"
+                    nothingFoundMessage="ไม่พบพนักงาน"
+                    size="xs"
+                  />
+                </Grid.Col>
+                <Grid.Col span={{ base: 12, sm: 6, md: 2.4 }}>
+                  <Select
+                    placeholder="ทั้งหมด"
+                    label="ยื่น VAT"
+                    data={filingUserOptions}
+                    value={filterByVat}
+                    onChange={setFilterByVat}
+                    clearable
+                    searchable
+                    radius="lg"
+                    nothingFoundMessage="ไม่พบพนักงาน"
+                    size="xs"
+                  />
+                </Grid.Col>
+                <Grid.Col span={{ base: 12, sm: 6, md: 2.4 }}>
+                  <Select
+                    placeholder="ทั้งหมด"
+                    label="คีย์เอกสาร"
+                    data={documentEntryUserOptions}
+                    value={filterByDocumentEntry}
+                    onChange={setFilterByDocumentEntry}
+                    clearable
+                    searchable
+                    radius="lg"
+                    nothingFoundMessage="ไม่พบพนักงาน"
+                    size="xs"
+                  />
+                </Grid.Col>
+              </Grid>
+            </div>
           </Stack>
         </Card>
 
@@ -2580,6 +2650,32 @@ export default function WorkAssignment() {
             </Center>
           ) : (
             <>
+              {/* Bulk Action Bar */}
+              {selectedAssignmentIds.size > 0 && (
+                <Group mb="md" p="sm" style={{ backgroundColor: 'var(--mantine-color-orange-0)', borderRadius: 8 }}>
+                  <Text size="sm" fw={500}>
+                    เลือกแล้ว {selectedAssignmentIds.size} รายการ
+                  </Text>
+                  <Button
+                    size="sm"
+                    color="orange"
+                    leftSection={<TbUsersGroup size={16} />}
+                    onClick={() => setBulkChangeOpened(true)}
+                    radius="lg"
+                  >
+                    เปลี่ยนผู้รับผิดชอบ ({selectedAssignmentIds.size} รายการ)
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="subtle"
+                    color="gray"
+                    onClick={() => setSelectedAssignmentIds(new Set())}
+                  >
+                    ยกเลือกทั้งหมด
+                  </Button>
+                </Group>
+              )}
+
               <Table.ScrollContainer minWidth={1200}>
                 <Table
                   highlightOnHover
@@ -2598,6 +2694,26 @@ export default function WorkAssignment() {
                 >
                   <Table.Thead>
                     <Table.Tr>
+                      <Table.Th
+                        style={{
+                          backgroundColor: 'white',
+                          border: 'none',
+                          width: 40,
+                        }}
+                      >
+                        <Checkbox
+                          checked={assignmentsData?.data && assignmentsData.data.length > 0 && assignmentsData.data.every((a) => selectedAssignmentIds.has(a.id))}
+                          indeterminate={assignmentsData?.data && assignmentsData.data.some((a) => selectedAssignmentIds.has(a.id)) && !assignmentsData.data.every((a) => selectedAssignmentIds.has(a.id))}
+                          onChange={(e) => {
+                            if (e.currentTarget.checked && assignmentsData?.data) {
+                              setSelectedAssignmentIds(new Set(assignmentsData.data.map((a) => a.id)))
+                            } else {
+                              setSelectedAssignmentIds(new Set())
+                            }
+                          }}
+                          color="orange"
+                        />
+                      </Table.Th>
                       <Table.Th
                         style={{
                           backgroundColor: 'white',
@@ -2684,6 +2800,26 @@ export default function WorkAssignment() {
                   <Table.Tbody>
                     {assignmentsData?.data.map((assignment) => (
                       <Table.Tr key={assignment.id}>
+                        <Table.Td
+                          style={{
+                            backgroundColor: 'white',
+                            border: 'none',
+                          }}
+                        >
+                          <Checkbox
+                            checked={selectedAssignmentIds.has(assignment.id)}
+                            onChange={(e) => {
+                              const newSet = new Set(selectedAssignmentIds)
+                              if (e.currentTarget.checked) {
+                                newSet.add(assignment.id)
+                              } else {
+                                newSet.delete(assignment.id)
+                              }
+                              setSelectedAssignmentIds(newSet)
+                            }}
+                            color="orange"
+                          />
+                        </Table.Td>
                         <Table.Td
                           style={{
                             backgroundColor: 'white',
@@ -5239,6 +5375,14 @@ export default function WorkAssignment() {
             setChangeResponsibleAssignment(null)
           }}
           assignment={changeResponsibleAssignment}
+        />
+
+        {/* Bulk Responsibility Change Modal */}
+        <BulkResponsibilityChangeModal
+          opened={bulkChangeOpened}
+          onClose={() => setBulkChangeOpened(false)}
+          assignments={assignmentsData?.data?.filter((a) => selectedAssignmentIds.has(a.id)) || []}
+          onSuccess={() => setSelectedAssignmentIds(new Set())}
         />
 
         {/* Delete Confirmation Modal */}

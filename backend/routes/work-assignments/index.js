@@ -41,6 +41,11 @@ router.get('/', authenticateToken, async (req, res) => {
       sync_status = 'all',
       sortBy = 'assigned_at',
       sortOrder = 'desc',
+      accounting_responsible = '',
+      tax_inspection_responsible = '',
+      wht_filer_responsible = '',
+      vat_filer_responsible = '',
+      document_entry_responsible = '',
     } = req.query
 
     const pageNum = parseInt(page)
@@ -84,6 +89,28 @@ router.get('/', authenticateToken, async (req, res) => {
       whereConditions.push('(wa.build LIKE ? OR c.company_name LIKE ?)')
       const searchPattern = `%${search}%`
       queryParams.push(searchPattern, searchPattern)
+    }
+
+    // Filter by responsible person (employee_id)
+    if (accounting_responsible) {
+      whereConditions.push('wa.accounting_responsible = ?')
+      queryParams.push(accounting_responsible)
+    }
+    if (tax_inspection_responsible) {
+      whereConditions.push('wa.tax_inspection_responsible = ?')
+      queryParams.push(tax_inspection_responsible)
+    }
+    if (wht_filer_responsible) {
+      whereConditions.push('wa.wht_filer_responsible = ?')
+      queryParams.push(wht_filer_responsible)
+    }
+    if (vat_filer_responsible) {
+      whereConditions.push('wa.vat_filer_responsible = ?')
+      queryParams.push(vat_filer_responsible)
+    }
+    if (document_entry_responsible) {
+      whereConditions.push('wa.document_entry_responsible = ?')
+      queryParams.push(document_entry_responsible)
     }
 
     const whereClause = whereConditions.length > 0
@@ -1525,6 +1552,248 @@ router.post('/bulk-sync', authenticateToken, authorize('admin', 'audit'), async 
       success: false,
       message: 'Internal server error',
     })
+  }
+})
+
+/**
+ * POST /api/work-assignments/bulk-change-responsible
+ * เปลี่ยนผู้รับผิดชอบหลายรายการพร้อมกัน (Bulk)
+ * Access: Admin/Audit only
+ * 
+ * Request Body:
+ * {
+ *   assignment_ids: string[],  // Array of work assignment IDs
+ *   role_type: string,         // accounting | tax_inspection | wht_filer | vat_filer | document_entry
+ *   new_employee_id: string,   // New employee to assign
+ *   change_reason?: string     // Optional reason
+ * }
+ */
+router.post('/bulk-change-responsible', authenticateToken, authorize('admin', 'audit'), async (req, res) => {
+  const connection = await pool.getConnection()
+
+  try {
+    const { assignment_ids, role_type, new_employee_id, change_reason } = req.body
+
+    // Validation
+    if (!assignment_ids || !Array.isArray(assignment_ids) || assignment_ids.length === 0) {
+      connection.release()
+      return res.status(400).json({
+        success: false,
+        message: 'assignment_ids must be a non-empty array',
+      })
+    }
+
+    if (assignment_ids.length > 200) {
+      connection.release()
+      return res.status(400).json({
+        success: false,
+        message: 'Maximum 200 assignments allowed per bulk change',
+      })
+    }
+
+    const validRoleTypes = ['accounting', 'tax_inspection', 'wht_filer', 'vat_filer', 'document_entry']
+    if (!role_type || !validRoleTypes.includes(role_type)) {
+      connection.release()
+      return res.status(400).json({
+        success: false,
+        message: `Invalid role_type. Must be one of: ${validRoleTypes.join(', ')}`,
+      })
+    }
+
+    if (!new_employee_id || (typeof new_employee_id === 'string' && new_employee_id.trim() === '')) {
+      connection.release()
+      return res.status(400).json({
+        success: false,
+        message: 'new_employee_id is required',
+      })
+    }
+
+    // Validate new employee exists
+    const [empRows] = await connection.execute(
+      'SELECT employee_id, full_name, nick_name FROM employees WHERE employee_id = ?',
+      [new_employee_id.trim()]
+    )
+
+    if (empRows.length === 0) {
+      connection.release()
+      return res.status(400).json({
+        success: false,
+        message: `ไม่พบพนักงาน employee_id: ${new_employee_id}`,
+      })
+    }
+
+    const newEmployee = empRows[0]
+
+    // Field mapping (same as single change)
+    const fieldMapping = {
+      accounting: {
+        wa_main: 'accounting_responsible',
+        wa_current: 'current_accounting_responsible',
+        mtd_main: 'accounting_responsible',
+        mtd_current: 'current_accounting_responsible',
+      },
+      tax_inspection: {
+        wa_main: 'tax_inspection_responsible',
+        wa_current: 'current_tax_inspection_responsible',
+        mtd_main: 'tax_inspection_responsible',
+        mtd_current: 'current_tax_inspection_responsible',
+      },
+      wht_filer: {
+        wa_main: 'wht_filer_responsible',
+        wa_current: 'current_wht_filer_responsible',
+        mtd_main: 'wht_filer_employee_id',
+        mtd_current: 'wht_filer_current_employee_id',
+      },
+      vat_filer: {
+        wa_main: 'vat_filer_responsible',
+        wa_current: 'current_vat_filer_responsible',
+        mtd_main: 'vat_filer_employee_id',
+        mtd_current: 'vat_filer_current_employee_id',
+      },
+      document_entry: {
+        wa_main: 'document_entry_responsible',
+        wa_current: 'current_document_entry_responsible',
+        mtd_main: 'document_entry_responsible',
+        mtd_current: 'current_document_entry_responsible',
+      },
+    }
+
+    const fields = fieldMapping[role_type]
+
+    // Fetch all assignments
+    const placeholders = assignment_ids.map(() => '?').join(',')
+    const [assignments] = await connection.execute(
+      `SELECT wa.*, c.company_name
+       FROM work_assignments wa
+       LEFT JOIN clients c ON wa.build = c.build
+       WHERE wa.id IN (${placeholders}) AND wa.deleted_at IS NULL`,
+      assignment_ids
+    )
+
+    if (assignments.length === 0) {
+      connection.release()
+      return res.status(404).json({
+        success: false,
+        message: 'ไม่พบการจัดงานที่เลือก',
+      })
+    }
+
+    // Begin transaction
+    await connection.beginTransaction()
+
+    const results = { success: 0, skipped: 0, details: [] }
+
+    for (const assignment of assignments) {
+      const previousEmployeeId = assignment[fields.wa_main] || null
+
+      // Skip if same employee
+      if (previousEmployeeId === new_employee_id.trim()) {
+        results.skipped++
+        results.details.push({
+          build: assignment.build,
+          company_name: assignment.company_name,
+          status: 'skipped',
+          reason: 'ผู้รับผิดชอบเป็นคนเดียวกัน',
+        })
+        continue
+      }
+
+      // Insert change history
+      const historyId = generateUUID()
+      await connection.execute(
+        `INSERT INTO responsibility_change_history (
+          id, work_assignment_id, build, assignment_year, assignment_month,
+          role_type, previous_employee_id, new_employee_id,
+          changed_by, change_reason, changed_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+        [
+          historyId,
+          assignment.id,
+          assignment.build,
+          assignment.assignment_year,
+          assignment.assignment_month,
+          role_type,
+          previousEmployeeId,
+          new_employee_id.trim(),
+          req.user.id,
+          change_reason || null,
+        ]
+      )
+
+      // Update work_assignments
+      await connection.execute(
+        `UPDATE work_assignments 
+         SET ${fields.wa_main} = ?, ${fields.wa_current} = ?, updated_at = NOW()
+         WHERE id = ?`,
+        [new_employee_id.trim(), new_employee_id.trim(), assignment.id]
+      )
+
+      // Update monthly_tax_data
+      await connection.execute(
+        `UPDATE monthly_tax_data 
+         SET ${fields.mtd_main} = ?, ${fields.mtd_current} = ?, updated_at = NOW()
+         WHERE build = ? AND tax_year = ? AND tax_month = ? AND deleted_at IS NULL`,
+        [
+          new_employee_id.trim(),
+          new_employee_id.trim(),
+          assignment.build,
+          assignment.assignment_year,
+          assignment.assignment_month,
+        ]
+      )
+
+      results.success++
+      results.details.push({
+        build: assignment.build,
+        company_name: assignment.company_name,
+        status: 'changed',
+        previous_employee_id: previousEmployeeId,
+      })
+    }
+
+    // Commit transaction
+    await connection.commit()
+
+    // Invalidate cache
+    invalidateCache('GET:/work-assignments')
+
+    const roleLabels = {
+      accounting: 'ผู้รับผิดชอบทำบัญชี',
+      tax_inspection: 'ผู้ตรวจภาษี',
+      wht_filer: 'ผู้ยื่น WHT',
+      vat_filer: 'ผู้ยื่น VAT',
+      document_entry: 'ผู้รับผิดชอบคีย์เอกสาร',
+    }
+
+    const newFirstName = newEmployee.full_name ? newEmployee.full_name.split(' ')[0] : ''
+    const newEmployeeName = newEmployee.nick_name ? `${newFirstName}(${newEmployee.nick_name})` : newFirstName
+
+    console.log(`[BulkResponsibilityChange] Role: ${role_type}, New: ${new_employee_id.trim()}, Changed: ${results.success}, Skipped: ${results.skipped}, By: ${req.user.id}`)
+
+    res.json({
+      success: true,
+      message: `เปลี่ยน${roleLabels[role_type]}สำเร็จ ${results.success} รายการ${results.skipped > 0 ? ` (ข้าม ${results.skipped} รายการ)` : ''}`,
+      data: {
+        role_type,
+        role_label: roleLabels[role_type],
+        new_employee_id: new_employee_id.trim(),
+        new_employee_name: newEmployeeName,
+        success_count: results.success,
+        skipped_count: results.skipped,
+        total: assignment_ids.length,
+        details: results.details,
+      },
+    })
+  } catch (error) {
+    await connection.rollback()
+    console.error('Bulk change responsible error:', error)
+    res.status(500).json({
+      success: false,
+      message: 'เกิดข้อผิดพลาดในการเปลี่ยนผู้รับผิดชอบแบบ Bulk',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+    })
+  } finally {
+    connection.release()
   }
 })
 

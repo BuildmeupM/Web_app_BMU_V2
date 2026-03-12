@@ -50,7 +50,7 @@ const ROLE_CONFIG: Record<
         label: 'ผู้รับผิดชอบทำบัญชี',
         color: 'blue',
         shortLabel: 'บัญชี',
-        allowedRoles: 'service,data_entry_and_service',
+        allowedRoles: 'service,data_entry_and_service,audit',
     },
     tax_inspection: {
         label: 'ผู้ตรวจภาษี',

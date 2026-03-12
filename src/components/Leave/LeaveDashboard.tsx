@@ -197,7 +197,7 @@ export default function LeaveDashboard() {
             <Text>กำลังโหลดข้อมูล...</Text>
           ) : pendingData?.data?.leave_requests && pendingData.data.leave_requests.length > 0 ? (
             <Stack gap="xs">
-              {pendingData.data.leave_requests.slice(0, 10).map((leave: any) => (
+              {pendingData.data.leave_requests.slice(0, 10).map((leave: { id: string; employee_name: string; employee_nick_name?: string; employee_position: string; employee_id: string; leave_start_date: string; leave_end_date: string; leave_type: string; leave_days: number; reason?: string }) => (
                 <Group
                   key={leave.id}
                   justify="space-between"
@@ -319,8 +319,6 @@ export default function LeaveDashboard() {
                     <Tooltip
                       formatter={(value: number, name: string, props: Record<string, unknown>) => {
                         const payload = props.payload as Record<string, unknown> | undefined
-                        const currentApprovedNames = payload?.currentApprovedNames as string | undefined
-                        const currentPendingNames = payload?.currentPendingNames as string | undefined
 
                         const names =
                           name === 'current' ? payload?.currentApprovedNames
