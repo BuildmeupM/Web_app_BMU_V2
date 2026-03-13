@@ -22,9 +22,11 @@ interface AuditorStats {
     whtTotal: number
     whtCompleted: number
     whtPending: number
+    whtPendingRecheck: number
     vatTotal: number
     vatCompleted: number
     vatPending: number
+    vatPendingRecheck: number
     combinedTotal: number
     combinedCompleted: number
     combinedPct: number
@@ -73,8 +75,8 @@ export default function AuditTab({
                 id: empId,
                 name: displayName,
                 total: 0,
-                whtTotal: 0, whtCompleted: 0, whtPending: 0,
-                vatTotal: 0, vatCompleted: 0, vatPending: 0,
+                whtTotal: 0, whtCompleted: 0, whtPending: 0, whtPendingRecheck: 0,
+                vatTotal: 0, vatCompleted: 0, vatPending: 0, vatPendingRecheck: 0,
                 combinedTotal: 0, combinedCompleted: 0, combinedPct: 0,
                 whtPct: 0, vatPct: 0,
             }
@@ -91,6 +93,7 @@ export default function AuditTab({
                     whtDoneAll++
                 }
                 if (pnd === 'pending_review') auditor.whtPending++
+                if (pnd === 'pending_recheck') auditor.whtPendingRecheck++
             }
 
             // VAT (pp30_form)
@@ -103,6 +106,7 @@ export default function AuditTab({
                     vatDoneAll++
                 }
                 if (vat === 'pending_review') auditor.vatPending++
+                if (vat === 'pending_recheck') auditor.vatPendingRecheck++
             }
 
             map.set(empId, auditor)
@@ -146,9 +150,12 @@ export default function AuditTab({
     type PendingCompany = { build: string; companyName: string; status: string; accountingResponsible: string }
     type PendingAuditor = { id: string; name: string; count: number; companies: PendingCompany[] }
 
-    const { whtPending, vatPending } = useMemo(() => {
+
+    const { whtPending, vatPending, whtPendingRecheck, vatPendingRecheck } = useMemo(() => {
         const whtMap = new Map<string, PendingAuditor>()
         const vatMap = new Map<string, PendingAuditor>()
+        const whtRecheckMap = new Map<string, PendingAuditor>()
+        const vatRecheckMap = new Map<string, PendingAuditor>()
 
         data.forEach(d => {
             const empId = d.tax_inspection_responsible || 'unknown'
@@ -164,17 +171,31 @@ export default function AuditTab({
                 cur.companies.push({ build: d.build, companyName, status: d.pnd_status || 'not_started', accountingResponsible: acctName })
                 whtMap.set(empId, cur)
             }
+            if (d.pnd_status === 'pending_recheck') {
+                const cur = whtRecheckMap.get(empId) || { id: empId, name: displayName, count: 0, companies: [] }
+                cur.count++
+                cur.companies.push({ build: d.build, companyName, status: d.pnd_status || 'not_started', accountingResponsible: acctName })
+                whtRecheckMap.set(empId, cur)
+            }
             if (d.pp30_form === 'pending_review') {
                 const cur = vatMap.get(empId) || { id: empId, name: displayName, count: 0, companies: [] }
                 cur.count++
                 cur.companies.push({ build: d.build, companyName, status: d.pp30_form || 'not_started', accountingResponsible: acctName })
                 vatMap.set(empId, cur)
             }
+            if (d.pp30_form === 'pending_recheck') {
+                const cur = vatRecheckMap.get(empId) || { id: empId, name: displayName, count: 0, companies: [] }
+                cur.count++
+                cur.companies.push({ build: d.build, companyName, status: d.pp30_form || 'not_started', accountingResponsible: acctName })
+                vatRecheckMap.set(empId, cur)
+            }
         })
 
         return {
             whtPending: Array.from(whtMap.values()).sort((a, b) => b.count - a.count),
             vatPending: Array.from(vatMap.values()).sort((a, b) => b.count - a.count),
+            whtPendingRecheck: Array.from(whtRecheckMap.values()).sort((a, b) => b.count - a.count),
+            vatPendingRecheck: Array.from(vatRecheckMap.values()).sort((a, b) => b.count - a.count),
         }
     }, [data, employeeNameMap])
 
@@ -217,6 +238,8 @@ export default function AuditTab({
 
     const whtPendingTotal = whtPending.reduce((s, p) => s + p.count, 0)
     const vatPendingTotal = vatPending.reduce((s, p) => s + p.count, 0)
+    const whtPendingRecheckTotal = whtPendingRecheck.reduce((s, p) => s + p.count, 0)
+    const vatPendingRecheckTotal = vatPendingRecheck.reduce((s, p) => s + p.count, 0)
 
     const top3 = auditors.filter(a => a.id !== 'unknown').slice(0, 3)
 
@@ -533,6 +556,125 @@ export default function AuditTab({
                                         <Text size="lg" fw={900} c="orange">{p.count}</Text>
                                     </Group>
                                     <Text size="xs" c="orange" ta="center" mt="xs" fw={500}>▶ คลิกเพื่อดูรายละเอียด</Text>
+                                </Paper>
+                            ))}
+                        </SimpleGrid>
+                    )}
+                </Paper>
+            </SimpleGrid>
+
+            {/* ═══ Section 4.5: Pending Recheck Queue (รอตรวจอีกครั้ง) ═══ */}
+            <SimpleGrid cols={{ base: 1, md: 2 }}>
+                {/* WHT Pending Recheck */}
+                <Paper p="lg" radius="lg" className="acct-glass-card" style={{ borderTop: '3px solid #f44336' }}>
+                    <Group gap={8} mb="md">
+                        <ThemeIcon size={28} radius="md" color="red" variant="light">
+                            <TbClock size={16} />
+                        </ThemeIcon>
+                        <div>
+                            <Text size="sm" fw={700} c="dark">สถานะงาน WHT = "รอตรวจอีกครั้ง"</Text>
+                        </div>
+                    </Group>
+
+                    <Paper p="md" radius="md" bg="rgba(244,67,54,0.08)" mb="md">
+                        <Group justify="space-between">
+                            <div>
+                                <Text size="xl" fw={900} c="red">{whtPendingRecheckTotal}</Text>
+                                <Text size="xs" c="gray.6">บริษัททั้งหมดที่สถานะ WHT = "รอตรวจอีกครั้ง"</Text>
+                            </div>
+                            <ThemeIcon size={40} radius="xl" color="red" variant="light">
+                                <TbClock size={20} />
+                            </ThemeIcon>
+                        </Group>
+                    </Paper>
+
+                    {whtPendingRecheck.length === 0 ? (
+                        <Text ta="center" size="sm" c="gray.5" py="md">✅ ไม่มีงานรอตรวจอีกครั้ง</Text>
+                    ) : (
+                        <SimpleGrid cols={{ base: 1, sm: Math.min(3, whtPendingRecheck.length) }}>
+                            {whtPendingRecheck.map(p => (
+                                <Paper
+                                    key={p.id}
+                                    p="md"
+                                    radius="md"
+                                    withBorder
+                                    style={{ borderColor: '#ef9a9a', cursor: 'pointer', transition: 'transform 0.15s, box-shadow 0.15s' }}
+                                    onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(244,67,54,0.3)' }}
+                                    onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '' }}
+                                    onClick={() => setDetailModal({ open: true, type: 'WHT', auditorName: p.name, companies: p.companies })}
+                                >
+                                    <Group gap={8} mb="xs">
+                                        <ThemeIcon size={28} radius="xl" color="red" variant="light">
+                                            <TbUser size={14} />
+                                        </ThemeIcon>
+                                        <div>
+                                            <Text size="sm" fw={700}>{p.name}</Text>
+                                            <Text size="xs" c="gray.5">ผู้ตรวจ</Text>
+                                        </div>
+                                    </Group>
+                                    <Group justify="space-between">
+                                        <Text size="xs" c="gray.6">จำนวนงาน:</Text>
+                                        <Text size="lg" fw={900} c="red">{p.count}</Text>
+                                    </Group>
+                                    <Text size="xs" c="red" ta="center" mt="xs" fw={500}>▶ คลิกเพื่อดูรายละเอียด</Text>
+                                </Paper>
+                            ))}
+                        </SimpleGrid>
+                    )}
+                </Paper>
+
+                {/* VAT Pending Recheck */}
+                <Paper p="lg" radius="lg" className="acct-glass-card" style={{ borderTop: '3px solid #f44336' }}>
+                    <Group gap={8} mb="md">
+                        <ThemeIcon size={28} radius="md" color="red" variant="light">
+                            <TbClock size={16} />
+                        </ThemeIcon>
+                        <div>
+                            <Text size="sm" fw={700} c="dark">สถานะงาน VAT = "รอตรวจอีกครั้ง"</Text>
+                        </div>
+                    </Group>
+
+                    <Paper p="md" radius="md" bg="rgba(244,67,54,0.08)" mb="md">
+                        <Group justify="space-between">
+                            <div>
+                                <Text size="xl" fw={900} c="red">{vatPendingRecheckTotal}</Text>
+                                <Text size="xs" c="gray.6">บริษัททั้งหมดที่สถานะ VAT = "รอตรวจอีกครั้ง"</Text>
+                            </div>
+                            <ThemeIcon size={40} radius="xl" color="red" variant="light">
+                                <TbClock size={20} />
+                            </ThemeIcon>
+                        </Group>
+                    </Paper>
+
+                    {vatPendingRecheck.length === 0 ? (
+                        <Text ta="center" size="sm" c="gray.5" py="md">✅ ไม่มีงานรอตรวจอีกครั้ง</Text>
+                    ) : (
+                        <SimpleGrid cols={{ base: 1, sm: Math.min(3, vatPendingRecheck.length) }}>
+                            {vatPendingRecheck.map(p => (
+                                <Paper
+                                    key={p.id}
+                                    p="md"
+                                    radius="md"
+                                    withBorder
+                                    style={{ borderColor: '#ef9a9a', cursor: 'pointer', transition: 'transform 0.15s, box-shadow 0.15s' }}
+                                    onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(244,67,54,0.3)' }}
+                                    onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '' }}
+                                    onClick={() => setDetailModal({ open: true, type: 'VAT', auditorName: p.name, companies: p.companies })}
+                                >
+                                    <Group gap={8} mb="xs">
+                                        <ThemeIcon size={28} radius="xl" color="red" variant="light">
+                                            <TbUser size={14} />
+                                        </ThemeIcon>
+                                        <div>
+                                            <Text size="sm" fw={700}>{p.name}</Text>
+                                            <Text size="xs" c="gray.5">ผู้ตรวจ</Text>
+                                        </div>
+                                    </Group>
+                                    <Group justify="space-between">
+                                        <Text size="xs" c="gray.6">จำนวนงาน:</Text>
+                                        <Text size="lg" fw={900} c="red">{p.count}</Text>
+                                    </Group>
+                                    <Text size="xs" c="red" ta="center" mt="xs" fw={500}>▶ คลิกเพื่อดูรายละเอียด</Text>
                                 </Paper>
                             ))}
                         </SimpleGrid>
