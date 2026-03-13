@@ -181,7 +181,7 @@ export default function DocumentEntrySummary({ year, month }: DocumentEntrySumma
                       <Group gap="xs">
                         <Text size="sm" fw={600}>
                           {summaryMode === 'day'
-                            ? dayjs.utc(group.date).local().format('DD/MM/YYYY')
+                            ? dayjs(group.date).format('DD/MM/YYYY')
                             : `เดือน ${group.month}`
                           }
                         </Text>

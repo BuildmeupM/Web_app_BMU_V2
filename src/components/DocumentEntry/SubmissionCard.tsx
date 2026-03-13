@@ -51,25 +51,40 @@ export default function SubmissionCard({
   const updateStatusMutation = useMutation(
     (data: UpdateStatusRequest) => documentEntryWorkService.updateStatus(entryId, data),
     {
-      onSuccess: async () => {
+      onSuccess: (responseData) => {
         notifications.show({
           title: 'สำเร็จ',
           message: 'อัพเดทสถานะสำเร็จ',
           color: 'green',
           icon: <TbCheck size={16} />,
         })
-        // Invalidate and refetch queries immediately
-        queryClient.invalidateQueries(
-          { queryKey: ['document-entry-work'], exact: false },
-          { refetchType: 'active' }
-        )
-        // Force refetch active queries to ensure UI updates immediately
-        await queryClient.refetchQueries(
-          { queryKey: ['document-entry-work'], exact: false, type: 'active' },
-          { cancelRefetch: false }
-        )
+
+        // Directly update cached query data with the response (React Query v3 compatible)
+        const updatedEntry = responseData?.data
+        if (updatedEntry) {
+          const queries = queryClient
+            .getQueryCache()
+            .findAll(['document-entry-work'])
+
+          queries.forEach((query) => {
+            const oldData = query.state.data as { data?: Array<Record<string, unknown>> } | undefined
+            if (oldData?.data && Array.isArray(oldData.data)) {
+              queryClient.setQueryData(query.queryKey, {
+                ...oldData,
+                data: oldData.data.map((entry) =>
+                  entry.id === entryId ? { ...entry, ...updatedEntry } : entry
+                ),
+              })
+            }
+          })
+        }
+
+        // Invalidate queries for background sync
+        // The submissions query now returns per-submission data (no aggregation)
+        // so the refetch will return correct individual status
+        queryClient.invalidateQueries(['document-entry-work'])
       },
-      onError: (error: any) => {
+      onError: (error: { response?: { data?: { message?: string } } }) => {
         notifications.show({
           title: 'เกิดข้อผิดพลาด',
           message: error?.response?.data?.message || 'ไม่สามารถอัพเดทสถานะได้',
@@ -126,8 +141,9 @@ export default function SubmissionCard({
 
   const formatDatetime = (datetime: string | null | undefined): string => {
     if (!datetime) return '-'
-    // Backend sends UTC string — convert to local timezone
-    return dayjs.utc(datetime).local().format('DD/MM/YYYY HH:mm')
+    // Backend formatDateForResponse already converts to Bangkok time (UTC+7)
+    // Do NOT use dayjs.utc().local() — that would double-convert (+14 hours from UTC)
+    return dayjs(datetime).format('DD/MM/YYYY HH:mm')
   }
 
   return (

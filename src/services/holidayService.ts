@@ -2,25 +2,10 @@
  * Holiday Service
  * API service สำหรับการจัดการวันหยุดนักขัตฤกษ์
  * Fix 4: Holiday Calendar for working days calculation
+ * Fix 5: Use configured api instance instead of raw axios to fix 401 errors
  */
 
-import axios from 'axios'
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
-
-// Helper to get token from sessionStorage (matching authStore persist config)
-function getToken(): string | null {
-    try {
-        const authStorage = sessionStorage.getItem('auth-storage')
-        if (authStorage) {
-            const parsed = JSON.parse(authStorage)
-            return parsed?.state?.token || null
-        }
-    } catch {
-        return null
-    }
-    return null
-}
+import api from './api'
 
 // Types
 export interface Holiday {
@@ -50,22 +35,18 @@ export interface HolidayDatesResponse {
 
 // Get all holidays
 export async function getHolidays(year?: number, activeOnly = true): Promise<HolidaysResponse> {
-    const token = getToken()
-    const params = new URLSearchParams()
-    if (year) params.append('year', year.toString())
-    if (activeOnly) params.append('active_only', 'true')
+    const params: Record<string, string> = {}
+    if (year) params.year = year.toString()
+    if (activeOnly) params.active_only = 'true'
+    params._t = Date.now().toString()
 
-    params.append('_t', Date.now().toString())
-    const response = await axios.get<HolidaysResponse>(
-        `${API_URL}/api/holidays?${params.toString()}`,
-        {
-            headers: {
-                Authorization: `Bearer ${token}`,
-                'Cache-Control': 'no-cache',
-                'Pragma': 'no-cache',
-            }
+    const response = await api.get<HolidaysResponse>('/holidays', {
+        params,
+        headers: {
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache',
         }
-    )
+    })
     return response.data
 }
 
@@ -75,18 +56,12 @@ export async function getHolidayDates(options?: {
     startDate?: string
     endDate?: string
 }): Promise<string[]> {
-    const token = getToken()
-    const params = new URLSearchParams()
-    if (options?.year) params.append('year', options.year.toString())
-    if (options?.startDate) params.append('start_date', options.startDate)
-    if (options?.endDate) params.append('end_date', options.endDate)
+    const params: Record<string, string> = {}
+    if (options?.year) params.year = options.year.toString()
+    if (options?.startDate) params.start_date = options.startDate
+    if (options?.endDate) params.end_date = options.endDate
 
-    const response = await axios.get<HolidayDatesResponse>(
-        `${API_URL}/api/holidays/dates?${params.toString()}`,
-        {
-            headers: { Authorization: `Bearer ${token}` }
-        }
-    )
+    const response = await api.get<HolidayDatesResponse>('/holidays/dates', { params })
     return response.data.data.dates
 }
 
@@ -97,13 +72,9 @@ export async function createHoliday(data: {
     name_en?: string
     year: number
 }): Promise<Holiday> {
-    const token = getToken()
-    const response = await axios.post<{ success: boolean; data: { holiday: Holiday } }>(
-        `${API_URL}/api/holidays`,
-        data,
-        {
-            headers: { Authorization: `Bearer ${token}` }
-        }
+    const response = await api.post<{ success: boolean; data: { holiday: Holiday } }>(
+        '/holidays',
+        data
     )
     return response.data.data.holiday
 }
@@ -116,23 +87,16 @@ export async function updateHoliday(id: string, data: Partial<{
     year: number
     is_active: boolean
 }>): Promise<Holiday> {
-    const token = getToken()
-    const response = await axios.put<{ success: boolean; data: { holiday: Holiday } }>(
-        `${API_URL}/api/holidays/${id}`,
-        data,
-        {
-            headers: { Authorization: `Bearer ${token}` }
-        }
+    const response = await api.put<{ success: boolean; data: { holiday: Holiday } }>(
+        `/holidays/${id}`,
+        data
     )
     return response.data.data.holiday
 }
 
 // Delete holiday (Admin only)
 export async function deleteHoliday(id: string): Promise<void> {
-    const token = getToken()
-    await axios.delete(`${API_URL}/api/holidays/${id}`, {
-        headers: { Authorization: `Bearer ${token}` }
-    })
+    await api.delete(`/holidays/${id}`)
 }
 
 // Helper: Calculate working days excluding weekends AND holidays

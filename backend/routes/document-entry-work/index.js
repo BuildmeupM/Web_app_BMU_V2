@@ -89,6 +89,99 @@ router.get('/', authenticateToken, async (req, res) => {
       ? 'LEFT JOIN monthly_tax_data mtd ON dew.build = mtd.build AND dew.work_year = mtd.tax_year AND dew.work_month = mtd.tax_month AND mtd.deleted_at IS NULL'
       : ''
 
+    // When build filter is provided, return per-submission data (no aggregation)
+    // This is used by CompanyDetailSection to show individual submission cards
+    // When no build filter, use aggregated data for CompanyList summary view
+    if (build) {
+      // ═══ PER-SUBMISSION MODE (Detail View) ═══
+      // Return all submissions for this build with raw column values
+      const [countRows] = await pool.execute(
+        `SELECT COUNT(DISTINCT dew.id) as total 
+         FROM document_entry_work dew 
+         ${joinClause}
+         WHERE ${whereClause}`,
+        queryParams
+      )
+      const total = countRows[0]?.total || 0
+
+      const [rows] = await pool.execute(
+        `SELECT DISTINCT
+          dew.id,
+          dew.build,
+          c.company_name,
+          dew.work_year,
+          dew.work_month,
+          dew.entry_timestamp,
+          dew.submission_count,
+          dew.responsible_employee_id,
+          dew.current_responsible_employee_id,
+          dew.wht_document_count,
+          dew.wht_entry_status,
+          dew.wht_entry_start_datetime,
+          dew.wht_entry_completed_datetime,
+          dew.wht_status_updated_by,
+          dew.vat_document_count,
+          dew.vat_entry_status,
+          dew.vat_entry_start_datetime,
+          dew.vat_entry_completed_datetime,
+          dew.vat_status_updated_by,
+          dew.non_vat_document_count,
+          dew.non_vat_entry_status,
+          dew.non_vat_entry_start_datetime,
+          dew.non_vat_entry_completed_datetime,
+          dew.non_vat_status_updated_by,
+          dew.submission_comment,
+          dew.return_comment,
+          dew.created_at,
+          dew.updated_at,
+          COALESCE(bot_counts.bot_count, 0) as bot_count
+         FROM document_entry_work dew
+         LEFT JOIN clients c ON dew.build = c.build AND c.deleted_at IS NULL
+         LEFT JOIN (
+           SELECT document_entry_work_id, COUNT(*) as bot_count
+           FROM document_entry_work_bots
+           WHERE deleted_at IS NULL
+           GROUP BY document_entry_work_id
+         ) bot_counts ON dew.id = bot_counts.document_entry_work_id
+         ${joinClause}
+         WHERE ${whereClause}
+         ORDER BY dew.submission_count ASC
+         LIMIT ? OFFSET ?`,
+        [...queryParams, limitNum, offset]
+      )
+
+      // Format dates
+      const formattedRows = rows.map((row) => ({
+        ...row,
+        entry_timestamp: formatDateForResponse(row.entry_timestamp),
+        wht_entry_start_datetime: row.wht_entry_start_datetime ? formatDateForResponse(row.wht_entry_start_datetime) : null,
+        wht_entry_completed_datetime: row.wht_entry_completed_datetime ? formatDateForResponse(row.wht_entry_completed_datetime) : null,
+        vat_entry_start_datetime: row.vat_entry_start_datetime ? formatDateForResponse(row.vat_entry_start_datetime) : null,
+        vat_entry_completed_datetime: row.vat_entry_completed_datetime ? formatDateForResponse(row.vat_entry_completed_datetime) : null,
+        non_vat_entry_start_datetime: row.non_vat_entry_start_datetime ? formatDateForResponse(row.non_vat_entry_start_datetime) : null,
+        non_vat_entry_completed_datetime: row.non_vat_entry_completed_datetime ? formatDateForResponse(row.non_vat_entry_completed_datetime) : null,
+        created_at: formatDateForResponse(row.created_at),
+        updated_at: formatDateForResponse(row.updated_at),
+        wht_document_count: Number(row.wht_document_count) || 0,
+        vat_document_count: Number(row.vat_document_count) || 0,
+        non_vat_document_count: Number(row.non_vat_document_count) || 0,
+        bot_count: parseInt(row.bot_count) || 0,
+      }))
+
+      return res.json({
+        success: true,
+        data: formattedRows,
+        pagination: {
+          page: pageNum,
+          limit: limitNum,
+          total,
+          totalPages: Math.ceil(total / limitNum),
+        },
+      })
+    }
+
+    // ═══ AGGREGATED MODE (Company List Summary View) ═══
+    // Returns latest submission with aggregated counts and computed status across all submissions
     // Get total count
     const [countRows] = await pool.execute(
       `SELECT COUNT(DISTINCT dew.id) as total 

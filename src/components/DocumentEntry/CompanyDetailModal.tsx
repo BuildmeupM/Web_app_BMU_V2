@@ -55,7 +55,7 @@ const formatEmployeeName = (
 const formatDate = (dateString: string | null | undefined): string => {
   if (!dateString) return '-'
   try {
-    const date = dayjs.utc(dateString).local()
+    const date = dayjs(dateString)
     return date.format('DD/MM/YYYY HH:mm')
   } catch (error) {
     return dateString
