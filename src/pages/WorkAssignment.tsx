@@ -191,6 +191,16 @@ export default function WorkAssignment() {
   const [filterByVat, setFilterByVat] = useState<string | null>(null)
   const [filterByDocumentEntry, setFilterByDocumentEntry] = useState<string | null>(null)
 
+  // Search-on-type states for user dropdowns (limit 5, search to find more)
+  const [accountingUserSearch, setAccountingUserSearch] = useState('')
+  const [debouncedAccountingUserSearch] = useDebouncedValue(accountingUserSearch, 300)
+  const [taxInspectionUserSearch, setTaxInspectionUserSearch] = useState('')
+  const [debouncedTaxInspectionUserSearch] = useDebouncedValue(taxInspectionUserSearch, 300)
+  const [filingUserSearch, setFilingUserSearch] = useState('')
+  const [debouncedFilingUserSearch] = useDebouncedValue(filingUserSearch, 300)
+  const [documentEntryUserSearch, setDocumentEntryUserSearch] = useState('')
+  const [debouncedDocumentEntryUserSearch] = useDebouncedValue(documentEntryUserSearch, 300)
+
   // Bulk change responsible states
   const [selectedAssignmentIds, setSelectedAssignmentIds] = useState<Set<string>>(new Set())
   const [bulkChangeOpened, setBulkChangeOpened] = useState(false)
@@ -445,43 +455,67 @@ export default function WorkAssignment() {
     return name
   }
 
-  // Fetch users for accounting (service, data_entry_and_service)
+  // Fetch users for accounting (service, data_entry_and_service) — limit 5, search on type
   const { data: accountingUsersData } = useQuery(
-    ['users-accounting'],
-    () => usersService.getList({ roles: 'admin,service,data_entry_and_service,audit', status: 'active' }),
+    ['users-accounting', debouncedAccountingUserSearch],
+    () => usersService.getList({
+      roles: 'admin,service,data_entry_and_service,audit',
+      status: 'active',
+      search: debouncedAccountingUserSearch || undefined,
+      limit: 5,
+    }),
     {
       enabled: isAdmin && _hasHydrated,
-      staleTime: 5 * 60 * 1000,
+      staleTime: 30 * 1000,
+      keepPreviousData: true,
     }
   )
 
-  // Fetch users for tax inspection (audit)
+  // Fetch users for tax inspection (audit) — limit 5, search on type
   const { data: taxInspectionUsersData } = useQuery(
-    ['users-tax-inspection'],
-    () => usersService.getList({ role: 'audit', status: 'active' }),
+    ['users-tax-inspection', debouncedTaxInspectionUserSearch],
+    () => usersService.getList({
+      role: 'audit',
+      status: 'active',
+      search: debouncedTaxInspectionUserSearch || undefined,
+      limit: 5,
+    }),
     {
       enabled: isAdmin && _hasHydrated,
-      staleTime: 5 * 60 * 1000,
+      staleTime: 30 * 1000,
+      keepPreviousData: true,
     }
   )
 
-  // Fetch users for WHT/VAT filing (data_entry_and_service)
+  // Fetch users for WHT/VAT filing (data_entry_and_service) — limit 5, search on type
   const { data: filingUsersData } = useQuery(
-    ['users-filing'],
-    () => usersService.getList({ role: 'data_entry_and_service', status: 'active' }),
+    ['users-filing', debouncedFilingUserSearch],
+    () => usersService.getList({
+      role: 'data_entry_and_service',
+      status: 'active',
+      search: debouncedFilingUserSearch || undefined,
+      limit: 5,
+    }),
     {
       enabled: isAdmin && _hasHydrated,
-      staleTime: 5 * 60 * 1000,
+      staleTime: 30 * 1000,
+      keepPreviousData: true,
     }
   )
 
-  // Fetch users for document entry (data_entry_and_service, data_entry)
+  // Fetch users for document entry (data_entry_and_service, data_entry) — limit 5, search on type
   const { data: documentEntryUsersData } = useQuery(
-    ['users-document-entry'],
-    () => usersService.getList({ roles: 'data_entry_and_service,data_entry', status: 'active' }),
+    ['users-document-entry', debouncedDocumentEntryUserSearch],
+    () => usersService.getList({
+      roles: 'data_entry_and_service,data_entry',
+      status: 'active',
+      search: debouncedDocumentEntryUserSearch || undefined,
+      limit: 5,
+    }),
     {
       enabled: isAdmin && _hasHydrated,
-      staleTime: 5 * 60 * 1000,
+      staleTime: 30 * 1000,
+      keepPreviousData: true,
     }
   )
 
@@ -2512,10 +2546,11 @@ export default function WorkAssignment() {
                     data={accountingUserOptions}
                     value={filterByAccounting}
                     onChange={setFilterByAccounting}
+                    onSearchChange={setAccountingUserSearch}
                     clearable
                     searchable
                     radius="lg"
-                    nothingFoundMessage="ไม่พบพนักงาน"
+                    nothingFoundMessage="พิมพ์เพื่อค้นหาเพิ่ม..."
                     size="xs"
                   />
                 </Grid.Col>
@@ -2526,10 +2561,11 @@ export default function WorkAssignment() {
                     data={taxInspectionUserOptions}
                     value={filterByTaxInspection}
                     onChange={setFilterByTaxInspection}
+                    onSearchChange={setTaxInspectionUserSearch}
                     clearable
                     searchable
                     radius="lg"
-                    nothingFoundMessage="ไม่พบพนักงาน"
+                    nothingFoundMessage="พิมพ์เพื่อค้นหาเพิ่ม..."
                     size="xs"
                   />
                 </Grid.Col>
@@ -2540,10 +2576,11 @@ export default function WorkAssignment() {
                     data={filingUserOptions}
                     value={filterByWht}
                     onChange={setFilterByWht}
+                    onSearchChange={setFilingUserSearch}
                     clearable
                     searchable
                     radius="lg"
-                    nothingFoundMessage="ไม่พบพนักงาน"
+                    nothingFoundMessage="พิมพ์เพื่อค้นหาเพิ่ม..."
                     size="xs"
                   />
                 </Grid.Col>
@@ -2554,10 +2591,11 @@ export default function WorkAssignment() {
                     data={filingUserOptions}
                     value={filterByVat}
                     onChange={setFilterByVat}
+                    onSearchChange={setFilingUserSearch}
                     clearable
                     searchable
                     radius="lg"
-                    nothingFoundMessage="ไม่พบพนักงาน"
+                    nothingFoundMessage="พิมพ์เพื่อค้นหาเพิ่ม..."
                     size="xs"
                   />
                 </Grid.Col>
@@ -2568,10 +2606,11 @@ export default function WorkAssignment() {
                     data={documentEntryUserOptions}
                     value={filterByDocumentEntry}
                     onChange={setFilterByDocumentEntry}
+                    onSearchChange={setDocumentEntryUserSearch}
                     clearable
                     searchable
                     radius="lg"
-                    nothingFoundMessage="ไม่พบพนักงาน"
+                    nothingFoundMessage="พิมพ์เพื่อค้นหาเพิ่ม..."
                     size="xs"
                   />
                 </Grid.Col>
@@ -3111,8 +3150,10 @@ export default function WorkAssignment() {
               data={accountingUserOptions}
               value={formAccountingResponsible}
               onChange={setFormAccountingResponsible}
+              onSearchChange={setAccountingUserSearch}
               clearable
               searchable
+              nothingFoundMessage="พิมพ์เพื่อค้นหาเพิ่ม..."
               description="เลือกจาก role: service, data_entry_and_service"
             />
             <Select
@@ -3121,8 +3162,10 @@ export default function WorkAssignment() {
               data={taxInspectionUserOptions}
               value={formTaxInspectionResponsible}
               onChange={setFormTaxInspectionResponsible}
+              onSearchChange={setTaxInspectionUserSearch}
               clearable
               searchable
+              nothingFoundMessage="พิมพ์เพื่อค้นหาเพิ่ม..."
               description="เลือกจาก role: audit"
             />
             <Select
@@ -3131,8 +3174,10 @@ export default function WorkAssignment() {
               data={filingUserOptions}
               value={formWhtFilerResponsible}
               onChange={setFormWhtFilerResponsible}
+              onSearchChange={setFilingUserSearch}
               clearable
               searchable
+              nothingFoundMessage="พิมพ์เพื่อค้นหาเพิ่ม..."
               description="เลือกจาก role: data_entry_and_service"
             />
             <Select
@@ -3141,8 +3186,10 @@ export default function WorkAssignment() {
               data={filingUserOptions}
               value={formVatFilerResponsible}
               onChange={setFormVatFilerResponsible}
+              onSearchChange={setFilingUserSearch}
               clearable
               searchable
+              nothingFoundMessage="พิมพ์เพื่อค้นหาเพิ่ม..."
               description="เลือกจาก role: data_entry_and_service"
             />
             <Select
@@ -3151,8 +3198,10 @@ export default function WorkAssignment() {
               data={documentEntryUserOptions}
               value={formDocumentEntryResponsible}
               onChange={setFormDocumentEntryResponsible}
+              onSearchChange={setDocumentEntryUserSearch}
               clearable
               searchable
+              nothingFoundMessage="พิมพ์เพื่อค้นหาเพิ่ม..."
               description="เลือกจาก role: data_entry_and_service, data_entry"
             />
             <Textarea
@@ -4178,9 +4227,11 @@ export default function WorkAssignment() {
                           setFilterByAccounting(value)
                           setPreviewPage(1)
                         }}
+                        onSearchChange={setAccountingUserSearch}
                         searchable
                         clearable
                         size="sm"
+                        nothingFoundMessage="พิมพ์เพื่อค้นหาเพิ่ม..."
                       />
                       <Select
                         placeholder="กรองตามผู้ตรวจภาษี..."
@@ -4190,9 +4241,11 @@ export default function WorkAssignment() {
                           setFilterByTaxInspection(value)
                           setPreviewPage(1)
                         }}
+                        onSearchChange={setTaxInspectionUserSearch}
                         searchable
                         clearable
                         size="sm"
+                        nothingFoundMessage="พิมพ์เพื่อค้นหาเพิ่ม..."
                       />
                       <Select
                         placeholder="กรองตามผู้ยื่น WHT..."
@@ -4202,9 +4255,11 @@ export default function WorkAssignment() {
                           setFilterByWht(value)
                           setPreviewPage(1)
                         }}
+                        onSearchChange={setFilingUserSearch}
                         searchable
                         clearable
                         size="sm"
+                        nothingFoundMessage="พิมพ์เพื่อค้นหาเพิ่ม..."
                       />
                       <Select
                         placeholder="กรองตามผู้ยื่น VAT..."
@@ -4214,9 +4269,11 @@ export default function WorkAssignment() {
                           setFilterByVat(value)
                           setPreviewPage(1)
                         }}
+                        onSearchChange={setFilingUserSearch}
                         searchable
                         clearable
                         size="sm"
+                        nothingFoundMessage="พิมพ์เพื่อค้นหาเพิ่ม..."
                       />
                       <Select
                         placeholder="กรองตามผู้คีย์เอกสาร..."
@@ -4226,9 +4283,11 @@ export default function WorkAssignment() {
                           setFilterByDocumentEntry(value)
                           setPreviewPage(1)
                         }}
+                        onSearchChange={setDocumentEntryUserSearch}
                         searchable
                         clearable
                         size="sm"
+                        nothingFoundMessage="พิมพ์เพื่อค้นหาเพิ่ม..."
                       />
                     </SimpleGrid>
                     {(previewSearch || filterByAccounting || filterByTaxInspection || filterByWht || filterByVat || filterByDocumentEntry || filterByAssignmentStatus !== 'all') && (
@@ -4612,9 +4671,11 @@ export default function WorkAssignment() {
                                     )
                                   }}
                                   data={accountingUserOptions}
+                                  onSearchChange={setAccountingUserSearch}
                                   searchable
                                   size="xs"
                                   placeholder="เลือก..."
+                                  nothingFoundMessage="พิมพ์เพื่อค้นหาเพิ่ม..."
                                   styles={{
                                     input: { fontSize: '12px', minHeight: '28px', height: '28px' },
                                   }}
@@ -4669,9 +4730,11 @@ export default function WorkAssignment() {
                                     )
                                   }}
                                   data={taxInspectionUserOptions}
+                                  onSearchChange={setTaxInspectionUserSearch}
                                   searchable
                                   size="xs"
                                   placeholder="เลือก..."
+                                  nothingFoundMessage="พิมพ์เพื่อค้นหาเพิ่ม..."
                                   styles={{
                                     input: { fontSize: '12px', minHeight: '28px', height: '28px' },
                                   }}
@@ -4726,9 +4789,11 @@ export default function WorkAssignment() {
                                     )
                                   }}
                                   data={filingUserOptions}
+                                  onSearchChange={setFilingUserSearch}
                                   searchable
                                   size="xs"
                                   placeholder="เลือก..."
+                                  nothingFoundMessage="พิมพ์เพื่อค้นหาเพิ่ม..."
                                   styles={{
                                     input: { fontSize: '12px', minHeight: '28px', height: '28px' },
                                   }}
@@ -4784,9 +4849,11 @@ export default function WorkAssignment() {
                                     )
                                   }}
                                   data={filingUserOptions}
+                                  onSearchChange={setFilingUserSearch}
                                   searchable
                                   size="xs"
                                   placeholder={item.tax_registration_status !== 'จดภาษีมูลค่าเพิ่ม' ? 'ไม่จด VAT' : 'เลือก...'}
+                                  nothingFoundMessage="พิมพ์เพื่อค้นหาเพิ่ม..."
                                   styles={{
                                     input: { fontSize: '12px', minHeight: '28px', height: '28px' },
                                   }}
@@ -4841,9 +4908,11 @@ export default function WorkAssignment() {
                                     )
                                   }}
                                   data={documentEntryUserOptions}
+                                  onSearchChange={setDocumentEntryUserSearch}
                                   searchable
                                   size="xs"
                                   placeholder="เลือก..."
+                                  nothingFoundMessage="พิมพ์เพื่อค้นหาเพิ่ม..."
                                   styles={{
                                     input: { fontSize: '12px', minHeight: '28px', height: '28px' },
                                   }}
