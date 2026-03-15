@@ -11,7 +11,7 @@ import {
   Select, Loader, Center, Modal, TextInput, SegmentedControl, Tabs,
   Switch, Checkbox, Popover
 } from '@mantine/core'
-import { useDisclosure, useDebouncedValue } from '@mantine/hooks'
+import { useDisclosure, useDebouncedValue, useMediaQuery } from '@mantine/hooks'
 import {
   TbSend, TbMessageCircle,
   TbTrash, TbSpeakerphone, TbMapPin,
@@ -39,6 +39,7 @@ export default function Dashboard() {
   const { user } = useAuthStore()
   const queryClient = useQueryClient()
   const isAdmin = user?.role === 'admin'
+  const isMobileView = useMediaQuery('(max-width: 768px)')
 
   // ── Tab state ──
   const [activeTab, setActiveTab] = useState<string | null>('calendar')
@@ -554,7 +555,7 @@ export default function Dashboard() {
   //  RENDER
   // ═══════════════════════════════════════════════════════
   return (
-    <Container fluid px="xl" py="md">
+    <Container fluid px={isMobileView ? 'xs' : 'xl'} py={isMobileView ? 'xs' : 'md'}>
       {/* ── Tabs Header ── */}
       <Tabs value={activeTab} onChange={setActiveTab} variant="pills" radius="md" mb="md">
         <Tabs.List grow style={{
@@ -584,12 +585,12 @@ export default function Dashboard() {
         <Tabs.Panel value="calendar" pt="md">
           <div style={{
             display: 'grid',
-            gridTemplateColumns: selectedDate ? '1fr 400px' : '1fr',
-            gap: 16,
+            gridTemplateColumns: (!isMobileView && selectedDate) ? '1fr 400px' : '1fr',
+            gap: isMobileView ? 8 : 16,
             alignItems: 'start',
           }}>
           {/* ── LEFT: Calendar ── */}
-          <Card padding={0} radius="lg" withBorder style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', height: 'calc(100vh - 170px)' }}>
+          <Card padding={0} radius={isMobileView ? 'md' : 'lg'} withBorder style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', height: isMobileView ? 'auto' : 'calc(100vh - 170px)' }}>
             {/* Calendar Header */}
             <Group
               justify="space-between"
@@ -602,7 +603,7 @@ export default function Dashboard() {
             >
               <Group gap="sm">
                 <TbCalendarEvent size={24} color="var(--mantine-color-blue-6)" />
-                <Title order={3} style={{ letterSpacing: '-0.3px' }}>
+                <Title order={isMobileView ? 5 : 3} style={{ letterSpacing: '-0.3px' }}>
                   {THAI_MONTHS_FULL[calendarDate.getMonth()]} {calendarDate.getFullYear() + 543}
                 </Title>
               </Group>
@@ -684,8 +685,9 @@ export default function Dashboard() {
             {/* Calendar Grid */}
             <div style={{
               display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
-              gridTemplateRows: `repeat(${Math.ceil(calendarDays.length / 7)}, 1fr)`,
-              flex: 1, minHeight: 0,
+              gridTemplateRows: isMobileView ? undefined : `repeat(${Math.ceil(calendarDays.length / 7)}, 1fr)`,
+              gridAutoRows: isMobileView ? 'minmax(60px, auto)' : undefined,
+              flex: isMobileView ? undefined : 1, minHeight: 0,
             }}>
               {calendarDays.map((day, i) => {
                 const isLastCol = (i + 1) % 7 === 0
@@ -713,7 +715,7 @@ export default function Dashboard() {
                     style={{
                       borderRight: !isLastCol ? '1px solid var(--mantine-color-gray-2)' : undefined,
                       borderBottom: '1px solid var(--mantine-color-gray-2)',
-                      padding: '4px 5px 6px', minHeight: 100, minWidth: 0, overflow: 'hidden',
+                      padding: isMobileView ? '2px 3px 4px' : '4px 5px 6px', minHeight: isMobileView ? 48 : 100, minWidth: 0, overflow: 'hidden',
                       backgroundColor: isSelected ? 'rgba(66, 99, 235, 0.06)' : isToday ? 'rgba(66, 99, 235, 0.02)' : undefined,
                       outline: isSelected ? '2px solid var(--mantine-color-blue-4)' : undefined,
                       outlineOffset: '-2px', borderRadius: isSelected ? 4 : undefined,

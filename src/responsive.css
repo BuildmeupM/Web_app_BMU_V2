@@ -1,0 +1,55 @@
+/* ================================================
+   RESPONSIVE MOBILE UTILITIES
+   ================================================ */
+
+/* Tables: horizontal scroll on small screens */
+@media (max-width: 768px) {
+  .mantine-Table-scrollContainer,
+  .mantine-DataTable-scrollArea {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Reduce global container padding on mobile */
+  .mantine-Container-root {
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+  }
+
+  /* AppShell main area — less padding */
+  .mantine-AppShell-main {
+    padding: 8px !important;
+    padding-top: calc(var(--app-shell-header-height, 56px) + 8px) !important;
+  }
+
+  /* Cards — less padding on mobile */
+  .mantine-Card-root {
+    padding: 12px !important;
+  }
+
+  /* Modals — full width on mobile */
+  .mantine-Modal-inner {
+    padding: 8px;
+  }
+  .mantine-Modal-content {
+    border-radius: 12px;
+  }
+
+  /* Tabs — smaller font on mobile */
+  .mantine-Tabs-tab {
+    padding: 8px 12px !important;
+    font-size: 13px !important;
+  }
+
+  /* Hide elements marked as desktop-only */
+  .desktop-only {
+    display: none !important;
+  }
+}
+
+/* Show elements only on mobile */
+@media (min-width: 769px) {
+  .mobile-only {
+    display: none !important;
+  }
+}

@@ -22,3 +22,7 @@ export { default as DeleteConfirmModal } from "./DeleteConfirmModal";
 export { default as ResponsibilityChangeModal } from "./ResponsibilityChangeModal";
 export { default as BulkResponsibilityChangeModal } from "./BulkResponsibilityChangeModal";
 export { default as WorkAssignmentImport } from "./WorkAssignmentImport";
+export { default as PreviewDataTable } from "./PreviewDataTable";
+export { default as FilterSection } from "./FilterSection";
+export { default as PageHeader } from "./PageHeader";
+export { default as StatisticsSection } from "./StatisticsSection";

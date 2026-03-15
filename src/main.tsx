@@ -10,6 +10,7 @@ import '@mantine/charts/styles.css'
 import App from './App'
 import { theme } from './theme'
 import './index.css'
+import './responsive.css'
 import ErrorBoundary from './components/ErrorBoundary/ErrorBoundary'
 
 const queryClient = new QueryClient({

@@ -136,7 +136,6 @@ export function useWorkAssignmentQueries(params: UseWorkAssignmentQueriesParams)
     ['users-accounting', debouncedAccountingUserSearch],
     () => usersService.getList({
       roles: 'admin,service,data_entry_and_service,audit',
-      status: 'active',
       search: debouncedAccountingUserSearch || undefined,
       limit: 5,
     }),
@@ -147,7 +146,6 @@ export function useWorkAssignmentQueries(params: UseWorkAssignmentQueriesParams)
     ['users-tax-inspection', debouncedTaxInspectionUserSearch],
     () => usersService.getList({
       role: 'audit',
-      status: 'active',
       search: debouncedTaxInspectionUserSearch || undefined,
       limit: 5,
     }),
@@ -158,7 +156,6 @@ export function useWorkAssignmentQueries(params: UseWorkAssignmentQueriesParams)
     ['users-filing', debouncedFilingUserSearch],
     () => usersService.getList({
       role: 'data_entry_and_service',
-      status: 'active',
       search: debouncedFilingUserSearch || undefined,
       limit: 5,
     }),
@@ -169,7 +166,6 @@ export function useWorkAssignmentQueries(params: UseWorkAssignmentQueriesParams)
     ['users-document-entry', debouncedDocumentEntryUserSearch],
     () => usersService.getList({
       roles: 'data_entry_and_service,data_entry',
-      status: 'active',
       search: debouncedDocumentEntryUserSearch || undefined,
       limit: 5,
     }),

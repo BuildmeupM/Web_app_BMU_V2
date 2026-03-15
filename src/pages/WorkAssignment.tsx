@@ -10,12 +10,11 @@
 import { useState, useEffect } from 'react'
 import { useDebouncedValue } from '@mantine/hooks'
 import {
-  Title, Stack, Button, Group, TextInput, Select, Card, Text, Badge,
-  Modal, Alert, Box, Grid, NumberInput, SimpleGrid, Tooltip,
+  Stack, Button, Group, Text,
+  Modal, Alert, Box,
 } from '@mantine/core'
 import {
-  TbPlus, TbSearch, TbRefresh, TbAlertCircle, TbCheck,
-  TbUpload, TbEye, TbEyeOff,
+  TbAlertCircle, TbCheck,
 } from 'react-icons/tb'
 import { notifications } from '@mantine/notifications'
 import { useAuthStore } from '../store/authStore'
@@ -30,7 +29,8 @@ import {
   AssignmentTable, CreateEditFormModal, BulkCreateModal,
   SaveConfirmationModals, DeleteConfirmModal,
   ResponsibilityChangeModal, BulkResponsibilityChangeModal,
-  WorkAssignmentImport,
+  WorkAssignmentImport, PreviewDataTable,
+  FilterSection, PageHeader, StatisticsSection,
   useWorkAssignmentQueries, useWorkAssignmentMutations,
   THAI_MONTHS, MONTH_OPTIONS, COMPANY_STATUS_OPTIONS,
   getCurrentTaxMonth,
@@ -129,7 +129,7 @@ export default function WorkAssignment() {
     prev_vat: false, new_vat: true,
     prev_document_entry: false, new_document_entry: true,
   })
-  const [filterByAssignmentStatus, setFilterByAssignmentStatus] = useState<'all' | 'assigned' | 'unassigned'>('unassigned')
+  const [filterByAssignmentStatus, setFilterByAssignmentStatus] = useState<'all' | 'assigned' | 'partial' | 'unassigned'>('all')
 
   // ── Bulk Change Responsible State ─────────────────────────────────
   const [selectedAssignmentIds, setSelectedAssignmentIds] = useState<Set<string>>(new Set())
@@ -266,16 +266,16 @@ export default function WorkAssignment() {
           company_status: client.company_status,
           target_tax_year: targetTaxYear, target_tax_month: targetTaxMonth,
           is_assigned: isAssigned, existing_assignment_id: existing?.id || null,
-          prev_accounting_responsible: prev?.accounting_responsible || null,
-          prev_accounting_responsible_name: prev?.accounting_responsible_name || null,
-          prev_tax_inspection_responsible: prev?.tax_inspection_responsible || null,
-          prev_tax_inspection_responsible_name: prev?.tax_inspection_responsible_name || null,
-          prev_wht_filer_responsible: prev?.wht_filer_responsible || null,
-          prev_wht_filer_responsible_name: prev?.wht_filer_responsible_name || null,
-          prev_vat_filer_responsible: prev?.vat_filer_responsible || null,
-          prev_vat_filer_responsible_name: prev?.vat_filer_responsible_name || null,
-          prev_document_entry_responsible: prev?.document_entry_responsible || null,
-          prev_document_entry_responsible_name: prev?.document_entry_responsible_name || null,
+          prev_accounting_responsible: prev?.accounting_responsible || existing?.accounting_responsible || null,
+          prev_accounting_responsible_name: prev?.accounting_responsible_name || existing?.accounting_responsible_name || null,
+          prev_tax_inspection_responsible: prev?.tax_inspection_responsible || existing?.tax_inspection_responsible || null,
+          prev_tax_inspection_responsible_name: prev?.tax_inspection_responsible_name || existing?.tax_inspection_responsible_name || null,
+          prev_wht_filer_responsible: prev?.wht_filer_responsible || existing?.wht_filer_responsible || null,
+          prev_wht_filer_responsible_name: prev?.wht_filer_responsible_name || existing?.wht_filer_responsible_name || null,
+          prev_vat_filer_responsible: prev?.vat_filer_responsible || existing?.vat_filer_responsible || null,
+          prev_vat_filer_responsible_name: prev?.vat_filer_responsible_name || existing?.vat_filer_responsible_name || null,
+          prev_document_entry_responsible: prev?.document_entry_responsible || existing?.document_entry_responsible || null,
+          prev_document_entry_responsible_name: prev?.document_entry_responsible_name || existing?.document_entry_responsible_name || null,
           new_accounting_responsible: existingData?.new_accounting_responsible ?? (isAssigned ? existing?.accounting_responsible : prev?.accounting_responsible) ?? null,
           new_tax_inspection_responsible: existingData?.new_tax_inspection_responsible ?? (isAssigned ? existing?.tax_inspection_responsible : prev?.tax_inspection_responsible) ?? null,
           new_wht_filer_responsible: existingData?.new_wht_filer_responsible ?? (isAssigned ? existing?.wht_filer_responsible : prev?.wht_filer_responsible) ?? null,
@@ -443,8 +443,24 @@ export default function WorkAssignment() {
 
   // ── Filtered Preview Data ─────────────────────────────────────────
   const filteredPreviewData = previewData.filter((item) => {
-    if (filterByAssignmentStatus === 'assigned' && !item.is_assigned) return false
-    if (filterByAssignmentStatus === 'unassigned' && item.is_assigned) return false
+    // Compute assignment completion status based on filled responsible fields
+    if (filterByAssignmentStatus !== 'all') {
+      const isVat = item.tax_registration_status === 'จดภาษีมูลค่าเพิ่ม'
+      const fields = [
+        item.new_accounting_responsible,
+        item.new_tax_inspection_responsible,
+        item.new_wht_filer_responsible,
+        item.new_document_entry_responsible,
+        ...(isVat ? [item.new_vat_filer_responsible] : []),
+      ]
+      const filled = fields.filter(Boolean).length
+      const total = fields.length
+      const status = filled === 0 ? 'none' : filled === total ? 'full' : 'partial'
+
+      if (filterByAssignmentStatus === 'assigned' && status !== 'full') return false
+      if (filterByAssignmentStatus === 'partial' && status !== 'partial') return false
+      if (filterByAssignmentStatus === 'unassigned' && status !== 'none') return false
+    }
     if (debouncedPreviewSearch) {
       const q = debouncedPreviewSearch.toLowerCase()
       return item.build.toLowerCase().includes(q) || item.company_name.toLowerCase().includes(q)
@@ -472,107 +488,52 @@ export default function WorkAssignment() {
   return (
     <Box style={{ marginLeft: 'calc(var(--mantine-spacing-md) * -1)', marginRight: 'calc(var(--mantine-spacing-md) * -1)', marginTop: 'calc(var(--mantine-spacing-md) * -1)', marginBottom: 'calc(var(--mantine-spacing-md) * -1)', padding: 'var(--mantine-spacing-md)' }}>
       <Stack gap="lg">
-        {/* Header */}
-        <Group justify="space-between">
-          <Title order={1}>จัดงานรายเดือน</Title>
-          <Group gap="sm">
-            <Button variant="outline" color="orange" onClick={() => setViewMode('current')} radius="lg" style={{ backgroundColor: 'white', color: 'black', borderColor: 'var(--mantine-color-orange-6)' }}>
-              เดือนภาษีปัจจุบัน ({getCurrentTaxMonth().year}/{getCurrentTaxMonth().month})
-            </Button>
-            <Button variant="outline" color="orange" onClick={() => setViewMode('previous')} radius="lg" style={{ backgroundColor: 'white', color: 'black', borderColor: 'var(--mantine-color-orange-6)' }}>
-              เดือนภาษีก่อนหน้า ({getPreviousMonth().year}/{getPreviousMonth().month})
-            </Button>
-            <Button leftSection={<TbPlus size={18} />} radius="lg" variant="outline" color="orange" onClick={handleAdd} style={{ backgroundColor: 'white', color: 'black', borderColor: 'var(--mantine-color-orange-6)' }}>สร้างการจัดงานใหม่</Button>
-            <Button leftSection={<TbUpload size={18} />} radius="lg" variant="outline" color="orange" onClick={() => setImportModalOpened(true)} style={{ backgroundColor: 'white', color: 'black', borderColor: 'var(--mantine-color-orange-6)' }}>นำเข้าจาก Excel</Button>
-            <Button leftSection={<TbRefresh size={18} />} radius="lg" variant="outline" color="red" onClick={() => setBulkSyncConfirmOpened(true)} style={{ backgroundColor: 'white', borderColor: 'var(--mantine-color-red-6)', color: 'var(--mantine-color-red-6)' }}>ซิงค์รายการที่ล้มเหลว</Button>
-            <Tooltip label={showPreviousColumns ? 'ซ่อนข้อมูลเดิม' : 'แสดงข้อมูลเดิม'}>
-              <Button leftSection={showPreviousColumns ? <TbEyeOff size={18} /> : <TbEye size={18} />} radius="lg" variant="outline" color="gray" onClick={toggleAllPreviousColumns} style={{ backgroundColor: showPreviousColumns ? '#f0f0f0' : 'white', color: 'black' }}>
-                {showPreviousColumns ? 'ซ่อนข้อมูลเดิม' : 'แสดงข้อมูลเดิม'}
-              </Button>
-            </Tooltip>
-          </Group>
-        </Group>
-
-        {/* Current View Info */}
-        <Card withBorder radius="lg" p="md" style={{ backgroundColor: 'white', borderColor: 'var(--mantine-color-orange-6)' }}>
-          <Group justify="space-between" align="center">
-            <Group gap="xs">
-              <Text size="sm" fw={500} c="black">กำลังแสดงข้อมูลเดือนภาษี:</Text>
-              <Badge size="lg" variant="outline" color="orange" style={{ backgroundColor: 'white', color: 'black', borderColor: 'var(--mantine-color-orange-6)' }}>
-                {(() => { const vm = getViewMonth(); const dy = year || vm.year; const dm = month || vm.month; return `${THAI_MONTHS.find((m) => m.value === dm.toString())?.label || dm} ${dy}` })()}
-              </Badge>
-            </Group>
-            <Text size="xs" c="black">{queries.assignmentsData?.pagination?.total || 0} รายการ</Text>
-          </Group>
-        </Card>
+        {/* Header + Action Buttons + View Info */}
+        <PageHeader
+          currentMonth={getCurrentTaxMonth()}
+          previousMonth={getPreviousMonth()}
+          viewMonth={getViewMonth()}
+          displayYear={year}
+          displayMonth={month}
+          totalCount={queries.assignmentsData?.pagination?.total || 0}
+          showPreviousColumns={showPreviousColumns}
+          thaiMonths={THAI_MONTHS}
+          onViewCurrent={() => setViewMode('current')}
+          onViewPrevious={() => setViewMode('previous')}
+          onAdd={handleAdd}
+          onImport={() => setImportModalOpened(true)}
+          onBulkSync={() => setBulkSyncConfirmOpened(true)}
+          onTogglePreviousColumns={toggleAllPreviousColumns}
+        />
 
         {/* Filters */}
-        <Card withBorder radius="lg" p="md">
-          <Stack gap="md">
-            <Group justify="space-between" align="center">
-              <Text size="sm" fw={500} c="black">กรองข้อมูล</Text>
-              <Button leftSection={<TbRefresh size={18} />} variant="outline" color="orange" onClick={queries.handleRefresh} loading={queries.isRefetching} radius="lg" style={{ backgroundColor: 'white', color: 'black', borderColor: 'var(--mantine-color-orange-6)' }}>รีเฟรซข้อมูล</Button>
-            </Group>
-            <Grid>
-              <Grid.Col span={{ base: 12, sm: 6, md: 3 }}>
-                <Stack gap={4}>
-                  <Text size="xs" c="dimmed" fw={500}>ค้นหา</Text>
-                  <TextInput placeholder="ค้นหา..." leftSection={<TbSearch size={16} />} value={search} onChange={(e) => setSearch(e.target.value)} radius="lg" />
-                </Stack>
-              </Grid.Col>
-              <Grid.Col span={{ base: 12, sm: 6, md: 3 }}>
-                <Stack gap={4}>
-                  <Text size="xs" c="dimmed" fw={500}>ปี</Text>
-                  <NumberInput placeholder="ปี" value={year ? parseInt(year) : undefined} onChange={(value) => setYear(value ? value.toString() : null)} min={2020} max={2100} radius="lg" />
-                </Stack>
-              </Grid.Col>
-              <Grid.Col span={{ base: 12, sm: 6, md: 3 }}>
-                <Stack gap={4}>
-                  <Text size="xs" c="dimmed" fw={500}>เดือน</Text>
-                  <Select placeholder="ทุกเดือน" data={MONTH_OPTIONS} value={month} onChange={setMonth} clearable radius="lg" />
-                </Stack>
-              </Grid.Col>
-              <Grid.Col span={{ base: 12, sm: 6, md: 3 }}>
-                <Stack gap={4}>
-                  <Text size="xs" c="dimmed" fw={500}>สถานะซิงค์</Text>
-                  <Select data={[{ value: 'all', label: 'ทั้งหมด' }, { value: 'synced', label: 'ซิงค์แล้ว' }, { value: 'unsynced', label: 'ยังไม่ซิงค์' }]} value={syncStatusFilter} onChange={(v) => setSyncStatusFilter((v as 'all' | 'synced' | 'unsynced') || 'all')} radius="lg" />
-                </Stack>
-              </Grid.Col>
-            </Grid>
-            <Grid mt="xs">
-              <Grid.Col span={{ base: 12, sm: 6, md: 2.4 }}>
-                <Stack gap={4}>
-                  <Text size="xs" c="dimmed" fw={500}>ทำบัญชี</Text>
-                  <Select placeholder="ทั้งหมด" data={queries.accountingUserOptions} value={filterByAccounting} onChange={setFilterByAccounting} clearable searchable radius="lg" nothingFoundMessage="ไม่พบพนักงาน" />
-                </Stack>
-              </Grid.Col>
-              <Grid.Col span={{ base: 12, sm: 6, md: 2.4 }}>
-                <Stack gap={4}>
-                  <Text size="xs" c="dimmed" fw={500}>ตรวจภาษี</Text>
-                  <Select placeholder="ทั้งหมด" data={queries.taxInspectionUserOptions} value={filterByTaxInspection} onChange={setFilterByTaxInspection} clearable searchable radius="lg" nothingFoundMessage="ไม่พบพนักงาน" />
-                </Stack>
-              </Grid.Col>
-              <Grid.Col span={{ base: 12, sm: 6, md: 2.4 }}>
-                <Stack gap={4}>
-                  <Text size="xs" c="dimmed" fw={500}>ยื่น WHT</Text>
-                  <Select placeholder="ทั้งหมด" data={queries.filingUserOptions} value={filterByWht} onChange={setFilterByWht} clearable searchable radius="lg" nothingFoundMessage="ไม่พบพนักงาน" />
-                </Stack>
-              </Grid.Col>
-              <Grid.Col span={{ base: 12, sm: 6, md: 2.4 }}>
-                <Stack gap={4}>
-                  <Text size="xs" c="dimmed" fw={500}>ยื่น VAT</Text>
-                  <Select placeholder="ทั้งหมด" data={queries.filingUserOptions} value={filterByVat} onChange={setFilterByVat} clearable searchable radius="lg" nothingFoundMessage="ไม่พบพนักงาน" />
-                </Stack>
-              </Grid.Col>
-              <Grid.Col span={{ base: 12, sm: 6, md: 2.4 }}>
-                <Stack gap={4}>
-                  <Text size="xs" c="dimmed" fw={500}>คีย์เอกสาร</Text>
-                  <Select placeholder="ทั้งหมด" data={queries.documentEntryUserOptions} value={filterByDocumentEntry} onChange={setFilterByDocumentEntry} clearable searchable radius="lg" nothingFoundMessage="ไม่พบพนักงาน" />
-                </Stack>
-              </Grid.Col>
-            </Grid>
-          </Stack>
-        </Card>
+        <FilterSection
+          search={search}
+          onSearchChange={setSearch}
+          year={year}
+          onYearChange={setYear}
+          month={month}
+          onMonthChange={setMonth}
+          syncStatusFilter={syncStatusFilter}
+          onSyncStatusChange={setSyncStatusFilter}
+          monthOptions={MONTH_OPTIONS}
+          accountingUserOptions={queries.accountingUserOptions}
+          taxInspectionUserOptions={queries.taxInspectionUserOptions}
+          filingUserOptions={queries.filingUserOptions}
+          documentEntryUserOptions={queries.documentEntryUserOptions}
+          filterByAccounting={filterByAccounting}
+          onFilterByAccountingChange={setFilterByAccounting}
+          filterByTaxInspection={filterByTaxInspection}
+          onFilterByTaxInspectionChange={setFilterByTaxInspection}
+          filterByWht={filterByWht}
+          onFilterByWhtChange={setFilterByWht}
+          filterByVat={filterByVat}
+          onFilterByVatChange={setFilterByVat}
+          filterByDocumentEntry={filterByDocumentEntry}
+          onFilterByDocumentEntryChange={setFilterByDocumentEntry}
+          onRefresh={queries.handleRefresh}
+          isRefetching={queries.isRefetching}
+        />
 
         {/* Assignment Table */}
         <AssignmentTable
@@ -600,38 +561,33 @@ export default function WorkAssignment() {
           setSearch={setSearch}
         />
 
-        {/* Preview Data Table (inline — this section shows bulk create preview) */}
+        {/* Preview Data Table */}
         {previewData.length > 0 && (
-          <Card withBorder radius="lg" p="md">
-            <Stack gap="md">
-              <Group justify="space-between">
-                <Text size="lg" fw={600}>ข้อมูลตัวอย่าง ({filteredPreviewData.length} รายการ)</Text>
-                <Group gap="sm">
-                  <Select size="xs" data={[{ value: 'all', label: 'ทั้งหมด' }, { value: 'assigned', label: 'จัดแล้ว' }, { value: 'unassigned', label: 'ยังไม่จัด' }]} value={filterByAssignmentStatus} onChange={(v) => setFilterByAssignmentStatus((v as 'all' | 'assigned' | 'unassigned') || 'all')} />
-                  <TextInput size="xs" placeholder="ค้นหา Build/บริษัท..." value={previewSearch} onChange={(e) => setPreviewSearch(e.target.value)} leftSection={<TbSearch size={14} />} />
-                  <Button color="green" onClick={handleSavePreviewData} loading={isSaving}>บันทึกข้อมูลทั้งหมด</Button>
-                </Group>
-              </Group>
-              <Text size="xs" c="dimmed">แสดง {paginatedPreviewData.length} จาก {filteredPreviewData.length} รายการ (หน้า {previewPage}/{totalPreviewPages || 1})</Text>
-            </Stack>
-          </Card>
+          <PreviewDataTable
+            filteredPreviewData={filteredPreviewData}
+            paginatedPreviewData={paginatedPreviewData}
+            previewPage={previewPage}
+            previewLimit={previewLimit}
+            totalPreviewPages={totalPreviewPages}
+            previewSearch={previewSearch}
+            filterByAssignmentStatus={filterByAssignmentStatus}
+            isSaving={isSaving}
+            userOptions={{
+              accountingUserOptions: queries.accountingUserOptions,
+              taxInspectionUserOptions: queries.taxInspectionUserOptions,
+              filingUserOptions: queries.filingUserOptions,
+              documentEntryUserOptions: queries.documentEntryUserOptions,
+            }}
+            onPageChange={setPreviewPage}
+            onSearchChange={setPreviewSearch}
+            onFilterChange={setFilterByAssignmentStatus}
+            onPreviewDataUpdate={setPreviewData}
+            onSave={handleSavePreviewData}
+          />
         )}
 
         {/* Statistics Section */}
-        {workStatisticsByRole.length > 0 && (
-          <Card withBorder radius="lg" p="md">
-            <Text size="lg" fw={600} mb="md">สถิติการจัดงาน (ข้อมูลที่บันทึกแล้ว)</Text>
-            <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="md">
-              {workStatisticsByRole.map((role) => (
-                <Card key={role.role} withBorder p="sm" radius="md">
-                  <Text fw={600} size="sm">{role.roleLabel}</Text>
-                  <Text size="xs" c="dimmed">{role.totalEmployees} คน | รวม {role.grandTotal} บริษัท</Text>
-                  <Text size="xs" c="dimmed">จด VAT: {role.totalVatRegistered} | ไม่จด: {role.totalNotVatRegistered}</Text>
-                </Card>
-              ))}
-            </SimpleGrid>
-          </Card>
-        )}
+        <StatisticsSection workStatisticsByRole={workStatisticsByRole} />
       </Stack>
 
       {/* ── Modals ─────────────────────────────────────────────────── */}

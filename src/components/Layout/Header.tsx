@@ -108,8 +108,11 @@ const Header = memo(function Header({ mobileOpened, onToggleMobile }: HeaderProp
             aria-label="Toggle navigation"
           />
 
-          <Text size="xl" fw={700} c="orange">
+          <Text size="xl" fw={700} c="orange" visibleFrom="sm">
             BMU Work Management System
+          </Text>
+          <Text size="lg" fw={700} c="orange" hiddenFrom="sm">
+            BMU
           </Text>
         </Group>
         <Group gap="md">

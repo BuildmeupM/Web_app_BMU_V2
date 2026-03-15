@@ -1,6 +1,6 @@
 import { Outlet, useLocation } from 'react-router-dom'
 import { AppShell, Box } from '@mantine/core'
-import { useDisclosure } from '@mantine/hooks'
+import { useDisclosure, useMediaQuery } from '@mantine/hooks'
 import { Suspense, useEffect, useState } from 'react'
 import Sidebar from './Sidebar'
 import Header from './Header'
@@ -10,6 +10,7 @@ export default function Layout() {
   const location = useLocation()
   const [sidebarExpanded, setSidebarExpanded] = useState(true)
   const [mobileOpened, { toggle: toggleMobile, close: closeMobile }] = useDisclosure()
+  const isMobile = useMediaQuery('(max-width: 768px)')
 
   const toggleSidebar = () => setSidebarExpanded((prev) => !prev)
 
@@ -38,8 +39,8 @@ export default function Layout() {
         breakpoint: 'sm',
         collapsed: { mobile: !mobileOpened },
       }}
-      header={{ height: 70 }}
-      padding="md"
+      header={{ height: isMobile ? 56 : 70 }}
+      padding={isMobile ? 'xs' : 'md'}
       transitionDuration={300}
       transitionTimingFunction="ease"
     >
