@@ -10,7 +10,6 @@ import {
   SimpleGrid,
   Paper,
   ThemeIcon,
-  Divider,
   Loader,
   Center,
   Alert,
@@ -686,7 +685,7 @@ export default function OfficeAttendance() {
                 <Text size="sm" c="dimmed" ta="center" py="md">ไม่มีวันหยุดเหลือในปีนี้</Text>
               ) : (
                 <Stack gap={6}>
-                  {upcomingHolidays.slice(0, 8).map((h, i) => {
+                  {upcomingHolidays.slice(0, 8).map((h) => {
                     const daysUntil = Math.ceil(
                       (new Date(h.holiday_date).getTime() - new Date(today).getTime()) / (1000 * 60 * 60 * 24)
                     )

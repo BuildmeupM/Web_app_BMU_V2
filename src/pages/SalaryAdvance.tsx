@@ -5,7 +5,7 @@
 
 import { useState } from 'react'
 import { Container, Title, Stack, Tabs, Group, Button } from '@mantine/core'
-import { TbCash, TbFileDescription, TbPlus } from 'react-icons/tb'
+import { TbCash, TbFileDescription } from 'react-icons/tb'
 import { useAuthStore } from '../store/authStore'
 import SalaryAdvanceDashboard from '../components/SalaryAdvance/SalaryAdvanceDashboard'
 import SalaryAdvanceRequestForm from '../components/SalaryAdvance/SalaryAdvanceRequestForm'

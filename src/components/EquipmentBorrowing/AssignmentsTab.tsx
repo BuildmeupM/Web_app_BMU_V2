@@ -10,6 +10,7 @@ import type { EquipmentAssignment } from '../../services/equipmentService'
 import { categoryConfig, formatDate } from './constants'
 
 interface AssignmentsTabProps {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     assignmentsData: any
     loading: boolean
     isAdmin: boolean

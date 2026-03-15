@@ -1,4 +1,5 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react'
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { Container, Title, Text, Button, Stack, Alert } from '@mantine/core'
 import { TbAlertCircle, TbRefresh } from 'react-icons/tb'
 

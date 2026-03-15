@@ -8,7 +8,7 @@ import { render, RenderOptions } from '@testing-library/react'
 import { MantineProvider } from '@mantine/core'
 import { QueryClient, QueryClientProvider } from 'react-query'
 import { BrowserRouter } from 'react-router-dom'
-import { vi } from 'vitest'
+
 
 /**
  * Custom render function ที่รวม Providers ที่จำเป็น

@@ -74,15 +74,10 @@ export default function StartAllButton({ entry, disabled = false }: StartAllButt
       })
       
       // Invalidate and refetch queries immediately
-      queryClient.invalidateQueries(
-        { queryKey: ['document-entry-work'], exact: false },
-        { refetchType: 'active' }
-      )
+      queryClient.invalidateQueries(['document-entry-work'])
       // Force refetch active queries to ensure UI updates immediately
-      await queryClient.refetchQueries(
-        { queryKey: ['document-entry-work'], exact: false, type: 'active' },
-        { cancelRefetch: false }
-      )
+      await queryClient.refetchQueries(['document-entry-work'])
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       notifications.show({
         title: 'เกิดข้อผิดพลาด',

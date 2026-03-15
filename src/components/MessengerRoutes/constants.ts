@@ -13,6 +13,7 @@ export const statusConfig: Record<string, { label: string; color: string }> = {
 
 export const stopStatusConfig: Record<
   string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   { label: string; color: string; icon: React.ComponentType<any> }
 > = {
   pending: { label: "รอดำเนินการ", color: "gray", icon: TbClock },

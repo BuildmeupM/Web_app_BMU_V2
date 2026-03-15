@@ -60,6 +60,7 @@ export default function DocumentRequestForm({
                 handleClose()
                 onSuccess?.()
             }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (err: any) {
             const msg = err.response?.data?.message || 'เกิดข้อผิดพลาด กรุณาลองใหม่'
             setError(msg)

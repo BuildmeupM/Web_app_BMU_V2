@@ -34,13 +34,15 @@ export default function SummaryCard() {
         })
       }
     }
-  }, []) // Empty dependency array เพื่อให้ run เพียงครั้งเดียวเมื่อ mount
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Get current tax month (ย้อนหลัง 1 เดือนจากเดือนปฏิทินปัจจุบัน)
   const currentTaxMonth = getCurrentTaxMonth()
 
   // Fetch summary data from API - filter by wht_filer_employee_id and/or vat_filer_employee_id and tax month
-  const { data: summaryData, isLoading, isError, error, refetch: refetchSummary } = useQuery(
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { data: summaryData, isLoading, isError, error, refetch: _refetchSummary } = useQuery(
     ['monthly-tax-data-summary', 'tax-filing', currentTaxMonth.year, currentTaxMonth.month, employeeId],
     () =>
       monthlyTaxDataService.getSummary({
@@ -55,6 +57,7 @@ export default function SummaryCard() {
       refetchOnWindowFocus: false, // ปิดการ refetch อัตโนมัติเมื่อ focus window เพื่อลด requests
       refetchOnMount: true, // ✅ BUG-168: refetch เมื่อ navigate ไปหน้าอื่น (แก้ปัญหาไม่แสดงข้อมูล)
       refetchOnReconnect: false, // ปิดการ refetch เมื่อ reconnect (ใช้ cache แทน)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       retry: (failureCount, error: any) => {
         // ไม่ retry สำหรับ 429 errors เพราะจะทำให้แย่ลง
         if (error?.response?.status === 429) {
@@ -161,15 +164,17 @@ export default function SummaryCard() {
   }
 
   if (isError) {
+    // Type-safe error checking
+    const errObj = error as { response?: { status?: number }; message?: string; code?: string } | null
     // Check if error is 429 (Too Many Requests)
-    const is429Error = (error as any)?.response?.status === 429
+    const is429Error = errObj?.response?.status === 429
     // Check if error is network-related (backend server not running)
     const isNetworkError = 
-      (error as any)?.message?.includes('Network Error') ||
-      (error as any)?.code === 'ERR_NETWORK' ||
-      (error as any)?.code === 'ERR_CONNECTION_REFUSED' ||
-      (error as any)?.message?.includes('ERR_CONNECTION_REFUSED') ||
-      (error as any)?.message?.includes('ERR_SOCKET_NOT_CONNECTED')
+      errObj?.message?.includes('Network Error') ||
+      errObj?.code === 'ERR_NETWORK' ||
+      errObj?.code === 'ERR_CONNECTION_REFUSED' ||
+      errObj?.message?.includes('ERR_CONNECTION_REFUSED') ||
+      errObj?.message?.includes('ERR_SOCKET_NOT_CONNECTED')
 
     const errorMessage = is429Error
       ? 'มีคำขอมากเกินไป กรุณารอสักครู่แล้วลองใหม่อีกครั้ง'

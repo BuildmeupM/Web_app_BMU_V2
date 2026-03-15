@@ -75,6 +75,7 @@ export default function SalaryAdvanceDashboard() {
                 color: 'green',
                 icon: <TbDownload size={16} />,
             })
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (err: any) {
             notifications.show({
                 title: 'เกิดข้อผิดพลาด',

@@ -14,22 +14,17 @@ export interface LoginResponse {
 
 export const authService = {
   login: async (credentials: LoginCredentials): Promise<{ data: LoginResponse }> => {
-    try {
-      const response = await api.post<{ success: boolean; message: string; data: LoginResponse }>('/auth/login', credentials)
+    const response = await api.post<{ success: boolean; message: string; data: LoginResponse }>('/auth/login', credentials)
 
-      if (!response.data.success) {
-        const error = new Error(response.data.message || 'Login failed')
-        // @ts-ignore - เพิ่ม response เพื่อให้ error handler สามารถเข้าถึงได้
-        error.response = response
-        throw error
-      }
-
-      return {
-        data: response.data.data,
-      }
-    } catch (error: any) {
-      // Re-throw error เพื่อให้ Login component จัดการต่อ
+    if (!response.data.success) {
+      const error = new Error(response.data.message || 'Login failed')
+      // @ts-expect-error - เพิ่ม response เพื่อให้ error handler สามารถเข้าถึงได้
+      error.response = response
       throw error
+    }
+
+    return {
+      data: response.data.data,
     }
   },
 

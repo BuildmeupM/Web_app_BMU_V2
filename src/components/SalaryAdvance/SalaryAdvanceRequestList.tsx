@@ -78,6 +78,7 @@ export default function SalaryAdvanceRequestList({ pendingOnly = false, refreshT
         } finally {
             setLoading(false)
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [page, search, pendingOnly, isAdmin, user?.employee_id])
 
     useEffect(() => {
@@ -127,6 +128,7 @@ export default function SalaryAdvanceRequestList({ pendingOnly = false, refreshT
             setActionModal(null)
             setActionNote('')
             fetchRequests()
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (err: any) {
             const msg = err.response?.data?.message || 'เกิดข้อผิดพลาด'
             notifications.show({ title: 'ข้อผิดพลาด', message: msg, color: 'red' })
@@ -147,6 +149,7 @@ export default function SalaryAdvanceRequestList({ pendingOnly = false, refreshT
             })
             setDeleteTarget(null)
             fetchRequests()
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (err: any) {
             const msg = err.response?.data?.message || 'เกิดข้อผิดพลาด'
             notifications.show({ title: 'ข้อผิดพลาด', message: msg, color: 'red' })

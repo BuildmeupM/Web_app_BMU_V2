@@ -1,4 +1,4 @@
-import { Group, Text, Select, Button, Stack } from '@mantine/core'
+import { Group, Text, Select, Button } from '@mantine/core'
 
 interface PaginationSectionProps {
   currentPage: number

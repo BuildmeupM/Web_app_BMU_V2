@@ -34,6 +34,7 @@ export default function SummaryCard() {
         })
       }
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []) // Empty dependency array เพื่อให้ run เพียงครั้งเดียวเมื่อ mount
   
   // Get current tax month (ย้อนหลัง 1 เดือนจากเดือนปฏิทินปัจจุบัน)

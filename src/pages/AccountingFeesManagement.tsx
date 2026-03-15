@@ -333,7 +333,7 @@ export default function AccountingFeesManagement() {
                 </Card>
 
                 {/* Error */}
-                {error && (
+                {!!error && (
                     <Alert icon={<TbAlertCircle size={16} />} color="red">
                         เกิดข้อผิดพลาดในการโหลดข้อมูล
                     </Alert>

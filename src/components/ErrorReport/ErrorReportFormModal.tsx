@@ -184,6 +184,7 @@ export default function ErrorReportFormModal({
                         placeholder="เลือก"
                         data={FAULT_PARTY_OPTIONS}
                         value={form.fault_party}
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
                         onChange={(val) => setForm(f => ({ ...f, fault_party: (val || '') as any }))}
                         required
                     />

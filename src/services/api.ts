@@ -57,6 +57,7 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const originalRequest = error.config
 
     // Handle 401 Unauthorized

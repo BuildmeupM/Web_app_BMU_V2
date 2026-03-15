@@ -17,6 +17,7 @@ import {
 // ── หมวดหมู่ label + icon ──
 export const categoryConfig: Record<
   string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   { label: string; icon: React.ComponentType<any>; color: string }
 > = {
   computer: { label: "คอมพิวเตอร์", icon: TbDeviceDesktop, color: "indigo" },

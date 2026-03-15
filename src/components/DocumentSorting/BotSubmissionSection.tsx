@@ -3,6 +3,7 @@
  * Component สำหรับกรอกข้อมูลบอทอัตโนมัติ (รองรับหลายบอท, OCR field)
  */
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { useState, useCallback } from 'react'
 import { Stack, Text, Select, NumberInput, Textarea, Button, Group, ActionIcon, Card, SimpleGrid } from '@mantine/core'
 import { TbPlus, TbTrash } from 'react-icons/tb'
@@ -44,6 +45,7 @@ export default function BotSubmissionSection({ bots, onChange, disabled = false 
   )
 
   const handleBotChange = useCallback(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (index: number, field: keyof DocumentEntryWorkBot, value: any) => {
       const newBots = [...bots]
       newBots[index] = {

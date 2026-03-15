@@ -16,15 +16,12 @@ import {
   Pagination,
   Alert,
   Tabs,
-  Card,
-  SimpleGrid,
   Text,
-  Badge,
   Switch,
   Loader,
   Center,
 } from '@mantine/core'
-import { TbPlus, TbSearch, TbUpload, TbDownload, TbAlertCircle, TbTrash } from 'react-icons/tb'
+import { TbPlus, TbSearch, TbUpload, TbAlertCircle, TbTrash } from 'react-icons/tb'
 import { useQuery, useMutation, useQueryClient } from 'react-query'
 import { useAuthStore } from '../store/authStore'
 import { employeeService, Employee } from '../services/employeeService'
@@ -48,8 +45,10 @@ export default function EmployeeManagement() {
   const [includeDeleted, setIncludeDeleted] = useState(false)
   const [page, setPage] = useState(1)
   const [limit, setLimit] = useState<number | 'all'>(20)
-  const [sortBy, setSortBy] = useState<string>('position')
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [sortBy, _setSortBy] = useState<string>('position')
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [sortOrder, _setSortOrder] = useState<'asc' | 'desc'>('asc')
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null)
   const [formOpened, setFormOpened] = useState(false)
   const [importOpened, setImportOpened] = useState(false)
@@ -81,8 +80,18 @@ export default function EmployeeManagement() {
     }
   )
 
-  // สำหรับ employee: ดึงข้อมูลของตัวเองโดยตรง
-  const ownEmployee = isEmployee && employeesData?.employees?.[0] ? employeesData.employees[0] : null
+  // สำหรับ non-admin: ดึงข้อมูลของตัวเองโดยตรงจาก API (ไม่พึ่ง pagination)
+  const {
+    data: ownEmployee,
+    isLoading: isOwnLoading,
+    error: ownError,
+  } = useQuery(
+    ['employee', 'own', user?.employee_id],
+    () => employeeService.getById(user!.employee_id!),
+    {
+      enabled: isEmployee && !!user?.employee_id,
+    }
+  )
 
   // Fetch positions
   const { data: positions = [] } = useQuery(
@@ -103,6 +112,7 @@ export default function EmployeeManagement() {
 
   // Update employee mutation
   const updateMutation = useMutation(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ({ id, data }: { id: string; data: any }) => employeeService.update(id, data),
     {
       onSuccess: () => {
@@ -160,6 +170,7 @@ export default function EmployeeManagement() {
     setEmployeeToDelete(null)
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleFormSubmit = async (data: any) => {
     try {
       if (formMode === 'create') {
@@ -267,7 +278,7 @@ export default function EmployeeManagement() {
                 </Group>
 
                 {/* Error Alert */}
-                {error && (
+                {!!error && (
                   <Alert icon={<TbAlertCircle size={16} />} color="red">
                     เกิดข้อผิดพลาดในการโหลดข้อมูล
                   </Alert>
@@ -324,7 +335,7 @@ export default function EmployeeManagement() {
           /* สำหรับ Employee: แสดงข้อมูลของตัวเองโดยตรง (ไม่แสดง Tabs) */
           <Stack gap="md">
             {/* Error Alert */}
-            {error && (
+            {!!ownError && (
               <Alert icon={<TbAlertCircle size={16} />} color="red">
                 เกิดข้อผิดพลาดในการโหลดข้อมูล
               </Alert>
@@ -337,7 +348,7 @@ export default function EmployeeManagement() {
                 onBack={undefined} // ไม่มีปุ่มกลับสำหรับ employee
                 onEdit={() => handleEdit(ownEmployee)}
               />
-            ) : isLoading ? (
+            ) : isOwnLoading ? (
               <Center py="xl">
                 <Loader size="lg" />
               </Center>

@@ -7,8 +7,8 @@ export interface User {
   id: string
   username: string
   email: string
-  employee_id?: string | null
-  nick_name?: string | null
+  employee_id?: string
+  nick_name?: string
   role: UserRole
   name: string
 }

@@ -3,7 +3,7 @@
  * ไฟล์นี้ใช้สำหรับตั้งค่า environment สำหรับการทดสอบ
  */
 
-import { expect, afterEach, vi } from 'vitest'
+import { afterEach, vi } from 'vitest'
 import { cleanup } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 
@@ -36,6 +36,7 @@ global.IntersectionObserver = class IntersectionObserver {
     return []
   }
   unobserve() {}
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 } as any
 
 // Mock ResizeObserver
@@ -44,6 +45,7 @@ global.ResizeObserver = class ResizeObserver {
   disconnect() {}
   observe() {}
   unobserve() {}
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 } as any
 
 // Mock scrollIntoView

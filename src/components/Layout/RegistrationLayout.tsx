@@ -18,6 +18,7 @@ import NotificationsMenu from './NotificationsMenu'
 interface MenuItem {
     path: string
     label: string
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     icon: React.ComponentType<any>
     comingSoon?: boolean
     isDivider?: boolean

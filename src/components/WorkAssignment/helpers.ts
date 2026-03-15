@@ -154,10 +154,10 @@ export const validateEmployeeId = (
 export const mapUsersToOptions = (
   usersData:
     | Array<{
-        employee_id?: string;
-        id?: string | number;
-        name?: string;
-        nick_name?: string;
+        employee_id?: string | null;
+        id?: string | number | null;
+        name?: string | null;
+        nick_name?: string | null;
       }>
     | undefined
     | null,

@@ -26,6 +26,7 @@ export function usePerformance({ componentName, enabled = true, logThreshold = 0
     return () => {
       const duration = end()
       if (duration !== null && duration > logThreshold) {
+        // eslint-disable-next-line react-hooks/exhaustive-deps
         console.log(`[Performance] ${componentName} render #${renderCountRef.current}: ${duration.toFixed(2)}ms`)
       }
     }

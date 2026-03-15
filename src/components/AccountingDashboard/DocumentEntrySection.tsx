@@ -1193,8 +1193,8 @@ export default function DocumentEntrySection({ data, employeeNameMap = new Map()
                                                 <Table.Tr key={`transfer-${c.build}`}>
                                                     <Table.Td><Text size="xs" fw={600}>{c.build}</Text></Table.Td>
                                                     <Table.Td><Text size="xs">{c.companyName}</Text></Table.Td>
-                                                    <Table.Td><Text size="xs" c="gray.6">{employeeNameMap.get(c.originalEmp) || c.originalEmp}</Text></Table.Td>
-                                                    <Table.Td><Text size="xs" c="blue" fw={600}>{employeeNameMap.get(c.newEmp) || c.newEmp}</Text></Table.Td>
+                                                    <Table.Td><Text size="xs" c="gray.6">{employeeNameMap.get(c.originalEmp || '') || c.originalEmp}</Text></Table.Td>
+                                                    <Table.Td><Text size="xs" c="blue" fw={600}>{employeeNameMap.get(c.newEmp || '') || c.newEmp}</Text></Table.Td>
                                                 </Table.Tr>
                                             ))}
                                         </Table.Tbody>

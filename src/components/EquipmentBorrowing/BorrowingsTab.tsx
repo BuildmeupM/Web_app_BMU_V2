@@ -19,6 +19,7 @@ function SortIcon({ col, activeSort, activeOrder }: { col: string; activeSort: s
 }
 
 interface BorrowingsTabProps {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     borrowingsData: any
     loading: boolean
     isAdmin: boolean

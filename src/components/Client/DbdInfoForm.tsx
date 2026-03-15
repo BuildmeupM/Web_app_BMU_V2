@@ -61,6 +61,7 @@ export default function DbdInfoForm({
                 form.reset()
             }
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [opened, data])
 
     const handleSubmit = async (values: typeof form.values) => {

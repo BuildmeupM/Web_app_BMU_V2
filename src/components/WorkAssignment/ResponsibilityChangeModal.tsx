@@ -156,6 +156,7 @@ export default function ResponsibilityChangeModal({
                 setChangeReason('')
                 setShowConfirm(false)
             },
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             onError: (error: any) => {
                 notifications.show({
                     title: 'เกิดข้อผิดพลาด',

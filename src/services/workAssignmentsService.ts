@@ -91,10 +91,13 @@ const workAssignmentsService = {
         `/work-assignments/${build}/${year}/${month}`
       )
       return response.data.data
-    } catch (error: any) {
+    } catch (error: unknown) {
       // If 404, return null (assignment doesn't exist - this is normal)
-      if (error?.response?.status === 404) {
-        return null
+      if (error && typeof error === 'object' && 'response' in error) {
+        const axiosError = error as { response?: { status?: number } }
+        if (axiosError.response?.status === 404) {
+          return null
+        }
       }
       // For other errors, rethrow
       throw error

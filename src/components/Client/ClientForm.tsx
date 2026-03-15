@@ -9,6 +9,7 @@ import {
   Modal,
   Stack,
   TextInput,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   NumberInput,
   Select,
   Textarea,
@@ -207,6 +208,7 @@ export default function ClientForm({
         form.reset()
       }
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [opened, isEditMode, client])
 
   const formatDateToLocal = (date: Date | null): string | null => {

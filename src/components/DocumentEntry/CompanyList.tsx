@@ -29,10 +29,12 @@ interface CompanyRecord {
 }
 
 // Helper function: Check if company is completed
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const isCompanyCompleted = (entries: any[]): boolean => {
   if (entries.length === 0) return false
 
   // Group entries by build
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const buildEntries = new Map<string, any[]>()
   entries.forEach((entry) => {
     if (!buildEntries.has(entry.build)) {
@@ -70,6 +72,7 @@ const isCompanyCompleted = (entries: any[]): boolean => {
 }
 
 // Helper function: Check if company has pending work
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const hasPendingWork = (entries: any[]): boolean => {
   if (entries.length === 0) return false
 
@@ -135,6 +138,7 @@ const CompanyList = memo(({ year, month }: CompanyListProps) => {
     if (!documentEntryWorkResponse?.data) return []
 
     // Group entries by build
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const buildMap = new Map<string, any[]>()
     documentEntryWorkResponse.data.forEach((entry) => {
       if (entry.build) {

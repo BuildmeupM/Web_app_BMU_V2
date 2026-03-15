@@ -7,8 +7,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
     Container, Stack, Group, Text, TextInput, Button, ActionIcon, Card, Badge,
-    Box, Loader, Accordion, Tooltip, Divider, ThemeIcon, Title, Paper, Grid, ScrollArea,
-    ColorSwatch, ColorPicker,
+    Box, Loader, Accordion, Tooltip, Divider, ThemeIcon, Title, Paper, Grid,
+    ColorSwatch,
 } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd'
@@ -24,7 +24,7 @@ import {
     TeamStatus, getTeamStatuses, createTeamStatus, updateTeamStatus, deleteTeamStatus,
 } from '../services/registrationWorkService'
 
-const departmentConfig: { key: Department; label: string; fullLabel: string; icon: React.ComponentType<any>; color: string; gradient: string }[] = [
+const departmentConfig: { key: Department; label: string; fullLabel: string; icon: React.ComponentType<{ size?: number; color?: string }>; color: string; gradient: string }[] = [
     { key: 'dbd', label: 'DBD', fullLabel: 'กรมพัฒนาธุรกิจการค้า', icon: TbBuildingBank, color: '#6a1b9a', gradient: 'linear-gradient(135deg, #6a1b9a 0%, #ab47bc 100%)' },
     { key: 'rd', label: 'RD', fullLabel: 'กรมสรรพากร', icon: TbReceiptTax, color: '#2e7d32', gradient: 'linear-gradient(135deg, #2e7d32 0%, #66bb6a 100%)' },
     { key: 'sso', label: 'SSO', fullLabel: 'สำนักงานประกันสังคม', icon: TbShieldCheck, color: '#1565c0', gradient: 'linear-gradient(135deg, #1565c0 0%, #42a5f5 100%)' },
@@ -32,6 +32,15 @@ const departmentConfig: { key: Department; label: string; fullLabel: string; ico
 ]
 
 export default function RegistrationSettings() {
+    // Helper for extracting API error messages from unknown errors
+    const getApiErrMsg = (error: unknown, fallback: string): string => {
+        if (error && typeof error === 'object' && 'response' in error) {
+            const resp = (error as { response?: { data?: { message?: string } } }).response
+            return resp?.data?.message || fallback
+        }
+        return fallback
+    }
+
     const [activeDept, setActiveDept] = useState<Department>('dbd')
     const [workTypes, setWorkTypes] = useState<WorkType[]>([])
     const [loading, setLoading] = useState(false)
@@ -61,11 +70,11 @@ export default function RegistrationSettings() {
         try {
             const types = await getWorkTypes(activeDept)
             setWorkTypes(types)
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Fetch work types error:', error)
             notifications.show({
                 title: 'เกิดข้อผิดพลาด',
-                message: error?.response?.data?.message || 'ไม่สามารถโหลดข้อมูลได้',
+                message: getApiErrMsg(error, 'ไม่สามารถโหลดข้อมูลได้'),
                 color: 'red'
             })
         } finally {
@@ -96,10 +105,10 @@ export default function RegistrationSettings() {
             setNewTypeName('')
             notifications.show({ title: 'สำเร็จ', message: 'เพิ่มประเภทงานแล้ว', color: 'green' })
             fetchTypes()
-        } catch (error: any) {
+        } catch (error: unknown) {
             notifications.show({
                 title: 'เกิดข้อผิดพลาด',
-                message: error?.response?.data?.message || 'ไม่สามารถเพิ่มได้',
+                message: getApiErrMsg(error, 'ไม่สามารถเพิ่มได้'),
                 color: 'red'
             })
         } finally {
@@ -114,10 +123,10 @@ export default function RegistrationSettings() {
             setEditingTypeId(null)
             notifications.show({ title: 'สำเร็จ', message: 'แก้ไขประเภทงานแล้ว', color: 'green' })
             fetchTypes()
-        } catch (error: any) {
+        } catch (error: unknown) {
             notifications.show({
                 title: 'เกิดข้อผิดพลาด',
-                message: error?.response?.data?.message || 'ไม่สามารถแก้ไขได้',
+                message: getApiErrMsg(error, 'ไม่สามารถแก้ไขได้'),
                 color: 'red'
             })
         }
@@ -129,10 +138,10 @@ export default function RegistrationSettings() {
             await deleteWorkType(id)
             notifications.show({ title: 'สำเร็จ', message: 'ลบประเภทงานแล้ว', color: 'green' })
             fetchTypes()
-        } catch (error: any) {
+        } catch (error: unknown) {
             notifications.show({
                 title: 'เกิดข้อผิดพลาด',
-                message: error?.response?.data?.message || 'ไม่สามารถลบได้',
+                message: getApiErrMsg(error, 'ไม่สามารถลบได้'),
                 color: 'red'
             })
         }
@@ -150,10 +159,10 @@ export default function RegistrationSettings() {
             setNewSubName(prev => ({ ...prev, [workTypeId]: '' }))
             notifications.show({ title: 'สำเร็จ', message: 'เพิ่มรายการย่อยแล้ว', color: 'green' })
             fetchTypes()
-        } catch (error: any) {
+        } catch (error: unknown) {
             notifications.show({
                 title: 'เกิดข้อผิดพลาด',
-                message: error?.response?.data?.message || 'ไม่สามารถเพิ่มได้',
+                message: getApiErrMsg(error, 'ไม่สามารถเพิ่มได้'),
                 color: 'red'
             })
         } finally {
@@ -168,10 +177,10 @@ export default function RegistrationSettings() {
             setEditingSubId(null)
             notifications.show({ title: 'สำเร็จ', message: 'แก้ไขรายการย่อยแล้ว', color: 'green' })
             fetchTypes()
-        } catch (error: any) {
+        } catch (error: unknown) {
             notifications.show({
                 title: 'เกิดข้อผิดพลาด',
-                message: error?.response?.data?.message || 'ไม่สามารถแก้ไขได้',
+                message: getApiErrMsg(error, 'ไม่สามารถแก้ไขได้'),
                 color: 'red'
             })
         }
@@ -183,10 +192,10 @@ export default function RegistrationSettings() {
             await deleteSubType(id)
             notifications.show({ title: 'สำเร็จ', message: 'ลบรายการย่อยแล้ว', color: 'green' })
             fetchTypes()
-        } catch (error: any) {
+        } catch (error: unknown) {
             notifications.show({
                 title: 'เกิดข้อผิดพลาด',
-                message: error?.response?.data?.message || 'ไม่สามารถลบได้',
+                message: getApiErrMsg(error, 'ไม่สามารถลบได้'),
                 color: 'red'
             })
         }
@@ -225,7 +234,7 @@ export default function RegistrationSettings() {
             try {
                 await reorderWorkTypes(itemsToUpdate)
                 notifications.show({ title: 'สำเร็จ', message: 'เรียงลำดับประเภทงานใหม่แล้ว', color: 'green' })
-            } catch (error: any) {
+            } catch (error: unknown) {
                 console.error('Reorder types error:', error)
                 notifications.show({ title: 'เกิดข้อผิดพลาด', message: 'ไม่สามารถเปลี่ยนลำดับได้', color: 'red' })
                 fetchTypes()
@@ -256,7 +265,7 @@ export default function RegistrationSettings() {
             try {
                 await reorderSubTypes(itemsToUpdate)
                 notifications.show({ title: 'สำเร็จ', message: 'เรียงลำดับรายการย่อยใหม่แล้ว', color: 'green' })
-            } catch (error: any) {
+            } catch (error: unknown) {
                 console.error('Reorder sub-types error:', error)
                 notifications.show({ title: 'เกิดข้อผิดพลาด', message: 'ไม่สามารถเปลี่ยนลำดับได้', color: 'red' })
                 fetchTypes()
@@ -272,7 +281,7 @@ export default function RegistrationSettings() {
         try {
             const statuses = await getTeamStatuses()
             setTeamStatuses(statuses)
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Fetch team statuses error:', error)
         } finally {
             setLoadingTeam(false)
@@ -292,10 +301,10 @@ export default function RegistrationSettings() {
             setNewTeamColor('#228be6')
             notifications.show({ title: 'สำเร็จ', message: 'เพิ่มสถานะทีมแล้ว', color: 'green' })
             fetchTeamStatuses()
-        } catch (error: any) {
+        } catch (error: unknown) {
             notifications.show({
                 title: 'เกิดข้อผิดพลาด',
-                message: error?.response?.data?.message || 'ไม่สามารถเพิ่มได้',
+                message: getApiErrMsg(error, 'ไม่สามารถเพิ่มได้'),
                 color: 'red'
             })
         } finally {
@@ -310,10 +319,10 @@ export default function RegistrationSettings() {
             setEditingTeamId(null)
             notifications.show({ title: 'สำเร็จ', message: 'แก้ไขสถานะทีมแล้ว', color: 'green' })
             fetchTeamStatuses()
-        } catch (error: any) {
+        } catch (error: unknown) {
             notifications.show({
                 title: 'เกิดข้อผิดพลาด',
-                message: error?.response?.data?.message || 'ไม่สามารถแก้ไขได้',
+                message: getApiErrMsg(error, 'ไม่สามารถแก้ไขได้'),
                 color: 'red'
             })
         }
@@ -325,10 +334,10 @@ export default function RegistrationSettings() {
             await deleteTeamStatus(id)
             notifications.show({ title: 'สำเร็จ', message: 'ลบสถานะทีมแล้ว', color: 'green' })
             fetchTeamStatuses()
-        } catch (error: any) {
+        } catch (error: unknown) {
             notifications.show({
                 title: 'เกิดข้อผิดพลาด',
-                message: error?.response?.data?.message || 'ไม่สามารถลบได้',
+                message: getApiErrMsg(error, 'ไม่สามารถลบได้'),
                 color: 'red'
             })
         }

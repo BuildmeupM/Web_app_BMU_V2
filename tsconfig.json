@@ -16,8 +16,8 @@
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx",
-    /* Linting - relaxed for production build */
-    "strict": false,
+    /* Linting - strict mode for type safety */
+    "strict": true,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "noFallthroughCasesInSwitch": true,

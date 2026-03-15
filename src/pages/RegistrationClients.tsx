@@ -3,7 +3,7 @@
  * หน้าจัดการข้อมูลลูกค้างานทะเบียน
  */
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import {
     Container, Title, Stack, Card, Group, Text, Badge, Box, TextInput,
     Button, Table, ActionIcon, Modal, Select, Textarea, Switch, Tooltip,
@@ -123,7 +123,7 @@ function ClientFormModal({ opened, onClose, editingClient, existingGroups }: Cli
             setCustomGroup('')
             setShowAddressDetails(false)
         }
-    }, [opened, editingClient])
+    }, [opened, editingClient, existingGroups])
 
     // Create mutation
     const createMutation = useMutation(

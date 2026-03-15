@@ -84,6 +84,7 @@ export default function ExportExcelModal({ opened, onClose, clients }: ExportExc
                 icon: <TbFileSpreadsheet size={16} />,
             })
             handleClose()
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (err: any) {
             notifications.show({
                 title: 'เกิดข้อผิดพลาด',

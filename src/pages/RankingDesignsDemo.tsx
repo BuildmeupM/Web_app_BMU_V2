@@ -1,7 +1,6 @@
 import { Paper, Group, Text, Stack, RingProgress, Badge, Progress, Avatar, SimpleGrid, Box, Divider } from '@mantine/core'
 
 export default function RankingDesignsDemo() {
-    const O = '#ff6b35'
     const emp = { name: 'สมชาย', score: 95, done: 45, total: 50, fix: 2, fixPct: 4, rank: 'A' }
 
     return (

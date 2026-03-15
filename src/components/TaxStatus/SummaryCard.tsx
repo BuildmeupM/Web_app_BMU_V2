@@ -34,6 +34,7 @@ export default function SummaryCard() {
       refetchOnWindowFocus: false, // ปิดการ refetch เมื่อ focus window เพื่อลด requests
       refetchOnReconnect: false, // ปิดการ refetch เมื่อ reconnect (ใช้ cache แทน)
       enabled: !!employeeId && _hasHydrated, // ✅ BUG-168: รอ hydration เสร็จก่อน enable query
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       retry: (failureCount, error: any) => {
         // ไม่ retry สำหรับ 429 errors เพราะจะทำให้แย่ลง
         if (error?.response?.status === 429) {

@@ -60,8 +60,8 @@ const CompanyTable = memo(({ onSelectCompany, selectedBuild, disabled = false }:
     () =>
       monthlyTaxDataService.getList({
         accounting_responsible: employeeId || undefined,
-        year: currentTaxMonth.year,
-        month: currentTaxMonth.month,
+        year: String(currentTaxMonth.year),
+        month: String(currentTaxMonth.month),
         limit: 1000, // Get all companies
       }),
     {

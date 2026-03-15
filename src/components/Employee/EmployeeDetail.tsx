@@ -39,6 +39,7 @@ export default function EmployeeDetail({ employee, onEdit }: EmployeeDetailProps
     months: number
     days: number
   } | null>(null)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {

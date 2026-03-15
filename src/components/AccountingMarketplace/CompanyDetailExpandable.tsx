@@ -31,6 +31,7 @@ const formatEmployeeName = (
 }
 
 // Helper function: Format address from client data
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const formatAddress = (client: any): string => {
   if (!client) return '-'
   

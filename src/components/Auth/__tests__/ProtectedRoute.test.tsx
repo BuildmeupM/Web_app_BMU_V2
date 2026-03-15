@@ -29,6 +29,7 @@ describe('ProtectedRoute', () => {
 
   it('should render children when user is authenticated', () => {
     // Mock authenticated user
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (useAuthStore as any).mockReturnValue({
       isAuthenticated: true,
       token: 'mock-token',
@@ -45,6 +46,7 @@ describe('ProtectedRoute', () => {
 
   it('should redirect to login when user is not authenticated', () => {
     // Mock unauthenticated user
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (useAuthStore as any).mockReturnValue({
       isAuthenticated: false,
       token: null,
@@ -63,6 +65,7 @@ describe('ProtectedRoute', () => {
 
   it('should redirect to login when token is missing', () => {
     // Mock user without token
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (useAuthStore as any).mockReturnValue({
       isAuthenticated: true,
       token: null,

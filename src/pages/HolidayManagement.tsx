@@ -81,6 +81,7 @@ export default function HolidayManagement() {
     const createMutation = useMutation(holidayService.createHoliday, {
         onSuccess: async (newHoliday) => {
             // Optimistic update: immediately add to cache for instant UI refresh
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             queryClient.setQueryData(['holidays', selectedYear], (old: any) => {
                 if (!old) return old
                 const updatedHolidays = [...(old.data?.holidays || []), newHoliday]
@@ -104,6 +105,7 @@ export default function HolidayManagement() {
             })
             handleCloseModal()
         },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         onError: (error: any) => {
             notifications.show({
                 title: 'เกิดข้อผิดพลาด',
@@ -119,6 +121,7 @@ export default function HolidayManagement() {
         {
             onSuccess: async (updatedHoliday) => {
                 // Optimistic update: replace updated holiday in cache
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 queryClient.setQueryData(['holidays', selectedYear], (old: any) => {
                     if (!old) return old
                     const updatedHolidays = (old.data?.holidays || []).map((h: Holiday) =>
@@ -142,6 +145,7 @@ export default function HolidayManagement() {
                 })
                 handleCloseModal()
             },
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             onError: (error: any) => {
                 notifications.show({
                     title: 'เกิดข้อผิดพลาด',
@@ -156,6 +160,7 @@ export default function HolidayManagement() {
     const deleteMutation = useMutation(holidayService.deleteHoliday, {
         onSuccess: async (_data, deletedId) => {
             // Optimistic update: remove deleted holiday from cache
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             queryClient.setQueryData(['holidays', selectedYear], (old: any) => {
                 if (!old) return old
                 const updatedHolidays = (old.data?.holidays || []).filter((h: Holiday) => h.id !== deletedId)
@@ -176,6 +181,7 @@ export default function HolidayManagement() {
                 icon: <TbCheck />,
             })
         },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         onError: (error: any) => {
             notifications.show({
                 title: 'เกิดข้อผิดพลาด',
@@ -265,27 +271,14 @@ export default function HolidayManagement() {
         })
     }
 
-    // Access control
-    if (!isAdmin) {
-        return (
-            <Container size="xl">
-                <Alert icon={<TbAlertCircle />} title="ไม่มีสิทธิ์เข้าถึง" color="red">
-                    คุณไม่มีสิทธิ์เข้าถึงหน้านี้ หน้านี้สำหรับ Admin และ HR เท่านั้น
-                </Alert>
-            </Container>
-        )
-    }
-
+    // Thai month names (moved before early return to avoid conditional hooks)
     const holidays = holidaysData?.data?.holidays || []
-
-    // Generate year options (current year - 1 to current year + 5)
     const currentYear = new Date().getFullYear() + 543
     const yearOptions = Array.from({ length: 7 }, (_, i) => ({
         value: String(currentYear - 1 + i),
         label: `พ.ศ. ${currentYear - 1 + i}`,
     }))
 
-    // Thai month names
     const thaiMonths = [
         'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน',
         'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม',
@@ -296,8 +289,6 @@ export default function HolidayManagement() {
         'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.',
         'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'
     ]
-
-    // Monthly color palette
     const monthColors = [
         '#ff6b35', '#e8590c', '#d9480f', '#f76707',
         '#fd7e14', '#f59f00', '#fab005', '#40c057',
@@ -312,7 +303,7 @@ export default function HolidayManagement() {
             shortName: thaiMonthsShort[i],
             count: 0,
             activeCount: 0,
-            holidays: [] as typeof holidays,
+            holidays: [] as Holiday[],
             color: monthColors[i],
         }))
 
@@ -325,6 +316,7 @@ export default function HolidayManagement() {
 
         const maxCount = Math.max(...summary.map(s => s.count), 1)
         return { months: summary, maxCount }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [holidays])
 
     // Quarter summary
@@ -340,6 +332,17 @@ export default function HolidayManagement() {
             count: q.months.reduce((sum, m) => sum + monthlySummary.months[m].count, 0),
         }))
     }, [monthlySummary])
+
+    // Access control
+    if (!isAdmin) {
+        return (
+            <Container size="xl">
+                <Alert icon={<TbAlertCircle />} title="ไม่มีสิทธิ์เข้าถึง" color="red">
+                    คุณไม่มีสิทธิ์เข้าถึงหน้านี้ หน้านี้สำหรับ Admin และ HR เท่านั้น
+                </Alert>
+            </Container>
+        )
+    }
 
     return (
         <Container size="xl">

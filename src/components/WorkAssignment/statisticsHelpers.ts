@@ -85,7 +85,7 @@ const resolveNameByRole = (
  * @param optionsMap - Role-based user options for name resolution
  * @param vatStatusField - Field name for tax registration status (default: 'tax_registration_status')
  */
-export function calculateEmployeeStatistics<T extends object>(
+export function calculateEmployeeStatistics<T extends Record<string, unknown>>(
   data: T[],
   roleFieldMap: Record<string, string>,
   optionsMap: Record<string, SelectOption[]>,

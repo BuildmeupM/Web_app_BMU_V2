@@ -188,6 +188,7 @@ export default function MonthlyFeesForm({
                 form.reset()
             }
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [opened, data])
 
     const handleSubmit = async (values: typeof form.values) => {

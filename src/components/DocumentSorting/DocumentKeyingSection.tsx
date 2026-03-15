@@ -9,9 +9,9 @@ interface DocumentKeyingSectionProps {
   whtDocumentCount: number
   vatDocumentCount: number
   nonVatDocumentCount: number
-  onWhtChange: (value: number | '') => void
-  onVatChange: (value: number | '') => void
-  onNonVatChange: (value: number | '') => void
+  onWhtChange: (value: string | number) => void
+  onVatChange: (value: string | number) => void
+  onNonVatChange: (value: string | number) => void
   disabled?: boolean
   vatDisabled?: boolean // Disable VAT field if company doesn't have VAT registration
 }

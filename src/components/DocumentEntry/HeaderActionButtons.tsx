@@ -88,6 +88,7 @@ export default function HeaderActionButtons({ entry, disabled = false }: HeaderA
 
             queryClient.invalidateQueries(['document-entry-work'])
             await queryClient.refetchQueries(['document-entry-work'])
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (error: any) {
             notifications.show({
                 title: 'เกิดข้อผิดพลาด',
@@ -125,6 +126,7 @@ export default function HeaderActionButtons({ entry, disabled = false }: HeaderA
 
             queryClient.invalidateQueries(['document-entry-work'])
             await queryClient.refetchQueries(['document-entry-work'])
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (error: any) {
             notifications.show({
                 title: 'เกิดข้อผิดพลาด',

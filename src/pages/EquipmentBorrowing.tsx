@@ -504,7 +504,7 @@ export default function EquipmentBorrowing() {
 
                             <Tabs.Panel value="inventory" mt="md">
                                 <InventoryTab
-                                    equipmentData={equipmentData}
+                                    equipmentData={equipmentData ?? null}
                                     loading={loadingEquipment}
                                     isAdmin={isAdmin}
                                     eSearch={eSearch} setESearch={setESearch}

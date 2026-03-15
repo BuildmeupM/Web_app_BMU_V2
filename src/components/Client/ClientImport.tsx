@@ -18,6 +18,7 @@ import {
   Anchor,
   List,
   Paper,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   Code,
 } from '@mantine/core'
 import { TbUpload, TbAlertCircle, TbCheck, TbDownload, TbInfoCircle } from 'react-icons/tb'
@@ -68,7 +69,8 @@ interface ValidationResult {
 export default function ClientImport({ opened, onClose }: ClientImportProps) {
   const queryClient = useQueryClient()
   const [file, setFile] = useState<File | null>(null)
-  const [previewData, setPreviewData] = useState<any[]>([])
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [previewData, setPreviewData] = useState<unknown[]>([])
   const [importing, setImporting] = useState(false)
   const [validating, setValidating] = useState(false)
   const [validationResult, setValidationResult] = useState<ValidationResult | null>(null)
@@ -92,6 +94,7 @@ export default function ClientImport({ opened, onClose }: ClientImportProps) {
       return response.data.data
     },
     {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       onSuccess: (data) => {
         queryClient.invalidateQueries(['clients'])
         setFile(null)
@@ -124,6 +127,7 @@ export default function ClientImport({ opened, onClose }: ClientImportProps) {
       )
 
       setValidationResult(response.data.data)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       console.error('Validation error:', error)
       
@@ -543,7 +547,7 @@ export default function ClientImport({ opened, onClose }: ClientImportProps) {
           <Button
             onClick={handleImport}
             loading={importing}
-            disabled={!file || importing || validating || (validationResult && validationResult.invalid > 0)}
+            disabled={!file || importing || validating || !!(validationResult && validationResult.invalid > 0)}
             leftSection={<TbUpload size={16} />}
             color={validationResult && validationResult.warnings && validationResult.warnings.length > 0 ? 'orange' : undefined}
           >

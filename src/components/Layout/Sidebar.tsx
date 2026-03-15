@@ -46,6 +46,7 @@ import {
 import { useAuthStore, UserRole } from '../../store/authStore'
 import { hasPermission } from '../../utils/rolePermissions'
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const iconMap: Record<string, React.ComponentType<any>> = {
   '/dashboard': TbDashboard,
   '/employees': TbUsers,
@@ -78,6 +79,7 @@ interface MenuItem {
 
 interface MenuGroup {
   title: string
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   icon: React.ComponentType<any>
   items: MenuItem[]
 }

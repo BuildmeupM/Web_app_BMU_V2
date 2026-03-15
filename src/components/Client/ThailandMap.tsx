@@ -7,6 +7,7 @@
  * Zoom & Pan ด้วย scroll wheel, drag, และปุ่ม +/−
  */
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react'
 import { Box, Text, Paper, Group, Badge, Stack, ActionIcon, Tooltip } from '@mantine/core'
 import { TbPlus, TbMinus, TbFocus2 } from 'react-icons/tb'

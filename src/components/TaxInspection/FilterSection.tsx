@@ -17,6 +17,7 @@ const statusOptions = [
   { value: 'needs_correction', label: 'แก้ไข' },
   { value: 'inquire_customer', label: 'สอบถามลูกค้าเพิ่มเติม' },
   { value: 'additional_review', label: 'ตรวจสอบเพิ่มเติม' },
+  { value: 'not_submitted', label: 'ไม่มียื่น' },
   { value: 'not_started', label: 'สถานะยังไม่ดำเนินการ' },
 ]
 

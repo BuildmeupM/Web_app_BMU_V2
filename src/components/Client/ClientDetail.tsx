@@ -34,6 +34,7 @@ dayjs.locale('th')
 interface ClientDetailProps {
   client: Client
   onEdit?: () => void
+  onEditMonthlyFees?: () => void
   onEditDbdInfo?: () => void
   onEditCredentials?: () => void
 }

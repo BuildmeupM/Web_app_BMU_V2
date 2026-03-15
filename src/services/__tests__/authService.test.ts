@@ -39,6 +39,7 @@ describe('authService', () => {
         },
       }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
       ;(api.post as any).mockResolvedValue(mockResponse)
 
       const result = await authService.login({
@@ -64,6 +65,7 @@ describe('authService', () => {
         },
       }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
       ;(api.post as any).mockRejectedValue(mockError)
 
       await expect(
@@ -72,6 +74,7 @@ describe('authService', () => {
     })
 
     it('should throw when API returns success: false', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (api.post as any).mockResolvedValue({
         data: {
           success: false,
@@ -87,6 +90,7 @@ describe('authService', () => {
 
   describe('logout', () => {
     it('should logout successfully', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (api.post as any).mockResolvedValue({ data: { message: 'Logged out' } })
 
       await authService.logout()
@@ -95,6 +99,7 @@ describe('authService', () => {
     })
 
     it('should not throw when logout API fails', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (api.post as any).mockRejectedValue(new Error('Network error'))
 
       await expect(authService.logout()).resolves.not.toThrow()
@@ -111,6 +116,7 @@ describe('authService', () => {
         role: 'admin',
       }
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       ;(api.get as any).mockResolvedValue({
         data: {
           success: true,
@@ -125,6 +131,7 @@ describe('authService', () => {
     })
 
     it('should throw when API returns success: false', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (api.get as any).mockResolvedValue({
         data: { success: false },
       })

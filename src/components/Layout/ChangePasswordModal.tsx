@@ -39,6 +39,7 @@ export default function ChangePasswordModal({ opened, onClose }: ChangePasswordM
       setError(null)
       onClose()
     },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     onError: (error: any) => {
       setError(error?.response?.data?.message || 'ไม่สามารถเปลี่ยนรหัสผ่านได้')
       notifications.show({

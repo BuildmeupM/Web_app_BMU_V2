@@ -8,11 +8,20 @@ import dotenv from 'dotenv'
 
 dotenv.config()
 
+// ⚠️ Security: ตรวจสอบว่า DB_PASSWORD ถูกตั้งค่าแล้ว
+if (!process.env.DB_PASSWORD) {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('🔴 [SECURITY] DB_PASSWORD is required in production! Set it in your environment variables.')
+  }
+  console.warn('⚠️ [SECURITY] DB_PASSWORD is not set! Database connection may fail.')
+  console.warn('   → Set DB_PASSWORD in your .env file')
+}
+
 const dbConfig = {
   host: process.env.DB_HOST || 'localhost',
   port: process.env.DB_PORT || 3306,
   user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || 'Buildmeup23.04.2022',
+  password: process.env.DB_PASSWORD || '',
   database: process.env.DB_NAME || 'bmu_work_management',
   waitForConnections: true,
   connectionLimit: 20, // ✅ Performance: เพิ่มจาก 10 เป็น 20 เพื่อรองรับ concurrent users ได้มากขึ้น

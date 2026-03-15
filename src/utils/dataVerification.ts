@@ -19,8 +19,8 @@ export interface DataVerificationResult {
 export interface DataMismatch {
   build: string
   field: string
-  displayedValue: string | null
-  databaseValue: string | null
+  displayedValue: string | null | undefined
+  databaseValue: string | null | undefined
   severity: 'high' | 'medium' | 'low'
 }
 
@@ -125,12 +125,14 @@ export async function verifyTableData(
       } else {
         validCount++
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Handle 429 (Too Many Requests) errors gracefully
-      if (error?.response?.status === 429) {
-        console.warn(`Rate limit hit for build ${displayedItem.build}, skipping verification`)
-        // ถ้าโดน rate limit ให้ข้าม record นี้ (ไม่นับเป็น invalid)
-        continue
+      if (error && typeof error === 'object' && 'response' in error) {
+        const axiosErr = error as { response?: { status?: number } }
+        if (axiosErr.response?.status === 429) {
+          console.warn(`Rate limit hit for build ${displayedItem.build}, skipping verification`)
+          continue
+        }
       }
       console.error(`Error verifying data for build ${displayedItem.build}:`, error)
       // ถ้า fetch ไม่สำเร็จ ให้ถือว่าไม่สามารถตรวจสอบได้ (ไม่นับเป็น invalid)
@@ -151,7 +153,7 @@ export async function verifyTableData(
 /**
  * Normalize value สำหรับการเปรียบเทียบ
  */
-function normalizeValue(value: any): string | null {
+function normalizeValue(value: unknown): string | null {
   if (value === null || value === undefined) return null
   if (typeof value === 'string') {
     return value.trim() === '' ? null : value.trim()

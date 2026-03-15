@@ -76,6 +76,7 @@ const formatDateOnly = (dateString: string | null | undefined): string => {
 }
 
 // Helper function: Format address from client data
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const formatAddress = (client: any): string => {
   if (!client) return '-'
 
@@ -301,6 +302,7 @@ export default function CompanyDetailSection({
         })
         queryClient.invalidateQueries(['document-entry-work'])
       },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       onError: (error: any) => {
         notifications.show({
           title: 'เกิดข้อผิดพลาด',
@@ -348,7 +350,6 @@ export default function CompanyDetailSection({
   }
 
   const isLoading = isLoadingSubmissions || isLoadingTaxData || isLoadingWorkAssignment || isLoadingClient
-  const submissions = submissionsResponse?.data || []
   const taxData = taxDataResponse
   const workAssignment = workAssignmentData
   const client = clientData
@@ -361,8 +362,9 @@ export default function CompanyDetailSection({
 
   // Sort submissions by submission_count descending (latest first)
   const sortedSubmissions = useMemo(() => {
-    return [...submissions].sort((a, b) => (b.submission_count || 0) - (a.submission_count || 0))
-  }, [submissions])
+    const subs = submissionsResponse?.data || []
+    return [...subs].sort((a, b) => (b.submission_count || 0) - (a.submission_count || 0))
+  }, [submissionsResponse?.data])
 
   return (
     <Paper withBorder p="md" radius="md" style={{ backgroundColor: '#f8f9fa' }}>

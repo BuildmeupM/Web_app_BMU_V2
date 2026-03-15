@@ -805,10 +805,11 @@ export default function WFHDashboard() {
                 />
                 <YAxis allowDecimals={false} />
                 <Tooltip
-                  formatter={(value: number, name: string, props: { payload: { approvedNames?: string; pendingNames?: string } }) => {
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  formatter={(value: number, name: string, props: any) => {
                     const names =
-                      name === 'approved' ? props.payload.approvedNames
-                        : name === 'pending' ? props.payload.pendingNames
+                      name === 'approved' ? props?.payload?.approvedNames
+                        : name === 'pending' ? props?.payload?.pendingNames
                           : '';
 
                     const textValue = names ? `${value} คน (${names})` : `${value} คน`;

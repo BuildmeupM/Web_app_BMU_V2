@@ -3,6 +3,7 @@
  * แสดงรายชื่อพนักงานในรูปแบบตาราง
  */
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { useState, memo } from 'react'
 import {
   Table,
@@ -11,6 +12,7 @@ import {
   Avatar,
   ActionIcon,
   Group,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   Stack,
   Loader,
   Center,
@@ -161,11 +163,13 @@ const EmployeeList = memo(function EmployeeList({
               </Table.Td>
               <Table.Td ta="center">
                 <Badge color="orange" variant="outline" style={{ backgroundColor: 'white' }}>
+                  {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                   {Math.round((employee as any).leave_days_used ?? 0)} วัน
                 </Badge>
               </Table.Td>
               <Table.Td ta="center">
                 <Badge color="orange" variant="outline" style={{ backgroundColor: 'white' }}>
+                  {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                   {Math.round((employee as any).wfh_days_used ?? 0)} วัน
                 </Badge>
               </Table.Td>

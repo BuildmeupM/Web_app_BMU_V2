@@ -40,7 +40,7 @@ export default function NotificationsMenu() {
 
     const handleNewNotification = (data: { notification: Notification; unread_count_increment: number }) => {
       queryClient.setQueryData(['notifications'], (oldData: { data: Notification[], unread_count: number } | undefined) => {
-        if (!oldData) return oldData
+        if (!oldData) return { data: [data.notification], unread_count: data.unread_count_increment }
         return {
           ...oldData,
           data: [data.notification, ...(oldData.data || [])],
@@ -249,7 +249,7 @@ export default function NotificationsMenu() {
                                 }
                               }
                               
-                              navigate(targetUrl)
+                              if (targetUrl) navigate(targetUrl)
                             }}>
                               {notif.action_label || 'ดำเนินการคลิกที่นี่'}
                             </Button>

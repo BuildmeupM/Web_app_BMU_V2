@@ -267,7 +267,7 @@ export default function ClientManagement() {
         </Group>
 
         {/* Error Alert */}
-        {error && (
+        {!!error && (
           <Alert icon={<TbAlertCircle size={16} />} color="red">
             เกิดข้อผิดพลาดในการโหลดข้อมูล
           </Alert>

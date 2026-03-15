@@ -436,7 +436,7 @@ export default function SummaryStats({ year, month, onSelectCompany }: SummarySt
         size="xl"
         scrollAreaComponent={ScrollArea.Autosize}
       >
-        {summary.filteredEntries.length > 0 ? (
+        {(summary.filteredEntries?.length ?? 0) > 0 ? (
           <Table striped highlightOnHover withTableBorder>
             <Table.Thead>
               <Table.Tr>
@@ -448,7 +448,7 @@ export default function SummaryStats({ year, month, onSelectCompany }: SummarySt
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
-              {[...summary.filteredEntries]
+              {[...(summary.filteredEntries ?? [])]
                 .sort((a: { entry_timestamp: string }, b: { entry_timestamp: string }) => new Date(b.entry_timestamp || 0).getTime() - new Date(a.entry_timestamp || 0).getTime())
                 .map((entry: { id: string | number; build: string; entry_timestamp: string; wht_document_count?: number; vat_document_count?: number; non_vat_document_count?: number; bot_count?: number }, index: number) => {
                   const companyName = buildToCompanyMap.get(entry.build) || '-'

@@ -67,6 +67,7 @@ interface ValidationResult {
 export default function EmployeeImport({ opened, onClose }: EmployeeImportProps) {
   const queryClient = useQueryClient()
   const [file, setFile] = useState<File | null>(null)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [previewData, setPreviewData] = useState<any[]>([])
   const [importing, setImporting] = useState(false)
   const [validating, setValidating] = useState(false)
@@ -91,6 +92,7 @@ export default function EmployeeImport({ opened, onClose }: EmployeeImportProps)
       return response.data.data
     },
     {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       onSuccess: (data) => {
         queryClient.invalidateQueries(['employees'])
         setFile(null)

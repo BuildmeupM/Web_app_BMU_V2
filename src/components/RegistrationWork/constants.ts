@@ -13,6 +13,7 @@ export const DEPT_CONFIG: Record<
     shortLabel: string;
     color: string;
     gradient: string;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     icon: any;
     path: string;
   }

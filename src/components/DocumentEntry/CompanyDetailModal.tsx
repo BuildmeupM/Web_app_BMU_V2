@@ -198,6 +198,7 @@ export default function CompanyDetailModal({
         })
         queryClient.invalidateQueries(['document-entry-work'])
       },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       onError: (error: any) => {
         notifications.show({
           title: 'เกิดข้อผิดพลาด',
@@ -224,7 +225,6 @@ export default function CompanyDetailModal({
   }
 
   const isLoading = isLoadingSubmissions || isLoadingTaxData
-  const submissions = submissionsResponse?.data || []
   const taxData = taxDataResponse
 
   // Get responsible employee (use current_responsible_employee_id if exists, otherwise responsible_employee_id)
@@ -235,8 +235,9 @@ export default function CompanyDetailModal({
 
   // Sort submissions by submission_count descending (latest first)
   const sortedSubmissions = useMemo(() => {
-    return [...submissions].sort((a, b) => (b.submission_count || 0) - (a.submission_count || 0))
-  }, [submissions])
+    const subs = submissionsResponse?.data || []
+    return [...subs].sort((a, b) => (b.submission_count || 0) - (a.submission_count || 0))
+  }, [submissionsResponse?.data])
 
   return (
     <Modal

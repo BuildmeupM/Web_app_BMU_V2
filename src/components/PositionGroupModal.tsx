@@ -26,6 +26,7 @@ import {
     TbArrowUp,
     TbArrowDown,
     TbEdit,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     TbCheck,
     TbX,
 } from 'react-icons/tb'

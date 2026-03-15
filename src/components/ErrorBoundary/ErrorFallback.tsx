@@ -1,3 +1,4 @@
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { Container, Title, Text, Button, Stack, Alert } from '@mantine/core'
 import { TbAlertCircle, TbRefresh, TbHome } from 'react-icons/tb'
 import { useNavigate } from 'react-router-dom'

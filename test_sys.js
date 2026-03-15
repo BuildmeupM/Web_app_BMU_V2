@@ -1,1 +1,0 @@
-const { execFile } = require('child_process'); const path = require('path'); const scriptPath = path.join(__dirname, 'backend', 'scripts', 'get_system_info.py'); console.log('Path:', scriptPath); execFile('python', [scriptPath], { timeout: 15000 }, (error, stdout, stderr) = console.log('Error:', error); console.log('Output length:', stdout ? stdout.length : 0); });  

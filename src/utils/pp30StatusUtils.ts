@@ -32,7 +32,7 @@ export function derivePp30Status(data: Pp30StatusInput | null | undefined): stri
   // ⚠️ สำคัญ: หลัง migration 028, pp30_form เป็น VARCHAR(100) ที่เก็บสถานะโดยตรง
   // Backend ส่งเฉพาะ pp30_form แล้ว ไม่ส่ง pp30_status
   // ถ้า pp30_form มีค่าและไม่ใช่ boolean (0/1) ให้ใช้ค่าดังกล่าวก่อน
-  if (data.pp30_form != null && String(data.pp30_form).trim() !== '' && data.pp30_form !== '0' && data.pp30_form !== '1' && data.pp30_form !== 0 && data.pp30_form !== 1 && data.pp30_form !== true && data.pp30_form !== false) {
+  if (data.pp30_form != null && String(data.pp30_form).trim() !== '' && data.pp30_form !== '0' && data.pp30_form !== '1' && data.pp30_form !== true && data.pp30_form !== false) {
     return String(data.pp30_form).trim()
   }
 
@@ -61,7 +61,7 @@ export function derivePp30Status(data: Pp30StatusInput | null | undefined): stri
   }
 
   // Backward compatibility: ถ้า pp30_form = true/1 (boolean) → 'not_started'
-  if (data.pp30_form === true || data.pp30_form === 1 || data.pp30_form === '1') {
+  if (data.pp30_form === true || data.pp30_form === '1') {
     return 'not_started'
   }
 

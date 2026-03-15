@@ -1,0 +1,154 @@
+src/components/AccountingDashboard/DocumentEntrySection.tsx(1196,111): error TS2345: Argument of type 'string | null | undefined' is not assignable to parameter of type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/components/AccountingDashboard/DocumentEntrySection.tsx(1197,118): error TS2345: Argument of type 'string | null | undefined' is not assignable to parameter of type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/components/Client/ClientImport.tsx(550,13): error TS2322: Type 'boolean | null' is not assignable to type 'boolean | undefined'.
+  Type 'null' is not assignable to type 'boolean | undefined'.
+src/components/ClientManagement/ClientDetailView.tsx(115,11): error TS2322: Type '{ client: Client; onEdit: () => void; onEditMonthlyFees: () => void; onEditDbdInfo: () => void; onEditCredentials: () => void; }' is not assignable to type 'IntrinsicAttributes & ClientDetailProps'.
+  Property 'onEditMonthlyFees' does not exist on type 'IntrinsicAttributes & ClientDetailProps'.
+src/components/DocumentEntry/StartAllButton.tsx(77,19): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(filters?: InvalidateQueryFilters<unknown> | undefined, options?: InvalidateOptions | undefined): Promise<void>', gave the following error.
+    Object literal may only specify known properties, and 'refetchType' does not exist in type 'InvalidateOptions'.
+  Overload 2 of 2, '(queryKey?: QueryKey | undefined, filters?: InvalidateQueryFilters<unknown> | undefined, options?: InvalidateOptions | undefined): Promise<...>', gave the following error.
+    Object literal may only specify known properties, and 'queryKey' does not exist in type 'readonly unknown[]'.
+src/components/DocumentEntry/StartAllButton.tsx(82,25): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(filters?: RefetchQueryFilters<unknown> | undefined, options?: RefetchOptions | undefined): Promise<void>', gave the following error.
+    Object literal may only specify known properties, and 'type' does not exist in type 'RefetchQueryFilters<unknown>'.
+  Overload 2 of 2, '(queryKey?: QueryKey | undefined, filters?: RefetchQueryFilters<unknown> | undefined, options?: RefetchOptions | undefined): Promise<...>', gave the following error.
+    Object literal may only specify known properties, and 'queryKey' does not exist in type 'readonly unknown[]'.
+src/components/DocumentSorting/CompanySelector.tsx(42,9): error TS2322: Type 'number' is not assignable to type 'string'.
+src/components/DocumentSorting/CompanySelector.tsx(43,9): error TS2322: Type 'number' is not assignable to type 'string'.
+src/components/DocumentSorting/CompanyTable.tsx(63,9): error TS2322: Type 'number' is not assignable to type 'string'.
+src/components/DocumentSorting/CompanyTable.tsx(64,9): error TS2322: Type 'number' is not assignable to type 'string'.
+src/components/DocumentSorting/DocumentKeyingSection.tsx(43,11): error TS2322: Type '(value: number | "") => void' is not assignable to type '(value: string | number) => void'.
+  Types of parameters 'value' and 'value' are incompatible.
+    Type 'string | number' is not assignable to type 'number | ""'.
+      Type 'string' is not assignable to type 'number | ""'.
+src/components/DocumentSorting/DocumentKeyingSection.tsx(54,11): error TS2322: Type '(value: number | "") => void' is not assignable to type '(value: string | number) => void'.
+  Types of parameters 'value' and 'value' are incompatible.
+    Type 'string | number' is not assignable to type 'number | ""'.
+      Type 'string' is not assignable to type 'number | ""'.
+src/components/DocumentSorting/DocumentKeyingSection.tsx(65,11): error TS2322: Type '(value: number | "") => void' is not assignable to type '(value: string | number) => void'.
+  Types of parameters 'value' and 'value' are incompatible.
+    Type 'string | number' is not assignable to type 'number | ""'.
+      Type 'string' is not assignable to type 'number | ""'.
+src/components/DocumentSorting/SubmissionHistory.tsx(126,15): error TS7006: Parameter 'failureCount' implicitly has an 'any' type.
+src/components/DocumentSorting/SummaryStats.tsx(439,10): error TS18048: 'summary.filteredEntries' is possibly 'undefined'.
+src/components/DocumentSorting/SummaryStats.tsx(451,20): error TS2488: Type 'DocumentEntryWork[] | undefined' must have a '[Symbol.iterator]()' method that returns an iterator.
+src/components/Employee/EmployeeDashboard.tsx(489,21): error TS2322: Type '{ children: Element[]; highlightOnHover: true; withTableBorder: true; withColumnBorders: true; verticalSpacing: "md"; horizontalSpacing: "lg"; fontSize: string; }' is not assignable to type 'IntrinsicAttributes & TableProps & RefAttributes<HTMLTableElement> & { component?: any; renderRoot?: ((props: Record<...>) => ReactNode) | undefined; }'.
+  Property 'fontSize' does not exist on type 'IntrinsicAttributes & TableProps & RefAttributes<HTMLTableElement> & { component?: any; renderRoot?: ((props: Record<...>) => ReactNode) | undefined; }'.
+src/components/Employee/EmployeeDashboard.tsx(540,21): error TS2322: Type '{ children: Element[]; highlightOnHover: true; withTableBorder: true; withColumnBorders: true; verticalSpacing: "md"; horizontalSpacing: "lg"; fontSize: string; }' is not assignable to type 'IntrinsicAttributes & TableProps & RefAttributes<HTMLTableElement> & { component?: any; renderRoot?: ((props: Record<...>) => ReactNode) | undefined; }'.
+  Property 'fontSize' does not exist on type 'IntrinsicAttributes & TableProps & RefAttributes<HTMLTableElement> & { component?: any; renderRoot?: ((props: Record<...>) => ReactNode) | undefined; }'.
+src/components/Layout/NotificationsMenu.tsx(42,51): error TS2345: Argument of type '(oldData: { data: Notification[]; unread_count: number; } | undefined) => { data: Notification[]; unread_count: number; } | undefined' is not assignable to parameter of type 'Updater<{ data: Notification[]; unread_count: number; } | undefined, { data: Notification[]; unread_count: number; }>'.
+  Type '(oldData: { data: Notification[]; unread_count: number; } | undefined) => { data: Notification[]; unread_count: number; } | undefined' is not assignable to type 'DataUpdateFunction<{ data: Notification[]; unread_count: number; } | undefined, { data: Notification[]; unread_count: number; }>'.
+    Type '{ data: Notification[]; unread_count: number; } | undefined' is not assignable to type '{ data: Notification[]; unread_count: number; }'.
+      Type 'undefined' is not assignable to type '{ data: Notification[]; unread_count: number; }'.
+src/components/Layout/NotificationsMenu.tsx(252,40): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(to: To, options?: NavigateOptions | undefined): void', gave the following error.
+    Argument of type 'string | null | undefined' is not assignable to parameter of type 'To'.
+      Type 'undefined' is not assignable to type 'To'.
+  Overload 2 of 2, '(delta: number): void', gave the following error.
+    Argument of type 'string | null | undefined' is not assignable to parameter of type 'number'.
+      Type 'undefined' is not assignable to type 'number'.
+src/components/Leave/LeaveDashboard.tsx(200,65): error TS2345: Argument of type '(leave: { id: string; employee_name: string; employee_nick_name?: string; employee_position: string; employee_id: string; leave_start_date: string; leave_end_date: string; leave_type: string; leave_days: number; reason?: string; }) => JSX.Element' is not assignable to parameter of type '(value: LeaveRequest, index: number, array: LeaveRequest[]) => Element'.
+  Types of parameters 'leave' and 'value' are incompatible.
+    Type 'LeaveRequest' is not assignable to type '{ id: string; employee_name: string; employee_nick_name?: string | undefined; employee_position: string; employee_id: string; leave_start_date: string; leave_end_date: string; leave_type: string; leave_days: number; reason?: string | undefined; }'.
+      Types of property 'employee_name' are incompatible.
+        Type 'string | undefined' is not assignable to type 'string'.
+          Type 'undefined' is not assignable to type 'string'.
+src/components/Leave/LeaveDashboard.tsx(320,23): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(props: TooltipProps<number, "อนุมัติแล้ว - เดือนปัจจุบัน" | "รออนุมัติ - เดือนปัจจุบัน" | "อนุมัติแล้ว - เดือนก่อนหน้า" | "รออนุมัติ - เดือนก่อนหน้า">): Tooltip<...>', gave the following error.
+    Type '(value: number, name: string, props: Record<string, unknown>) => number | [string, "อนุมัติแล้ว - เดือนปัจจุบัน"] | [string, "รออนุมัติ - เดือนปัจจุบัน"] | [string, "อนุมัติแล้ว - เดือนก่อนหน้า"] | [...]' is not assignable to type 'Formatter<number, "อนุมัติแล้ว - เดือนปัจจุบัน" | "รออนุมัติ - เดือนปัจจุบัน" | "อนุมัติแล้ว - เดือนก่อนหน้า" | "รออนุมัติ - เดือนก่อนหน้า">'.
+      Types of parameters 'props' and 'item' are incompatible.
+        Type 'Payload<number, "อนุมัติแล้ว - เดือนปัจจุบัน" | "รออนุมัติ - เดือนปัจจุบัน" | "อนุมัติแล้ว - เดือนก่อนหน้า" | "รออนุมัติ - เดือนก่อนหน้า">' is not assignable to type 'Record<string, unknown>'.
+          Index signature for type 'string' is missing in type 'Payload<number, "อนุมัติแล้ว - เดือนปัจจุบัน" | "รออนุมัติ - เดือนปัจจุบัน" | "อนุมัติแล้ว - เดือนก่อนหน้า" | "รออนุมัติ - เดือนก่อนหน้า">'.
+  Overload 2 of 2, '(props: TooltipProps<number, "อนุมัติแล้ว - เดือนปัจจุบัน" | "รออนุมัติ - เดือนปัจจุบัน" | "อนุมัติแล้ว - เดือนก่อนหน้า" | "รออนุมัติ - เดือนก่อนหน้า">, context: any): Tooltip<...>', gave the following error.
+    Type '(value: number, name: string, props: Record<string, unknown>) => number | [string, "อนุมัติแล้ว - เดือนปัจจุบัน"] | [string, "รออนุมัติ - เดือนปัจจุบัน"] | [string, "อนุมัติแล้ว - เดือนก่อนหน้า"] | [...]' is not assignable to type 'Formatter<number, "อนุมัติแล้ว - เดือนปัจจุบัน" | "รออนุมัติ - เดือนปัจจุบัน" | "อนุมัติแล้ว - เดือนก่อนหน้า" | "รออนุมัติ - เดือนก่อนหน้า">'.
+      Types of parameters 'props' and 'item' are incompatible.
+        Type 'Payload<number, "อนุมัติแล้ว - เดือนปัจจุบัน" | "รออนุมัติ - เดือนปัจจุบัน" | "อนุมัติแล้ว - เดือนก่อนหน้า" | "รออนุมัติ - เดือนก่อนหน้า">' is not assignable to type 'Record<string, unknown>'.
+          Index signature for type 'string' is missing in type 'Payload<number, "อนุมัติแล้ว - เดือนปัจจุบัน" | "รออนุมัติ - เดือนปัจจุบัน" | "อนุมัติแล้ว - เดือนก่อนหน้า" | "รออนุมัติ - เดือนก่อนหน้า">'.
+src/components/Leave/WFHDashboard.tsx(808,19): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(props: TooltipProps<number, "รออนุมัติ" | "อนุมัติแล้ว">): Tooltip<number, "รออนุมัติ" | "อนุมัติแล้ว">', gave the following error.
+    Type '(value: number, name: string, props: { payload: { approvedNames?: string; pendingNames?: string; }; }) => number | [string, "อนุมัติแล้ว"] | [string, "รออนุมัติ"]' is not assignable to type 'Formatter<number, "รออนุมัติ" | "อนุมัติแล้ว">'.
+      Types of parameters 'props' and 'item' are incompatible.
+        Type 'Payload<number, "รออนุมัติ" | "อนุมัติแล้ว">' is not assignable to type '{ payload: { approvedNames?: string | undefined; pendingNames?: string | undefined; }; }'.
+          Property 'payload' is optional in type 'Payload<number, "รออนุมัติ" | "อนุมัติแล้ว">' but required in type '{ payload: { approvedNames?: string | undefined; pendingNames?: string | undefined; }; }'.
+  Overload 2 of 2, '(props: TooltipProps<number, "รออนุมัติ" | "อนุมัติแล้ว">, context: any): Tooltip<number, "รออนุมัติ" | "อนุมัติแล้ว">', gave the following error.
+    Type '(value: number, name: string, props: { payload: { approvedNames?: string; pendingNames?: string; }; }) => number | [string, "อนุมัติแล้ว"] | [string, "รออนุมัติ"]' is not assignable to type 'Formatter<number, "รออนุมัติ" | "อนุมัติแล้ว">'.
+      Types of parameters 'props' and 'item' are incompatible.
+        Type 'Payload<number, "รออนุมัติ" | "อนุมัติแล้ว">' is not assignable to type '{ payload: { approvedNames?: string | undefined; pendingNames?: string | undefined; }; }'.
+          Property 'payload' is optional in type 'Payload<number, "รออนุมัติ" | "อนุมัติแล้ว">' but required in type '{ payload: { approvedNames?: string | undefined; pendingNames?: string | undefined; }; }'.
+src/components/Leave/WFHRequestForm.tsx(897,35): error TS18048: 'dayInfo.approved_count' is possibly 'undefined'.
+src/components/Leave/WFHRequestForm.tsx(899,39): error TS18048: 'dayInfo.approved_count' is possibly 'undefined'.
+src/components/MessengerRoutes/CreateRouteModal.tsx(107,25): error TS2322: Type '(name: string, loc?: MessengerLocation | undefined) => void' is not assignable to type '(name: string, loc: MessengerLocation | null) => void'.
+  Types of parameters 'loc' and 'loc' are incompatible.
+    Type 'MessengerLocation | null' is not assignable to type 'MessengerLocation | undefined'.
+      Type 'null' is not assignable to type 'MessengerLocation | undefined'.
+src/components/MessengerRoutes/CreateRouteModal.tsx(222,96): error TS2345: Argument of type 'MessengerLocation | null' is not assignable to parameter of type 'MessengerLocation | undefined'.
+  Type 'null' is not assignable to type 'MessengerLocation | undefined'.
+src/components/WorkAssignment/statisticsHelpers.ts(100,26): error TS7053: Element implicitly has an 'any' type because expression of type 'string' can't be used to index type '{}'.
+  No index signature with a parameter of type 'string' was found on type '{}'.
+src/components/WorkAssignment/statisticsHelpers.ts(118,27): error TS7053: Element implicitly has an 'any' type because expression of type 'string' can't be used to index type '{}'.
+  No index signature with a parameter of type 'string' was found on type '{}'.
+src/components/WorkAssignment/useWorkAssignmentQueries.ts(180,51): error TS2345: Argument of type 'User[] | undefined' is not assignable to parameter of type '{ employee_id?: string | undefined; id?: string | number | undefined; name?: string | undefined; nick_name?: string | undefined; }[] | null | undefined'.
+  Type 'User[]' is not assignable to type '{ employee_id?: string | undefined; id?: string | number | undefined; name?: string | undefined; nick_name?: string | undefined; }[]'.
+    Type 'User' is not assignable to type '{ employee_id?: string | undefined; id?: string | number | undefined; name?: string | undefined; nick_name?: string | undefined; }'.
+      Types of property 'employee_id' are incompatible.
+        Type 'string | null' is not assignable to type 'string | undefined'.
+          Type 'null' is not assignable to type 'string | undefined'.
+src/components/WorkAssignment/useWorkAssignmentQueries.ts(181,54): error TS2345: Argument of type 'User[] | undefined' is not assignable to parameter of type '{ employee_id?: string | undefined; id?: string | number | undefined; name?: string | undefined; nick_name?: string | undefined; }[] | null | undefined'.
+  Type 'User[]' is not assignable to type '{ employee_id?: string | undefined; id?: string | number | undefined; name?: string | undefined; nick_name?: string | undefined; }[]'.
+    Type 'User' is not assignable to type '{ employee_id?: string | undefined; id?: string | number | undefined; name?: string | undefined; nick_name?: string | undefined; }'.
+      Types of property 'employee_id' are incompatible.
+        Type 'string | null' is not assignable to type 'string | undefined'.
+          Type 'null' is not assignable to type 'string | undefined'.
+src/components/WorkAssignment/useWorkAssignmentQueries.ts(182,47): error TS2345: Argument of type 'User[] | undefined' is not assignable to parameter of type '{ employee_id?: string | undefined; id?: string | number | undefined; name?: string | undefined; nick_name?: string | undefined; }[] | null | undefined'.
+  Type 'User[]' is not assignable to type '{ employee_id?: string | undefined; id?: string | number | undefined; name?: string | undefined; nick_name?: string | undefined; }[]'.
+    Type 'User' is not assignable to type '{ employee_id?: string | undefined; id?: string | number | undefined; name?: string | undefined; nick_name?: string | undefined; }'.
+      Types of property 'employee_id' are incompatible.
+        Type 'string | null' is not assignable to type 'string | undefined'.
+          Type 'null' is not assignable to type 'string | undefined'.
+src/components/WorkAssignment/useWorkAssignmentQueries.ts(183,54): error TS2345: Argument of type 'User[] | undefined' is not assignable to parameter of type '{ employee_id?: string | undefined; id?: string | number | undefined; name?: string | undefined; nick_name?: string | undefined; }[] | null | undefined'.
+  Type 'User[]' is not assignable to type '{ employee_id?: string | undefined; id?: string | number | undefined; name?: string | undefined; nick_name?: string | undefined; }[]'.
+    Type 'User' is not assignable to type '{ employee_id?: string | undefined; id?: string | number | undefined; name?: string | undefined; nick_name?: string | undefined; }'.
+      Types of property 'employee_id' are incompatible.
+        Type 'string | null' is not assignable to type 'string | undefined'.
+          Type 'null' is not assignable to type 'string | undefined'.
+src/components/WorkAssignment/useWorkAssignmentQueries.ts(224,9): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(predicate: (value: Employee, index: number, obj: Employee[]) => value is Employee, thisArg?: any): Employee | undefined', gave the following error.
+    Argument of type '(emp: { employee_id: string; nick_name?: string; }) => boolean' is not assignable to parameter of type '(value: Employee, index: number, obj: Employee[]) => value is Employee'.
+      Types of parameters 'emp' and 'value' are incompatible.
+        Type 'Employee' is not assignable to type '{ employee_id: string; nick_name?: string | undefined; }'.
+          Types of property 'nick_name' are incompatible.
+            Type 'string | null | undefined' is not assignable to type 'string | undefined'.
+              Type 'null' is not assignable to type 'string | undefined'.
+  Overload 2 of 2, '(predicate: (value: Employee, index: number, obj: Employee[]) => unknown, thisArg?: any): Employee | undefined', gave the following error.
+    Argument of type '(emp: { employee_id: string; nick_name?: string; }) => boolean' is not assignable to parameter of type '(value: Employee, index: number, obj: Employee[]) => unknown'.
+      Types of parameters 'emp' and 'value' are incompatible.
+        Type 'Employee' is not assignable to type '{ employee_id: string; nick_name?: string | undefined; }'.
+          Types of property 'nick_name' are incompatible.
+            Type 'string | null | undefined' is not assignable to type 'string | undefined'.
+              Type 'null' is not assignable to type 'string | undefined'.
+src/components/WorkAssignment/WorkAssignmentImport.tsx(490,13): error TS2322: Type 'boolean | null' is not assignable to type 'boolean | undefined'.
+  Type 'null' is not assignable to type 'boolean | undefined'.
+src/pages/AccountingFeesManagement.tsx(226,17): error TS2322: Type 'unknown' is not assignable to type 'ReactNode'.
+src/pages/ClientManagement.tsx(244,9): error TS2322: Type 'unknown' is not assignable to type 'ReactNode'.
+src/pages/CompanyFeed.tsx(123,44): error TS2345: Argument of type '(old: { posts?: Post[]; pagination?: unknown; } | undefined) => { posts?: Post[]; pagination?: unknown; } | undefined' is not assignable to parameter of type 'Updater<{ posts?: Post[] | undefined; pagination?: unknown; } | undefined, { posts?: Post[] | undefined; pagination?: unknown; }>'.
+  Type '(old: { posts?: Post[]; pagination?: unknown; } | undefined) => { posts?: Post[]; pagination?: unknown; } | undefined' is not assignable to type 'DataUpdateFunction<{ posts?: Post[] | undefined; pagination?: unknown; } | undefined, { posts?: Post[] | undefined; pagination?: unknown; }>'.
+    Type '{ posts?: Post[] | undefined; pagination?: unknown; } | undefined' is not assignable to type '{ posts?: Post[] | undefined; pagination?: unknown; }'.
+      Type 'undefined' is not assignable to type '{ posts?: Post[] | undefined; pagination?: unknown; }'.
+src/pages/EmployeeManagement.tsx(216,17): error TS2322: Type 'unknown' is not assignable to type 'ReactNode'.
+src/pages/EmployeeManagement.tsx(327,13): error TS2322: Type 'unknown' is not assignable to type 'ReactNode'.
+src/pages/EquipmentBorrowing.tsx(507,37): error TS2322: Type '{ equipment: Equipment[]; pagination: { page: number; limit: number; total: number; totalPages: number; }; } | undefined' is not assignable to type '{ equipment: Equipment[]; pagination: { total: number; totalPages: number; page: number; limit: number; }; } | null'.
+  Type 'undefined' is not assignable to type '{ equipment: Equipment[]; pagination: { total: number; totalPages: number; page: number; limit: number; }; } | null'.
+src/pages/MessengerRoutes.tsx(918,17): error TS2322: Type '(name: string, loc: MessengerLocation | null) => void' is not assignable to type '(name: string, loc?: MessengerLocation | undefined) => void'.
+  Types of parameters 'loc' and 'loc' are incompatible.
+    Type 'MessengerLocation | undefined' is not assignable to type 'MessengerLocation | null'.
+      Type 'undefined' is not assignable to type 'MessengerLocation | null'.
+src/pages/MessengerRoutes.tsx(925,17): error TS2322: Type '(index: number, name: string, loc: MessengerLocation | null) => void' is not assignable to type '(index: number, name: string, loc?: MessengerLocation | undefined) => void'.
+  Types of parameters 'loc' and 'loc' are incompatible.
+    Type 'MessengerLocation | undefined' is not assignable to type 'MessengerLocation | null'.
+      Type 'undefined' is not assignable to type 'MessengerLocation | null'.
+src/pages/MessengerRoutes.tsx(946,17): error TS2322: Type '(stopId: string, status: "completed" | "failed", notes?: string) => Promise<void>' is not assignable to type '(stopId: string, status: string, notes?: string | undefined) => void'.
+  Types of parameters 'status' and 'status' are incompatible.
+    Type 'string' is not assignable to type '"completed" | "failed"'.

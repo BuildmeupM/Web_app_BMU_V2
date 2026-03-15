@@ -894,9 +894,9 @@ export default function WFHRequestForm({ opened, onClose }: WFHRequestFormProps)
                               <Badge
                                 size="sm"
                                 color={
-                                  dayInfo?.approved_count >= 3
+                                  (dayInfo?.approved_count ?? 0) >= 3
                                     ? 'red'
-                                    : dayInfo?.approved_count > 0
+                                    : (dayInfo?.approved_count ?? 0) > 0
                                     ? 'yellow'
                                     : 'green'
                                 }

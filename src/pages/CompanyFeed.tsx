@@ -121,7 +121,7 @@ export default function CompanyFeed() {
 
             // optimistically update matching post's reaction tracking
             queryClient.setQueryData(qKey, (old: { posts?: Post[]; pagination?: unknown } | undefined) => {
-                if (!old?.posts) return old
+                if (!old?.posts) return old ?? { posts: [], pagination: undefined }
                 return {
                     ...old,
                     posts: old.posts.map((p: Post) => p.id === postId ? {

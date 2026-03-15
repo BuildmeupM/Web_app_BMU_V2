@@ -12,7 +12,7 @@ import type { MessengerLocation } from '../../services/messengerRouteService'
 interface LocationSelectProps {
     locations: MessengerLocation[]
     value: string
-    onChange: (name: string, loc: MessengerLocation | null) => void
+    onChange: (name: string, loc?: MessengerLocation) => void
     onCreateNew: (name: string) => void
     label?: string
     placeholder?: string
@@ -84,6 +84,7 @@ export default function LocationSelect({
                 <InputBase
                     label={label}
                     placeholder={placeholder}
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     size={size as any}
                     leftSection={<TbMapPin size={14} />}
                     rightSection={<Combobox.Chevron />}
@@ -91,7 +92,7 @@ export default function LocationSelect({
                     value={search}
                     onChange={(e) => {
                         setSearch(e.currentTarget.value)
-                        onChange(e.currentTarget.value, null)
+                        onChange(e.currentTarget.value, undefined)
                         combobox.openDropdown()
                         combobox.updateSelectedOptionIndex()
                     }}

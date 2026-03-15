@@ -52,6 +52,7 @@ export default function RegistrationSettingsModal({ opened, onClose, onDataChang
             const types = await getWorkTypes(activeTab as Department)
             setWorkTypes(types)
         } catch (err: unknown) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const error = err as Record<string, any>;
             console.error('Fetch work types error:', error)
             notifications.show({
@@ -84,6 +85,7 @@ export default function RegistrationSettingsModal({ opened, onClose, onDataChang
             fetchTypes()
             onDataChanged?.()
         } catch (err: unknown) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const error = err as Record<string, any>;
             notifications.show({
                 title: 'เกิดข้อผิดพลาด',
@@ -104,6 +106,7 @@ export default function RegistrationSettingsModal({ opened, onClose, onDataChang
             fetchTypes()
             onDataChanged?.()
         } catch (err: unknown) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const error = err as Record<string, any>;
             notifications.show({
                 title: 'เกิดข้อผิดพลาด',
@@ -121,6 +124,7 @@ export default function RegistrationSettingsModal({ opened, onClose, onDataChang
             fetchTypes()
             onDataChanged?.()
         } catch (err: unknown) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const error = err as Record<string, any>;
             notifications.show({
                 title: 'เกิดข้อผิดพลาด',
@@ -145,6 +149,7 @@ export default function RegistrationSettingsModal({ opened, onClose, onDataChang
             fetchTypes()
             onDataChanged?.()
         } catch (err: unknown) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const error = err as Record<string, any>;
             notifications.show({
                 title: 'เกิดข้อผิดพลาด',
@@ -165,6 +170,7 @@ export default function RegistrationSettingsModal({ opened, onClose, onDataChang
             fetchTypes()
             onDataChanged?.()
         } catch (err: unknown) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const error = err as Record<string, any>;
             notifications.show({
                 title: 'เกิดข้อผิดพลาด',
@@ -182,6 +188,7 @@ export default function RegistrationSettingsModal({ opened, onClose, onDataChang
             fetchTypes()
             onDataChanged?.()
         } catch (err: unknown) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const error = err as Record<string, any>;
             notifications.show({
                 title: 'เกิดข้อผิดพลาด',

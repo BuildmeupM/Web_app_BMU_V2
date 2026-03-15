@@ -213,6 +213,7 @@ router.get('/', authenticateToken, async (req, res) => {
 
     // Non-admin users: return only basic fields (for security + chat mention)
     const responseEmployees = isHRorAdmin ? employees : employees.map(emp => ({
+      id: emp.id,
       employee_id: emp.employee_id,
       first_name: emp.first_name,
       full_name: emp.full_name,

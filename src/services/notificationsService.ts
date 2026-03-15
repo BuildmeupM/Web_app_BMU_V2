@@ -55,7 +55,7 @@ export interface Notification {
   related_user_name?: string | null
   related_entity_type?: string | null // leave_request, work_assignment, client, etc.
   related_entity_id?: string | null // ID ของ entity ที่เกี่ยวข้อง
-  metadata?: Record<string, any> | null // ข้อมูลเพิ่มเติมในรูปแบบ JSON
+  metadata?: Record<string, unknown> | null // ข้อมูลเพิ่มเติมในรูปแบบ JSON
   is_read: boolean
   read_at?: string | null
   expires_at?: string | null
@@ -89,7 +89,7 @@ export interface CreateNotificationRequest {
   related_user_id?: string | null
   related_entity_type?: string | null
   related_entity_id?: string | null
-  metadata?: Record<string, any> | null
+  metadata?: Record<string, unknown> | null
   expires_at?: string | null
 }
 

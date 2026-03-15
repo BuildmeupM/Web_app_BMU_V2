@@ -88,6 +88,7 @@ export default function WorkAssignmentImport({ opened, onClose }: WorkAssignment
       return response.data.data
     },
     {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       onSuccess: (data) => {
         // Invalidate และ refetch ทุก query ที่เกี่ยวข้องกับ work-assignments
         queryClient.invalidateQueries(['work-assignments'])
@@ -122,6 +123,7 @@ export default function WorkAssignmentImport({ opened, onClose }: WorkAssignment
       )
 
       setValidationResult(response.data.data)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       console.error('Validation error:', error)
       
@@ -485,7 +487,7 @@ export default function WorkAssignmentImport({ opened, onClose }: WorkAssignment
           <Button
             onClick={handleImport}
             loading={importing}
-            disabled={!file || importing || validating || (validationResult && validationResult.invalid > 0)}
+            disabled={!file || importing || validating || !!(validationResult && validationResult.invalid > 0)}
             leftSection={<TbUpload size={16} />}
           >
             นำเข้าข้อมูล

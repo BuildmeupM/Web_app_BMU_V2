@@ -3,6 +3,7 @@
  * Component สำหรับแสดงประวัติการส่งข้อมูลก่อนหน้านี้
  */
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { Card, Table, Badge, Text, Stack, Loader, Center, Alert, Paper, SimpleGrid, Button, Group } from '@mantine/core'
 import { useQuery, useQueries } from 'react-query'
 import { TbAlertCircle, TbEdit } from 'react-icons/tb'
@@ -13,6 +14,7 @@ import 'dayjs/locale/th'
 import buddhistEra from 'dayjs/plugin/buddhistEra'
 import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { employeeService, Employee } from '../../services/employeeService'
 import { useMemo, Fragment } from 'react'
 
@@ -78,6 +80,7 @@ interface SubmissionHistoryProps {
 }
 
 export default function SubmissionHistory({ build, year, month, onEditEntry }: SubmissionHistoryProps) {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const currentTaxMonth = getCurrentTaxMonth()
 
   // Fetch all submission history for this build, year, month
@@ -120,7 +123,7 @@ export default function SubmissionHistory({ build, year, month, onEditEntry }: S
       queryFn: () => employeeService.getById(employeeId),
       enabled: !!employeeId && employeeIds.length > 0,
       staleTime: 10 * 60 * 1000, // 10 minutes
-      retry: (failureCount, error: unknown) => {
+      retry: (failureCount: number, error: unknown) => {
         // Don't retry on 404 or 429
         if (error && typeof error === 'object' && 'response' in error) {
           const apiError = error as { response?: { status?: number } }

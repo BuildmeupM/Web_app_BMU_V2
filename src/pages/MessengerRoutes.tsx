@@ -13,9 +13,7 @@ import {
     Loader, ThemeIcon, Modal, TextInput,
     Divider, SimpleGrid,
     Tabs,
-    SegmentedControl
 } from '@mantine/core'
-import { DateInput } from '@mantine/dates'
 import { notifications } from '@mantine/notifications'
 import {
     TbTruckDelivery, TbPlus, TbTrash,
@@ -30,7 +28,7 @@ import {
     getMessengerPendingTasks
 } from '../services/messengerRouteService'
 import {
-    LocationSelect, statusConfig, stopStatusConfig, type FormStop,
+    type FormStop,
     ActiveRoutesTab, PendingTasksTab, HistoryTab, DashboardTab,
     CreateRouteModal, RouteDetailModal
 } from '../components/MessengerRoutes'
@@ -49,7 +47,8 @@ export default function MessengerRoutes() {
 
     // Locations list
     const [locations, setLocations] = useState<MessengerLocation[]>([])
-    const [locLoading, setLocLoading] = useState(false)
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const [_locLoading, setLocLoading] = useState(false)
 
     // Create form state
     const [formDate, setFormDate] = useState<Date | null>(new Date())
@@ -228,6 +227,7 @@ export default function MessengerRoutes() {
         } finally {
             setLocLoading(false)
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
 
     const fetchPendingTasks = useCallback(async () => {
@@ -385,6 +385,7 @@ export default function MessengerRoutes() {
         }
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const updateFormStop = (index: number, field: string, value: any) => {
         setFormStops(prev => {
             const updated = [...prev]
@@ -413,7 +414,7 @@ export default function MessengerRoutes() {
     // Location select handlers
     // ============================================================
 
-    const handleStartLocationChange = (name: string, loc: MessengerLocation | null) => {
+    const handleStartLocationChange = (name: string, loc?: MessengerLocation) => {
         setStartLocation(name)
         if (loc) {
             setStartLat(loc.latitude ? Number(loc.latitude) : null)
@@ -424,7 +425,7 @@ export default function MessengerRoutes() {
         }
     }
 
-    const handleStopLocationChange = (index: number, name: string, loc: MessengerLocation | null) => {
+    const handleStopLocationChange = (index: number, name: string, loc?: MessengerLocation) => {
         setFormStops(prev => {
             const updated = [...prev]
             updated[index] = {
@@ -649,10 +650,13 @@ export default function MessengerRoutes() {
             resetForm()
             fetchRoutes()
             fetchPendingTasks()
-        } catch (error: any) {
+        } catch (error: unknown) {
+            const errMsg = error && typeof error === 'object' && 'response' in error
+                ? (error as { response?: { data?: { message?: string } } }).response?.data?.message
+                : null
             notifications.show({
                 title: 'เกิดข้อผิดพลาด',
-                message: error?.response?.data?.message || 'ไม่สามารถสร้างตารางได้',
+                message: errMsg || 'ไม่สามารถสร้างตารางได้',
                 color: 'red'
             })
         } finally {
@@ -677,9 +681,9 @@ export default function MessengerRoutes() {
         }
     }
 
-    const handleUpdateStopStatus = async (stopId: string, status: 'completed' | 'failed', notes?: string) => {
+    const handleUpdateStopStatus = async (stopId: string, status: string, notes?: string) => {
         try {
-            await updateStop(stopId, { status, notes })
+            await updateStop(stopId, { status: status as 'completed' | 'pending' | 'failed', notes })
             if (selectedRoute) {
                 const route = await getRouteDetail(selectedRoute.id)
                 setSelectedRoute(route)
@@ -718,9 +722,10 @@ export default function MessengerRoutes() {
             await deleteRoute(id)
             notifications.show({ title: 'สำเร็จ', message: 'ลบตารางวิ่งแล้ว', color: 'green' })
             fetchRoutes()
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Delete error:', error)
-            notifications.show({ title: 'เกิดข้อผิดพลาด', message: error?.message || 'ไม่สามารถลบได้', color: 'red' })
+            const errMsg = error instanceof Error ? error.message : null
+            notifications.show({ title: 'เกิดข้อผิดพลาด', message: errMsg || 'ไม่สามารถลบได้', color: 'red' })
         }
     }
 
