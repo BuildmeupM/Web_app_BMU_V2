@@ -4,9 +4,9 @@
  */
 import {
   Card, Table, Text, Badge, Group, ActionIcon, Tooltip, Alert,
-  Button, Center, Stack, Loader, Pagination,
+  Button, Center, Stack, Loader, Pagination, Checkbox,
 } from '@mantine/core'
-import { TbEdit, TbRefresh, TbAlertCircle, TbUserEdit, TbTrash } from 'react-icons/tb'
+import { TbEdit, TbRefresh, TbAlertCircle, TbUserEdit, TbTrash, TbUsersGroup, TbX } from 'react-icons/tb'
 import { THAI_MONTHS } from './constants'
 import type { WorkAssignment as WorkAssignmentType } from '../../services/workAssignmentsService'
 
@@ -26,6 +26,10 @@ interface AssignmentTableProps {
   handleReset: (assignment: WorkAssignmentType) => void
   onChangeResponsible: (assignment: WorkAssignmentType) => void
   onDeleteAssignment: (assignment: WorkAssignmentType) => void
+  // Bulk selection
+  selectedIds: Set<string>
+  onSelectionChange: (ids: Set<string>) => void
+  onBulkChangeClick: () => void
   // For empty state display
   year: string | null
   month: string | null
@@ -40,13 +44,65 @@ export default function AssignmentTable({
   assignmentsData, isLoading, isRefetching, error, page, setPage,
   formatEmployeeNameWithId, handleRefresh, handleEdit, handleReset,
   onChangeResponsible, onDeleteAssignment,
+  selectedIds, onSelectionChange, onBulkChangeClick,
   year, month, getViewMonth, setYear, setMonth, setBuild, setSearch,
 }: AssignmentTableProps) {
   const thStyle = { backgroundColor: 'white', color: 'black', border: 'none' }
   const tdStyle = { backgroundColor: 'white', color: 'black', border: 'none' }
 
+  const currentPageIds = assignmentsData?.data.map((a) => a.id) || []
+  const allPageSelected = currentPageIds.length > 0 && currentPageIds.every((id) => selectedIds.has(id))
+  const somePageSelected = currentPageIds.some((id) => selectedIds.has(id))
+
+  const toggleAll = () => {
+    const next = new Set(selectedIds)
+    if (allPageSelected) {
+      currentPageIds.forEach((id) => next.delete(id))
+    } else {
+      currentPageIds.forEach((id) => next.add(id))
+    }
+    onSelectionChange(next)
+  }
+
+  const toggleOne = (id: string) => {
+    const next = new Set(selectedIds)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    onSelectionChange(next)
+  }
+
   return (
     <Card withBorder radius="lg" p="md">
+      {/* Bulk action bar */}
+      {selectedIds.size > 0 && (
+        <Group justify="space-between" mb="md" p="sm" style={{ backgroundColor: 'var(--mantine-color-orange-0)', borderRadius: 8 }}>
+          <Group gap="xs">
+            <Badge size="lg" color="orange" variant="filled">{selectedIds.size}</Badge>
+            <Text size="sm" fw={500}>รายการที่เลือก</Text>
+          </Group>
+          <Group gap="xs">
+            <Button
+              size="sm"
+              color="orange"
+              leftSection={<TbUsersGroup size={16} />}
+              onClick={onBulkChangeClick}
+              radius="lg"
+            >
+              เปลี่ยนผู้รับผิดชอบ (Bulk)
+            </Button>
+            <Button
+              size="sm"
+              variant="subtle"
+              color="gray"
+              leftSection={<TbX size={16} />}
+              onClick={() => onSelectionChange(new Set())}
+            >
+              ยกเลิกเลือก
+            </Button>
+          </Group>
+        </Group>
+      )}
+
       {(isLoading || isRefetching) ? (
         <Center py="xl">
           <Stack align="center" gap="md">
@@ -105,6 +161,14 @@ export default function AssignmentTable({
             >
               <Table.Thead>
                 <Table.Tr>
+                  <Table.Th style={{ ...thStyle, width: 40 }}>
+                    <Checkbox
+                      checked={allPageSelected}
+                      indeterminate={somePageSelected && !allPageSelected}
+                      onChange={toggleAll}
+                      color="orange"
+                    />
+                  </Table.Th>
                   <Table.Th style={thStyle}>Build</Table.Th>
                   <Table.Th style={thStyle}>บริษัท</Table.Th>
                   <Table.Th style={thStyle}>เดือน/ปี</Table.Th>
@@ -118,7 +182,17 @@ export default function AssignmentTable({
               </Table.Thead>
               <Table.Tbody>
                 {assignmentsData?.data.map((assignment) => (
-                  <Table.Tr key={assignment.id}>
+                  <Table.Tr
+                    key={assignment.id}
+                    style={selectedIds.has(assignment.id) ? { backgroundColor: 'var(--mantine-color-orange-0)' } : undefined}
+                  >
+                    <Table.Td style={{ ...tdStyle, width: 40 }}>
+                      <Checkbox
+                        checked={selectedIds.has(assignment.id)}
+                        onChange={() => toggleOne(assignment.id)}
+                        color="orange"
+                      />
+                    </Table.Td>
                     <Table.Td style={tdStyle}>
                       <Text fw={500} c="black">{assignment.build}</Text>
                     </Table.Td>

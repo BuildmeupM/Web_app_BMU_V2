@@ -24,6 +24,7 @@ import { companyFeedService, type Post, type Comment, type CompanyEvent } from '
 import { leaveService, wfhService } from '../services/leaveService'
 import { getHolidays } from '../services/holidayService'
 import type { Holiday } from '../services/holidayService'
+import { attendanceDashboardService, type BirthdayCalendarEmployee } from '../services/attendanceDashboardService'
 import {
   EVENT_TYPE_MAP, THAI_MONTHS_FULL, THAI_DAYS, THAI_DAYS_FULL,
   timeAgo, getInitials, getAvatarColor, getCalendarDays,
@@ -57,6 +58,7 @@ export default function Dashboard() {
   const [showHolidays, setShowHolidays] = useState(true)
   const [showLeaves, setShowLeaves] = useState(true)
   const [showWfh, setShowWfh] = useState(true)
+  const [showBirthdays, setShowBirthdays] = useState(true)
 
   const allEventsChecked = showMeeting && showTax && showDeadline && showOther
   const toggleAllEvents = (val: boolean) => {
@@ -145,6 +147,14 @@ export default function Dashboard() {
     { staleTime: 30_000 }
   )
   const wfhData = useMemo(() => wfhPageData?.data?.wfh_requests || [], [wfhPageData])
+
+  // ── Birthdays query ──
+  const calMonth = calendarDate.getMonth() + 1
+  const { data: birthdaysData = [] } = useQuery<BirthdayCalendarEmployee[]>(
+    ['employee-birthdays', calMonth],
+    () => attendanceDashboardService.getBirthdays(calMonth),
+    { staleTime: 5 * 60 * 1000 }
+  )
 
   const eventsByDate = useMemo(() => {
     const map: Record<string, CompanyEvent[]> = {}
@@ -281,8 +291,34 @@ export default function Dashboard() {
       })
     }
 
+    // Process Birthdays
+    if (showBirthdays && birthdaysData) {
+      const calYear = calendarDate.getFullYear()
+      const calMon = calendarDate.getMonth() + 1
+      birthdaysData.forEach(emp => {
+        const d = `${calYear}-${String(calMon).padStart(2, '0')}-${String(emp.birth_day).padStart(2, '0')}`
+        const displayName = emp.nick_name ? `${emp.first_name}(${emp.nick_name})` : emp.first_name
+        const birthdayEvent: CompanyEvent = {
+          id: `birthday-${emp.employee_id}`,
+          title: `🎂 วันเกิด: ${displayName}`,
+          description: null,
+          event_date: d,
+          event_end_date: null,
+          start_time: null,
+          end_time: null,
+          event_type: 'other',
+          color: '#f06595',
+          is_all_day: true,
+          location: null,
+          created_by: emp.employee_id,
+          created_by_name: displayName,
+        };
+        (map[d] ??= []).push(birthdayEvent)
+      })
+    }
+
     return map
-  }, [events, holidays, leavesData, wfhData, user, showMeeting, showTax, showDeadline, showOther, showHolidays, showLeaves, showWfh])
+  }, [events, holidays, leavesData, wfhData, birthdaysData, calendarDate, user, showMeeting, showTax, showDeadline, showOther, showHolidays, showLeaves, showWfh, showBirthdays])
 
   // ── Posts query ──
   const { data: postsData, isLoading: loadingPosts } = useQuery(
@@ -518,7 +554,7 @@ export default function Dashboard() {
   //  RENDER
   // ═══════════════════════════════════════════════════════
   return (
-    <Container size="xl" py="md">
+    <Container fluid px="xl" py="md">
       {/* ── Tabs Header ── */}
       <Tabs value={activeTab} onChange={setActiveTab} variant="pills" radius="md" mb="md">
         <Tabs.List grow style={{
@@ -546,7 +582,14 @@ export default function Dashboard() {
              TAB 1: CALENDAR
            ═══════════════════════════════════════ */}
         <Tabs.Panel value="calendar" pt="md">
-          <Card padding={0} radius="lg" withBorder style={{ overflow: 'hidden' }}>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: selectedDate ? '1fr 400px' : '1fr',
+            gap: 16,
+            alignItems: 'start',
+          }}>
+          {/* ── LEFT: Calendar ── */}
+          <Card padding={0} radius="lg" withBorder style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', height: 'calc(100vh - 170px)' }}>
             {/* Calendar Header */}
             <Group
               justify="space-between"
@@ -587,6 +630,7 @@ export default function Dashboard() {
                       <Checkbox label="วันหยุด" size="xs" checked={showHolidays} onChange={(e) => setShowHolidays(e.currentTarget.checked)} color="red" />
                       <Checkbox label="วันลา" size="xs" checked={showLeaves} onChange={(e) => setShowLeaves(e.currentTarget.checked)} color="yellow" />
                       <Checkbox label="WFH" size="xs" checked={showWfh} onChange={(e) => setShowWfh(e.currentTarget.checked)} color="teal" />
+                      <Checkbox label="🎂 วันเกิด" size="xs" checked={showBirthdays} onChange={(e) => setShowBirthdays(e.currentTarget.checked)} color="pink" />
                     </Stack>
                   </Popover.Dropdown>
                 </Popover>
@@ -640,7 +684,8 @@ export default function Dashboard() {
             {/* Calendar Grid */}
             <div style={{
               display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
-              gridAutoRows: 'minmax(100px, auto)',
+              gridTemplateRows: `repeat(${Math.ceil(calendarDays.length / 7)}, 1fr)`,
+              flex: 1, minHeight: 0,
             }}>
               {calendarDays.map((day, i) => {
                 const isLastCol = (i + 1) % 7 === 0
@@ -660,7 +705,7 @@ export default function Dashboard() {
                 const dayEvents = eventsByDate[dateStr] || []
                 const isToday = dateStr === todayStr
                 const isSelected = dateStr === selectedDate
-                const maxVisible = 3
+                const maxVisible = 6
                 const moreCount = dayEvents.length - maxVisible
 
                 return (
@@ -675,10 +720,10 @@ export default function Dashboard() {
                       cursor: 'pointer', transition: 'all 0.12s ease',
                     }}
                   >
-                    <div style={{ marginBottom: 4 }}>
+                    <div style={{ marginBottom: 2 }}>
                       <span style={{
                         display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                        width: 28, height: 28, borderRadius: '50%', fontSize: 13,
+                        width: 24, height: 24, borderRadius: '50%', fontSize: 12,
                         fontWeight: isToday ? 700 : 500,
                         background: isToday ? '#4263eb' : 'transparent',
                         color: isToday ? 'white'
@@ -695,7 +740,7 @@ export default function Dashboard() {
                         <Tooltip key={ev.id} label={ev.title} withArrow openDelay={200}>
                           <div style={{
                             backgroundColor: ev.color || '#4263eb', color: 'white',
-                            fontSize: 10, lineHeight: '16px', padding: '1px 6px',
+                            fontSize: 12, lineHeight: '18px', padding: '1px 6px',
                             borderRadius: 4, whiteSpace: 'nowrap', overflow: 'hidden',
                             textOverflow: 'ellipsis', fontWeight: 500,
                           }}>
@@ -715,11 +760,15 @@ export default function Dashboard() {
             </div>
           </Card>
 
-          {/* Selected Date Detail */}
+          {/* ── RIGHT: Selected Date Detail Sidebar ── */}
           {selectedDate && (
-            <Card padding="lg" radius="lg" withBorder mt="md" style={{
+            <Card padding="lg" radius="lg" withBorder style={{
               borderColor: 'var(--mantine-color-blue-2)',
               background: 'linear-gradient(135deg, rgba(66, 99, 235, 0.02), rgba(255, 255, 255, 1))',
+              position: 'sticky',
+              top: 16,
+              maxHeight: 'calc(100vh - 120px)',
+              overflowY: 'auto',
             }}>
               <Group justify="space-between" mb="md">
                 <Group gap="sm">
@@ -806,6 +855,7 @@ export default function Dashboard() {
               )}
             </Card>
           )}
+          </div>
         </Tabs.Panel>
 
         {/* ═══════════════════════════════════════

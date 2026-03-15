@@ -1,4 +1,3 @@
-/* global process */
 /**
  * Monthly Tax Data Routes
  * Routes สำหรับการจัดการข้อมูลภาษีรายเดือน (Workflow System)

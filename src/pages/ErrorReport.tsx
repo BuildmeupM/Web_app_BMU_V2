@@ -13,7 +13,7 @@
 import { useState, useCallback, useMemo, useEffect } from 'react'
 import { useQuery, useQueryClient } from 'react-query'
 import {
-    Container, Title, Button, Group, Text, Badge, Card,
+    Title, Button, Group, Text, Badge, Card,
     Table, LoadingOverlay, ActionIcon, Tooltip, Box,
     SimpleGrid, UnstyledButton,
 } from '@mantine/core'
@@ -234,7 +234,7 @@ export default function ErrorReportPage() {
     }
 
     return (
-        <Container size="xl" py="lg">
+        <Box style={{ marginLeft: 'calc(var(--mantine-spacing-md) * -1)', marginRight: 'calc(var(--mantine-spacing-md) * -1)', marginTop: 'calc(var(--mantine-spacing-md) * -1)', marginBottom: 'calc(var(--mantine-spacing-md) * -1)', padding: 'var(--mantine-spacing-md)' }}>
             {/* Header */}
             <Card
                 withBorder
@@ -328,21 +328,21 @@ export default function ErrorReportPage() {
             {/* Reports Table */}
             <Card withBorder radius="lg" p={0} pos="relative" style={{ overflow: 'hidden' }}>
                 <LoadingOverlay visible={loading} />
-                <Box style={{ overflowX: 'auto' }}>
+                <Table.ScrollContainer minWidth={1400}>
                     <Table striped highlightOnHover withColumnBorders>
                         <Table.Thead>
                             <Table.Tr style={{ background: '#f8f9fa' }}>
-                                <Table.Th style={{ minWidth: 40 }}>#</Table.Th>
-                                <Table.Th style={{ minWidth: 100 }}>วันที่</Table.Th>
-                                <Table.Th style={{ minWidth: 160 }}>บริษัท</Table.Th>
-                                <Table.Th style={{ minWidth: 180 }}>หัวข้อผิดพลาด</Table.Th>
-                                <Table.Th style={{ minWidth: 140 }}>เดือนภาษี</Table.Th>
-                                <Table.Th style={{ minWidth: 100 }}>ฝ่ายผิดพลาด</Table.Th>
-                                <Table.Th style={{ minWidth: 100 }}>ค่าปรับ</Table.Th>
-                                <Table.Th style={{ minWidth: 100 }}>ผู้แจ้ง</Table.Th>
-                                <Table.Th style={{ minWidth: 90 }}>สถานะ</Table.Th>
-                                <Table.Th style={{ minWidth: 100 }}>วิ่งแมส</Table.Th>
-                                <Table.Th style={{ minWidth: 120 }}>จัดการ</Table.Th>
+                                <Table.Th style={{ minWidth: 50 }}>#</Table.Th>
+                                <Table.Th style={{ minWidth: 110 }}>วันที่</Table.Th>
+                                <Table.Th style={{ minWidth: 200 }}>บริษัท</Table.Th>
+                                <Table.Th style={{ minWidth: 240 }}>หัวข้อผิดพลาด</Table.Th>
+                                <Table.Th style={{ minWidth: 200 }}>เดือนภาษี</Table.Th>
+                                <Table.Th style={{ minWidth: 120 }}>ฝ่ายผิดพลาด</Table.Th>
+                                <Table.Th style={{ minWidth: 110 }}>ค่าปรับ</Table.Th>
+                                <Table.Th style={{ minWidth: 130 }}>ผู้แจ้ง</Table.Th>
+                                <Table.Th style={{ minWidth: 100 }}>สถานะ</Table.Th>
+                                <Table.Th style={{ minWidth: 110 }}>วิ่งแมส</Table.Th>
+                                <Table.Th style={{ minWidth: 140 }}>จัดการ</Table.Th>
                             </Table.Tr>
                         </Table.Thead>
                         <Table.Tbody>
@@ -363,13 +363,13 @@ export default function ErrorReportPage() {
                                             <Table.Td>{idx + 1}</Table.Td>
                                             <Table.Td>{r.report_date ? new Date(r.report_date).toLocaleDateString('th-TH') : '-'}</Table.Td>
                                             <Table.Td>
-                                                <Text size="sm" fw={500} lineClamp={1}>{r.client_name}</Text>
+                                                <Text size="sm" fw={500}>{r.client_name}</Text>
                                             </Table.Td>
                                             <Table.Td>
-                                                <Text size="xs" lineClamp={2}>{getErrorTypeLabels(errorTypes)}</Text>
+                                                <Text size="xs">{getErrorTypeLabels(errorTypes)}</Text>
                                             </Table.Td>
                                             <Table.Td>
-                                                <Text size="xs" lineClamp={2}>{getTaxMonthLabels(taxMonths)}</Text>
+                                                <Text size="xs">{getTaxMonthLabels(taxMonths)}</Text>
                                             </Table.Td>
                                             <Table.Td>
                                                 <Badge
@@ -386,7 +386,7 @@ export default function ErrorReportPage() {
                                                 </Text>
                                             </Table.Td>
                                             <Table.Td>
-                                                <Text size="xs" lineClamp={1}>{r.accountant_name}</Text>
+                                                <Text size="sm">{r.accountant_name}</Text>
                                             </Table.Td>
                                             <Table.Td>
                                                 <Badge color={statusCfg.color} variant="light" size="sm">
@@ -453,7 +453,7 @@ export default function ErrorReportPage() {
                             )}
                         </Table.Tbody>
                     </Table>
-                </Box>
+                </Table.ScrollContainer>
             </Card>
 
             {/* Extracted Modals */}
@@ -494,6 +494,6 @@ export default function ErrorReportPage() {
                 onClose={() => setDeleteConfirmId(null)}
                 onConfirm={confirmDelete}
             />
-        </Container>
+        </Box>
     )
 }

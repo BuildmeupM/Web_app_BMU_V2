@@ -77,10 +77,26 @@ export interface AttendanceDashboardData {
     probation_ending: ProbationEmployee[]
 }
 
+export interface BirthdayCalendarEmployee {
+    employee_id: string
+    first_name: string
+    nick_name: string | null
+    birth_date: string
+    birth_day: number
+    profile_image: string | null
+}
+
 export const attendanceDashboardService = {
     getDashboard: async (date?: string): Promise<AttendanceDashboardData> => {
         const params = date ? `?date=${date}` : ''
         const response = await api.get(`/attendance-dashboard${params}`)
+        return response.data.data
+    },
+
+    getBirthdays: async (month: number): Promise<BirthdayCalendarEmployee[]> => {
+        const response = await api.get<{ success: boolean; data: BirthdayCalendarEmployee[] }>(
+            `/attendance-dashboard/birthdays?month=${month}`
+        )
         return response.data.data
     },
 }

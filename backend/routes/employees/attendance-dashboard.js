@@ -19,7 +19,6 @@ router.get('/', authenticateToken, async (req, res) => {
     try {
         const { date } = req.query
         const targetDate = date || new Date().toISOString().split('T')[0]
-        const targetMonth = targetDate.substring(0, 7) // YYYY-MM
 
         // 1. Get all active employees
         const [employees] = await pool.execute(
@@ -181,6 +180,42 @@ router.get('/', authenticateToken, async (req, res) => {
             success: false,
             message: 'Internal server error',
         })
+    }
+})
+
+/**
+ * GET /api/attendance-dashboard/birthdays
+ * ดึงข้อมูลวันเกิดพนักงาน active ตามเดือน (สำหรับปฏิทิน)
+ * Query: month=1-12 (required)
+ */
+router.get('/birthdays', authenticateToken, async (req, res) => {
+    try {
+        const { month } = req.query
+
+        if (!month || isNaN(Number(month)) || Number(month) < 1 || Number(month) > 12) {
+            return res.status(400).json({ success: false, message: 'Invalid month parameter (1-12)' })
+        }
+
+        const [birthdays] = await pool.execute(
+            `SELECT 
+                employee_id,
+                first_name,
+                nick_name,
+                DATE_FORMAT(birth_date, '%Y-%m-%d') as birth_date,
+                DAY(birth_date) as birth_day,
+                profile_image
+            FROM employees
+            WHERE status = 'active' AND deleted_at IS NULL
+                AND birth_date IS NOT NULL
+                AND MONTH(birth_date) = ?
+            ORDER BY DAY(birth_date) ASC`,
+            [Number(month)]
+        )
+
+        res.json({ success: true, data: birthdays })
+    } catch (error) {
+        console.error('Get birthdays error:', error)
+        res.status(500).json({ success: false, message: 'Internal server error' })
     }
 })
 

@@ -55,11 +55,11 @@ export default function WorkAssignment() {
   const [viewMode, setViewMode] = useState<'current' | 'previous'>('current')
 
   // Filter-by-responsible
-  const [filterByAccounting] = useState<string | null>(null)
-  const [filterByTaxInspection] = useState<string | null>(null)
-  const [filterByWht] = useState<string | null>(null)
-  const [filterByVat] = useState<string | null>(null)
-  const [filterByDocumentEntry] = useState<string | null>(null)
+  const [filterByAccounting, setFilterByAccounting] = useState<string | null>(null)
+  const [filterByTaxInspection, setFilterByTaxInspection] = useState<string | null>(null)
+  const [filterByWht, setFilterByWht] = useState<string | null>(null)
+  const [filterByVat, setFilterByVat] = useState<string | null>(null)
+  const [filterByDocumentEntry, setFilterByDocumentEntry] = useState<string | null>(null)
 
   // ── Modal State ───────────────────────────────────────────────────
   const [formOpened, setFormOpened] = useState(false)
@@ -539,6 +539,38 @@ export default function WorkAssignment() {
                 </Stack>
               </Grid.Col>
             </Grid>
+            <Grid mt="xs">
+              <Grid.Col span={{ base: 12, sm: 6, md: 2.4 }}>
+                <Stack gap={4}>
+                  <Text size="xs" c="dimmed" fw={500}>ทำบัญชี</Text>
+                  <Select placeholder="ทั้งหมด" data={queries.accountingUserOptions} value={filterByAccounting} onChange={setFilterByAccounting} clearable searchable radius="lg" nothingFoundMessage="ไม่พบพนักงาน" />
+                </Stack>
+              </Grid.Col>
+              <Grid.Col span={{ base: 12, sm: 6, md: 2.4 }}>
+                <Stack gap={4}>
+                  <Text size="xs" c="dimmed" fw={500}>ตรวจภาษี</Text>
+                  <Select placeholder="ทั้งหมด" data={queries.taxInspectionUserOptions} value={filterByTaxInspection} onChange={setFilterByTaxInspection} clearable searchable radius="lg" nothingFoundMessage="ไม่พบพนักงาน" />
+                </Stack>
+              </Grid.Col>
+              <Grid.Col span={{ base: 12, sm: 6, md: 2.4 }}>
+                <Stack gap={4}>
+                  <Text size="xs" c="dimmed" fw={500}>ยื่น WHT</Text>
+                  <Select placeholder="ทั้งหมด" data={queries.filingUserOptions} value={filterByWht} onChange={setFilterByWht} clearable searchable radius="lg" nothingFoundMessage="ไม่พบพนักงาน" />
+                </Stack>
+              </Grid.Col>
+              <Grid.Col span={{ base: 12, sm: 6, md: 2.4 }}>
+                <Stack gap={4}>
+                  <Text size="xs" c="dimmed" fw={500}>ยื่น VAT</Text>
+                  <Select placeholder="ทั้งหมด" data={queries.filingUserOptions} value={filterByVat} onChange={setFilterByVat} clearable searchable radius="lg" nothingFoundMessage="ไม่พบพนักงาน" />
+                </Stack>
+              </Grid.Col>
+              <Grid.Col span={{ base: 12, sm: 6, md: 2.4 }}>
+                <Stack gap={4}>
+                  <Text size="xs" c="dimmed" fw={500}>คีย์เอกสาร</Text>
+                  <Select placeholder="ทั้งหมด" data={queries.documentEntryUserOptions} value={filterByDocumentEntry} onChange={setFilterByDocumentEntry} clearable searchable radius="lg" nothingFoundMessage="ไม่พบพนักงาน" />
+                </Stack>
+              </Grid.Col>
+            </Grid>
           </Stack>
         </Card>
 
@@ -556,6 +588,9 @@ export default function WorkAssignment() {
           handleReset={(a) => { setSelectedAssignment(a); setResetConfirmOpened(true) }}
           onChangeResponsible={(a) => { setChangeResponsibleAssignment(a); setChangeResponsibleOpened(true) }}
           onDeleteAssignment={(a) => { setDeleteAssignment(a); setDeleteConfirmOpened(true) }}
+          selectedIds={selectedAssignmentIds}
+          onSelectionChange={setSelectedAssignmentIds}
+          onBulkChangeClick={() => setBulkChangeOpened(true)}
           year={year}
           month={month}
           getViewMonth={getViewMonth}
